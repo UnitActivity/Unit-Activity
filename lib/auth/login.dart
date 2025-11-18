@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:unit_activity/auth/register.dart';
-import 'package:unit_activity/auth/forgot_password.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -28,23 +26,21 @@ class _LoginPageState extends State<LoginPage> {
       // TODO: Implement login logic
       print('Email: ${_emailController.text}');
       print('Password: ${_passwordController.text}');
+
+      // Demo: Navigate to admin
+      // Ganti ini dengan logic authentication yang sesungguhnya
+      Navigator.pushReplacementNamed(context, '/admin');
     }
   }
 
   void _handleForgotPassword() {
     // Navigate to forgot password page
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const ForgotPasswordPage()),
-    );
+    Navigator.pushNamed(context, '/forgot-password');
   }
 
   void _handleRegister() {
     // Navigate to register page
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const RegisterPage()),
-    );
+    Navigator.pushNamed(context, '/register');
   }
 
   @override
