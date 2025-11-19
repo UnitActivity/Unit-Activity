@@ -163,7 +163,7 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
                 ),
                 _buildStatCard(
                   title: 'Total Mahasiswa',
-                  value: '12500',
+                  value: '1250',
                   icon: Icons.people,
                   color: const Color(0xFF10B981),
                 ),
