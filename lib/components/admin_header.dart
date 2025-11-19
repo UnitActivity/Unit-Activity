@@ -105,19 +105,6 @@ class AdminHeader extends StatelessWidget {
             ],
           ),
         ),
-        PopupMenuItem<String>(
-          value: 'settings',
-          child: Row(
-            children: [
-              Icon(Icons.settings_outlined, size: 20, color: Colors.grey[700]),
-              const SizedBox(width: 12),
-              Text(
-                'Pengaturan',
-                style: GoogleFonts.inter(fontSize: 14, color: Colors.black87),
-              ),
-            ],
-          ),
-        ),
         const PopupMenuDivider(),
         PopupMenuItem<String>(
           value: 'logout',
@@ -126,7 +113,7 @@ class AdminHeader extends StatelessWidget {
               const Icon(Icons.logout, size: 20, color: Colors.red),
               const SizedBox(width: 12),
               Text(
-                'Keluar',
+                'Log Out',
                 style: GoogleFonts.inter(
                   fontSize: 14,
                   color: Colors.red,
@@ -142,8 +129,6 @@ class AdminHeader extends StatelessWidget {
           onLogout!();
         } else if (value == 'profile') {
           // TODO: Navigate to profile
-        } else if (value == 'settings') {
-          // TODO: Navigate to settings
         }
       },
     );
