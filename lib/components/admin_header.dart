@@ -67,7 +67,7 @@ class AdminHeader extends StatelessWidget {
   Widget _buildWelcomeText() {
     return RichText(
       text: TextSpan(
-        text: 'Selamat Datang, ',
+        text: 'Welcome, ',
         style: GoogleFonts.inter(fontSize: 16, color: Colors.black87),
         children: [
           TextSpan(
