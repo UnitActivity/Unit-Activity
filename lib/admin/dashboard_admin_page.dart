@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:unit_activity/components/admin_sidebar.dart';
+import 'package:unit_activity/admin/pengguna_page.dart';
 
 class DashboardAdminPage extends StatefulWidget {
   const DashboardAdminPage({super.key});
@@ -175,7 +176,7 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
       case 'dashboard':
         return _buildDashboardContent();
       case 'pengguna':
-        return _buildPlaceholderContent('Pengguna');
+        return const PenggunaPage();
       case 'ukm':
         return _buildPlaceholderContent('UKM');
       case 'event':
