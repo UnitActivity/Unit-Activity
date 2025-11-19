@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:unit_activity/components/admin_sidebar.dart';
-import 'package:unit_activity/admin/pengguna_page.dart';
+import 'package:unit_activity/admin/pengguna.dart';
 
 class DashboardAdminPage extends StatefulWidget {
   const DashboardAdminPage({super.key});

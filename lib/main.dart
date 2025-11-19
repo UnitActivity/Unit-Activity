@@ -6,7 +6,7 @@ import 'package:device_preview/device_preview.dart';
 import 'package:unit_activity/auth/login.dart';
 import 'package:unit_activity/auth/register.dart';
 import 'package:unit_activity/auth/forgot_password.dart';
-import 'package:unit_activity/admin/dashboard_admin_page.dart';
+import 'package:unit_activity/admin/dashboard_admin.dart';
 import 'package:unit_activity/config/config.dart';
 
 Future<void> main() async {
