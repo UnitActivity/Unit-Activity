@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:unit_activity/components/admin_sidebar.dart';
+import 'package:unit_activity/components/admin_header.dart';
 import 'package:unit_activity/admin/pengguna.dart';
+import 'package:unit_activity/admin/ukm.dart';
 
 class DashboardAdminPage extends StatefulWidget {
   const DashboardAdminPage({super.key});
@@ -77,90 +79,31 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
 
           // Main Content
           Expanded(
-            child: Column(
+            child: Stack(
               children: [
-                // Top Bar
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 16,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 4,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      // Hamburger menu for mobile
-                      if (!isDesktop)
-                        IconButton(
-                          icon: const Icon(Icons.menu),
-                          onPressed: () {
-                            _scaffoldKey.currentState?.openDrawer();
-                          },
-                        ),
-
-                      // Welcome Text
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            RichText(
-                              text: const TextSpan(
-                                text: 'Selamat Datang, ',
-                                style: TextStyle(
-                                  fontSize: 20,
-                                  color: Colors.black87,
-                                ),
-                                children: [
-                                  TextSpan(
-                                    text: 'Admin',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.black,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      // Period Badge
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE8F0FE),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          'Periode 2025.1',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF4169E1),
-                          ),
-                        ),
-                      ),
-                    ],
+                // Content Area
+                Positioned.fill(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.only(
+                      left: 24,
+                      right: 24,
+                      top: 100, // Space for floating header
+                      bottom: 24,
+                    ),
+                    child: _buildContent(),
                   ),
                 ),
 
-                // Content Area
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(24),
-                    child: _buildContent(),
+                // Floating Header
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: AdminHeader(
+                    onMenuPressed: () {
+                      _scaffoldKey.currentState?.openDrawer();
+                    },
+                    onLogout: _handleLogout,
                   ),
                 ),
               ],
@@ -178,7 +121,7 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
       case 'pengguna':
         return const PenggunaPage();
       case 'ukm':
-        return _buildPlaceholderContent('UKM');
+        return const UkmPage();
       case 'event':
         return _buildPlaceholderContent('Event');
       case 'periode':
