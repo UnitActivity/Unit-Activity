@@ -82,39 +82,7 @@ class AdminSidebar extends StatelessWidget {
                   isSelected: selectedMenu == 'informasi',
                   onTap: () => onMenuSelected('informasi'),
                 ),
-                _buildMenuItem(
-                  icon: Icons.person_outline,
-                  title: 'Akun',
-                  value: 'akun',
-                  isSelected: selectedMenu == 'akun',
-                  onTap: () => onMenuSelected('akun'),
-                ),
               ],
-            ),
-          ),
-
-          // Logout Button
-          Container(
-            padding: const EdgeInsets.all(16),
-            child: SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton.icon(
-                onPressed: onLogout,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                icon: const Icon(Icons.logout, size: 20),
-                label: const Text(
-                  'Log Out',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                ),
-              ),
             ),
           ),
         ],
