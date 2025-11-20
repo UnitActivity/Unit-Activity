@@ -1,7 +1,9 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'email_api_service.dart';
 
 class RegisterService {
   final SupabaseClient _supabase = Supabase.instance.client;
+  final EmailApiService _emailService = EmailApiService();
 
   /// Register new user
   Future<Map<String, dynamic>> registerUser({
@@ -122,6 +124,19 @@ class RegisterService {
           'expired_at': expiredAt.toIso8601String(),
           'create_at': DateTime.now().toIso8601String(),
         });
+
+        // ========== KIRIM EMAIL VERIFIKASI ==========
+        final emailResult = await _emailService.sendVerificationEmail(
+          email: email,
+          code: verificationCode,
+        );
+
+        if (!emailResult['success']) {
+          print(
+            'Warning: Failed to send verification email: ${emailResult['error']}',
+          );
+          // Tidak return error karena user sudah terdaftar dan kode sudah tersimpan
+        }
       } catch (e) {
         print('Error creating verification code: $e');
         // Tidak return error karena user sudah terdaftar

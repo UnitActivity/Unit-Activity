@@ -1,7 +1,9 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'email_api_service.dart';
 
 class PasswordResetService {
   final SupabaseClient _supabase = Supabase.instance.client;
+  final EmailApiService _emailService = EmailApiService();
 
   /// Request password reset
   Future<Map<String, dynamic>> requestPasswordReset(String email) async {
@@ -51,6 +53,19 @@ class PasswordResetService {
         'expired_at': expiredAt.toIso8601String(),
         'create_at': DateTime.now().toIso8601String(),
       });
+
+      // ========== KIRIM EMAIL RESET PASSWORD ==========
+      final emailResult = await _emailService.sendPasswordResetEmail(
+        email: email,
+        code: resetCode,
+      );
+
+      if (!emailResult['success']) {
+        print(
+          'Warning: Failed to send password reset email: ${emailResult['error']}',
+        );
+        // Tidak return error karena kode sudah tersimpan
+      }
 
       // ========== RESPONSE SUCCESS ==========
       return {

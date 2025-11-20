@@ -575,29 +575,6 @@ class _RegisterPageState extends State<RegisterPage> {
                             ],
                           ),
 
-                          // Verification Code Display (for testing)
-                          if (_isCodeSent && _verificationCode != null)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: Colors.blue[50],
-                                  borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(color: Colors.blue[200]!),
-                                ),
-                                child: Text(
-                                  'Kode (Testing): $_verificationCode',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.blue[900],
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ),
-                            ),
-
                           // Verification Code Input (6 boxes)
                           if (_isCodeSent && !_isEmailVerified)
                             Padding(

@@ -1,13 +1,30 @@
+import 'dart:math';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'email_api_service.dart';
 
 class EmailVerificationService {
   final SupabaseClient _supabase = Supabase.instance.client;
+  final EmailApiService _emailService = EmailApiService();
+
+  /// Generate random 6-character verification code (alphanumeric)
+  String _generateVerificationCode() {
+    const chars =
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    final random = Random.secure();
+    return List.generate(
+      6,
+      (index) => chars[random.nextInt(chars.length)],
+    ).join();
+  }
 
   /// Verify email with verification code
   Future<Map<String, dynamic>> verifyEmail(String email, String code) async {
     try {
       // ========== VALIDASI INPUT ==========
-      if (email.isEmpty || code.isEmpty) {
+      final trimmedEmail = email.trim().toLowerCase();
+      final trimmedCode = code.trim();
+
+      if (trimmedEmail.isEmpty || trimmedCode.isEmpty) {
         return {
           'success': false,
           'error': 'Email dan kode verifikasi wajib diisi',
@@ -19,8 +36,8 @@ class EmailVerificationService {
       final verification = await _supabase
           .from('email_verifikasi')
           .select()
-          .eq('email', email)
-          .eq('code', code)
+          .eq('email', trimmedEmail)
+          .eq('code', trimmedCode)
           .eq('is_verified', false)
           .maybeSingle();
 
@@ -51,8 +68,8 @@ class EmailVerificationService {
             'is_verified': true,
             'verified_at': DateTime.now().toIso8601String(),
           })
-          .eq('email', email)
-          .eq('code', code);
+          .eq('email', trimmedEmail)
+          .eq('code', trimmedCode);
 
       // ========== RESPONSE SUCCESS ==========
       return {
@@ -81,11 +98,14 @@ class EmailVerificationService {
         };
       }
 
+      // Normalisasi email
+      final trimmedEmail = email.trim().toLowerCase();
+
       // ========== CEK APAKAH EMAIL SUDAH TERVERIFIKASI ==========
       final verification = await _supabase
           .from('email_verifikasi')
           .select('is_verified')
-          .eq('email', email)
+          .eq('email', trimmedEmail)
           .maybeSingle();
 
       if (verification != null && verification['is_verified'] == true) {
@@ -100,7 +120,7 @@ class EmailVerificationService {
       final user = await _supabase
           .from('users')
           .select('email')
-          .eq('email', email)
+          .eq('email', trimmedEmail)
           .maybeSingle();
 
       if (user == null) {
@@ -109,13 +129,7 @@ class EmailVerificationService {
       }
 
       // ========== GENERATE KODE BARU ==========
-      final verificationCode =
-          (100000 +
-                  (900000 *
-                          (DateTime.now().millisecondsSinceEpoch % 1000) /
-                          1000)
-                      .floor())
-              .toString();
+      final verificationCode = _generateVerificationCode();
       final expiredAt = DateTime.now().add(const Duration(minutes: 5));
 
       // ========== DELETE KODE LAMA DAN INSERT KODE BARU ==========
@@ -123,17 +137,30 @@ class EmailVerificationService {
       await _supabase
           .from('email_verifikasi')
           .delete()
-          .eq('email', email)
+          .eq('email', trimmedEmail)
           .eq('is_verified', false);
 
       // Insert kode baru
       await _supabase.from('email_verifikasi').insert({
-        'email': email,
+        'email': trimmedEmail,
         'code': verificationCode,
         'is_verified': false,
         'expired_at': expiredAt.toIso8601String(),
         'create_at': DateTime.now().toIso8601String(),
       });
+
+      // ========== KIRIM EMAIL VERIFIKASI ==========
+      final emailResult = await _emailService.sendVerificationEmail(
+        email: trimmedEmail,
+        code: verificationCode,
+      );
+
+      if (!emailResult['success']) {
+        print(
+          'Warning: Failed to send verification email: ${emailResult['error']}',
+        );
+        // Tidak return error karena kode sudah tersimpan
+      }
 
       // ========== RESPONSE SUCCESS ==========
       return {
