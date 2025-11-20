@@ -31,11 +31,11 @@ class _RegisterPageState extends State<RegisterPage> {
 
   bool _obscurePassword = true;
   bool _isLoading = false;
+  bool _isSendingCode = false;
   bool _isCodeSent = false;
   bool _isVerifying = false;
   bool _isEmailVerified = false;
   int _countdown = 0;
-  String? _verificationCode;
   Timer? _countdownTimer;
 
   @override
@@ -85,16 +85,31 @@ class _RegisterPageState extends State<RegisterPage> {
     }
 
     setState(() {
-      _isLoading = true;
+      _isSendingCode = true;
     });
 
     try {
+      // Cek apakah email sudah terdaftar
+      final checkEmail = await _authService.checkEmailExists(
+        _emailController.text.trim(),
+      );
+
+      if (checkEmail['exists'] == true) {
+        setState(() {
+          _isSendingCode = false;
+        });
+        _showErrorDialog(
+          'Email sudah terdaftar. Silakan gunakan email lain atau login.',
+        );
+        return;
+      }
+
       final result = await _authService.resendVerificationCode(
         _emailController.text.trim(),
       );
 
       setState(() {
-        _isLoading = false;
+        _isSendingCode = false;
       });
 
       if (!mounted) return;
@@ -102,7 +117,6 @@ class _RegisterPageState extends State<RegisterPage> {
       if (result['success'] == true) {
         setState(() {
           _isCodeSent = true;
-          _verificationCode = result['data']['verification_code'];
         });
 
         _startCountdown();
@@ -118,7 +132,7 @@ class _RegisterPageState extends State<RegisterPage> {
       }
     } catch (e) {
       setState(() {
-        _isLoading = false;
+        _isSendingCode = false;
       });
       _showErrorDialog('Terjadi kesalahan saat mengirim kode verifikasi');
     }
@@ -175,9 +189,47 @@ class _RegisterPageState extends State<RegisterPage> {
         return;
       }
 
+      // Validasi password dengan pop-up
+      final password = _passwordController.text;
+      if (password.isEmpty) {
+        _showErrorDialog('Silakan masukkan password');
+        return;
+      }
+      if (password.length < 8) {
+        _showErrorDialog('Password minimal 8 karakter');
+        return;
+      }
+      if (!RegExp(r'[A-Z]').hasMatch(password)) {
+        _showErrorDialog('Password harus mengandung minimal 1 huruf kapital');
+        return;
+      }
+      if (!RegExp(r'[0-9]').hasMatch(password)) {
+        _showErrorDialog('Password harus mengandung minimal 1 angka');
+        return;
+      }
+      if (!RegExp(r'[!@#\$%^&*]').hasMatch(password)) {
+        _showErrorDialog(
+          'Password harus mengandung minimal 1 simbol (!@#\$%^&*)',
+        );
+        return;
+      }
+
       setState(() {
         _isLoading = true;
       });
+
+      // Cek apakah NIM sudah terdaftar
+      final checkNim = await _authService.checkNimExists(
+        _nimController.text.trim(),
+      );
+
+      if (checkNim['exists'] == true) {
+        setState(() {
+          _isLoading = false;
+        });
+        _showErrorDialog('NIM sudah terdaftar. Silakan gunakan NIM lain.');
+        return;
+      }
 
       final result = await _authService.registerUser(
         username: _fullnameController.text.trim(),
@@ -272,16 +324,18 @@ class _RegisterPageState extends State<RegisterPage> {
 
   Widget _buildVerificationCodeInput(int index) {
     return SizedBox(
-      width: 45,
+      width: 38,
       height: 56,
       child: TextFormField(
         controller: _codeControllers[index],
         focusNode: _codeFocusNodes[index],
-        keyboardType: TextInputType.number,
+        keyboardType: TextInputType.text,
         textAlign: TextAlign.center,
         maxLength: 1,
-        style: GoogleFonts.inter(fontSize: 24, fontWeight: FontWeight.bold),
-        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.bold),
+        inputFormatters: [
+          FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
+        ],
         decoration: InputDecoration(
           counterText: '',
           filled: true,
@@ -426,6 +480,9 @@ class _RegisterPageState extends State<RegisterPage> {
                           TextFormField(
                             controller: _nimController,
                             keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
                             decoration: InputDecoration(
                               hintText: 'NIM',
                               hintStyle: TextStyle(color: Colors.grey[400]),
@@ -458,6 +515,9 @@ class _RegisterPageState extends State<RegisterPage> {
                             validator: (value) {
                               if (value == null || value.isEmpty) {
                                 return 'Silakan masukkan NIM';
+                              }
+                              if (!RegExp(r'^[0-9]+$').hasMatch(value)) {
+                                return 'NIM hanya boleh berisi angka';
                               }
                               return null;
                             },
@@ -529,12 +589,12 @@ class _RegisterPageState extends State<RegisterPage> {
                               ),
                               const SizedBox(width: 12),
                               SizedBox(
-                                height: 48,
+                                height: 56,
                                 child: ElevatedButton(
                                   onPressed:
                                       (_countdown > 0 ||
                                           _isEmailVerified ||
-                                          _isLoading)
+                                          _isSendingCode)
                                       ? null
                                       : _sendVerificationCode,
                                   style: ElevatedButton.styleFrom(
@@ -550,7 +610,7 @@ class _RegisterPageState extends State<RegisterPage> {
                                       horizontal: 16,
                                     ),
                                   ),
-                                  child: _isLoading
+                                  child: _isSendingCode
                                       ? const SizedBox(
                                           height: 20,
                                           width: 20,
@@ -596,8 +656,11 @@ class _RegisterPageState extends State<RegisterPage> {
                                         MainAxisAlignment.spaceBetween,
                                     children: List.generate(
                                       6,
-                                      (index) =>
-                                          _buildVerificationCodeInput(index),
+                                      (index) => Flexible(
+                                        child: _buildVerificationCodeInput(
+                                          index,
+                                        ),
+                                      ),
                                     ),
                                   ),
                                   if (_isVerifying)
@@ -665,15 +728,6 @@ class _RegisterPageState extends State<RegisterPage> {
                                 },
                               ),
                             ),
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Silakan masukkan password';
-                              }
-                              if (value.length < 6) {
-                                return 'Password minimal 6 karakter';
-                              }
-                              return null;
-                            },
                           ),
                           const SizedBox(height: 32),
 

@@ -1,9 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'email_api_service.dart';
 
 class RegisterService {
   final SupabaseClient _supabase = Supabase.instance.client;
-  final EmailApiService _emailService = EmailApiService();
 
   /// Register new user
   Future<Map<String, dynamic>> registerUser({
@@ -68,11 +66,12 @@ class RegisterService {
         };
       }
 
-      // ========== REGISTRASI KE SUPABASE AUTH ==========
+      // ========== REGISTRASI KE SUPABASE AUTH (TANPA EMAIL CONFIRMATION) ==========
       final authResponse = await _supabase.auth.signUp(
         email: email,
         password: password,
         data: {'username': username, 'nim': nim},
+        emailRedirectTo: null, // Nonaktifkan email redirect
       );
 
       if (authResponse.user == null) {
@@ -96,8 +95,8 @@ class RegisterService {
         });
       } catch (e) {
         // Rollback: hapus user dari auth jika insert gagal
-        await _supabase.auth.admin.deleteUser(authResponse.user!.id);
-
+        // await _supabase.auth.admin.deleteUser(authResponse.user!.id);
+        print('Error inserting user: $e');
         return {
           'success': false,
           'error': 'Gagal menyimpan data user: ${e.toString()}',
@@ -105,55 +104,31 @@ class RegisterService {
         };
       }
 
-      // ========== GENERATE VERIFICATION CODE ==========
-      final verificationCode =
-          (100000 +
-                  (900000 *
-                          (DateTime.now().millisecondsSinceEpoch % 1000) /
-                          1000)
-                      .floor())
-              .toString();
-      final expiredAt = DateTime.now().add(const Duration(hours: 24));
-
-      // Insert ke tabel email_verifikasi
+      // ========== UPDATE STATUS VERIFIKASI EMAIL ==========
+      // Update status is_verified menjadi true karena user sudah verifikasi sebelum register
       try {
-        await _supabase.from('email_verifikasi').insert({
-          'email': email,
-          'code': verificationCode,
-          'is_verified': false,
-          'expired_at': expiredAt.toIso8601String(),
-          'create_at': DateTime.now().toIso8601String(),
-        });
-
-        // ========== KIRIM EMAIL VERIFIKASI ==========
-        final emailResult = await _emailService.sendVerificationEmail(
-          email: email,
-          code: verificationCode,
-        );
-
-        if (!emailResult['success']) {
-          print(
-            'Warning: Failed to send verification email: ${emailResult['error']}',
-          );
-          // Tidak return error karena user sudah terdaftar dan kode sudah tersimpan
-        }
+        await _supabase
+            .from('email_verifikasi')
+            .update({
+              'is_verified': true,
+              'verified_at': DateTime.now().toIso8601String(),
+            })
+            .eq('email', email.trim().toLowerCase())
+            .eq('is_verified', true); // Hanya update yang sudah verified
       } catch (e) {
-        print('Error creating verification code: $e');
-        // Tidak return error karena user sudah terdaftar
+        print('Error updating verification status: $e');
       }
 
       // ========== RESPONSE SUCCESS ==========
       return {
         'success': true,
-        'message':
-            'Registrasi berhasil! Silakan cek email untuk verifikasi akun.',
+        'message': 'Registrasi berhasil! Silakan login untuk melanjutkan.',
         'data': {
           'id_user': authResponse.user!.id,
           'username': username,
           'email': email,
           'nim': nim,
           'picture': picture,
-          'verification_code': verificationCode, // Untuk testing
         },
         'code': 'SUCCESS',
       };
@@ -164,6 +139,44 @@ class RegisterService {
         'success': false,
         'error': 'Terjadi kesalahan saat registrasi: ${e.toString()}',
         'code': 'SERVER_ERROR',
+      };
+    }
+  }
+
+  /// Check if email already exists
+  Future<Map<String, dynamic>> checkEmailExists(String email) async {
+    try {
+      final result = await _supabase
+          .from('users')
+          .select('email')
+          .eq('email', email.trim().toLowerCase())
+          .maybeSingle();
+
+      return {'success': true, 'exists': result != null};
+    } catch (e) {
+      return {
+        'success': false,
+        'error': 'Terjadi kesalahan saat mengecek email',
+        'exists': false,
+      };
+    }
+  }
+
+  /// Check if NIM already exists
+  Future<Map<String, dynamic>> checkNimExists(String nim) async {
+    try {
+      final result = await _supabase
+          .from('users')
+          .select('nim')
+          .eq('nim', nim.trim())
+          .maybeSingle();
+
+      return {'success': true, 'exists': result != null};
+    } catch (e) {
+      return {
+        'success': false,
+        'error': 'Terjadi kesalahan saat mengecek NIM',
+        'exists': false,
       };
     }
   }

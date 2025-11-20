@@ -7,14 +7,31 @@ class EmailVerificationService {
   final EmailApiService _emailService = EmailApiService();
 
   /// Generate random 6-character verification code (alphanumeric)
+  /// Dipastikan mengandung minimal: 1 huruf besar, 1 huruf kecil, 1 angka
   String _generateVerificationCode() {
-    const chars =
-        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+    const numbers = '0123456789';
     final random = Random.secure();
-    return List.generate(
-      6,
-      (index) => chars[random.nextInt(chars.length)],
-    ).join();
+
+    // Pastikan ada minimal 1 dari setiap kategori
+    final List<String> code = [
+      uppercase[random.nextInt(uppercase.length)], // 1 huruf besar
+      lowercase[random.nextInt(lowercase.length)], // 1 huruf kecil
+      numbers[random.nextInt(numbers.length)], // 1 angka
+    ];
+
+    // Isi 3 karakter sisanya dengan random dari semua kategori
+    const allChars =
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    for (int i = 0; i < 3; i++) {
+      code.add(allChars[random.nextInt(allChars.length)]);
+    }
+
+    // Acak urutan karakter
+    code.shuffle(random);
+
+    return code.join();
   }
 
   /// Verify email with verification code
@@ -132,13 +149,12 @@ class EmailVerificationService {
       final verificationCode = _generateVerificationCode();
       final expiredAt = DateTime.now().add(const Duration(minutes: 5));
 
-      // ========== DELETE KODE LAMA DAN INSERT KODE BARU ==========
-      // Delete kode lama
+      // ========== DELETE SEMUA KODE LAMA (VERIFIED & UNVERIFIED) ==========
+      // Hapus semua record dengan email yang sama untuk menghindari duplikasi
       await _supabase
           .from('email_verifikasi')
           .delete()
-          .eq('email', trimmedEmail)
-          .eq('is_verified', false);
+          .eq('email', trimmedEmail);
 
       // Insert kode baru
       await _supabase.from('email_verifikasi').insert({

@@ -37,6 +37,14 @@ class AuthService {
     return _emailVerificationService.resendVerificationCode(email);
   }
 
+  Future<Map<String, dynamic>> checkEmailExists(String email) {
+    return _registerService.checkEmailExists(email);
+  }
+
+  Future<Map<String, dynamic>> checkNimExists(String nim) {
+    return _registerService.checkNimExists(nim);
+  }
+
   // ========== LOGIN METHODS ==========
   Future<Map<String, dynamic>> loginUser({
     required String email,

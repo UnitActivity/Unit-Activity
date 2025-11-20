@@ -63,7 +63,7 @@ function getVerificationEmailTemplate(code) {
                     <tr>
                         <td style="background-color: #f8f9fa; padding: 20px 30px; border-top: 1px solid #e9ecef;">
                             <p style="color: #999999; margin: 0; font-size: 12px; text-align: center;">
-                                © 2024 Unit Activity UKDC. All rights reserved.
+                                © 2025 Unit Activity UKDC. All rights reserved.
                             </p>
                         </td>
                     </tr>
@@ -139,7 +139,7 @@ function getPasswordResetEmailTemplate(code) {
                     <tr>
                         <td style="background-color: #f8f9fa; padding: 20px 30px; border-top: 1px solid #e9ecef;">
                             <p style="color: #999999; margin: 0; font-size: 12px; text-align: center;">
-                                © 2024 Unit Activity UKDC. All rights reserved.
+                                © 2025 Unit Activity UKDC. All rights reserved.
                             </p>
                         </td>
                     </tr>
