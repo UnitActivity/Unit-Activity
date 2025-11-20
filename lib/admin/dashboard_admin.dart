@@ -3,6 +3,9 @@ import 'package:unit_activity/components/admin_sidebar.dart';
 import 'package:unit_activity/components/admin_header.dart';
 import 'package:unit_activity/admin/pengguna.dart';
 import 'package:unit_activity/admin/ukm.dart';
+import 'package:unit_activity/admin/event.dart';
+import 'package:unit_activity/admin/periode.dart';
+import 'package:unit_activity/admin/informasi.dart';
 
 class DashboardAdminPage extends StatefulWidget {
   const DashboardAdminPage({super.key});
@@ -123,13 +126,11 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
       case 'ukm':
         return const UkmPage();
       case 'event':
-        return _buildPlaceholderContent('Event');
+        return const EventPage();
       case 'periode':
-        return _buildPlaceholderContent('Periode');
+        return const PeriodePage();
       case 'informasi':
-        return _buildPlaceholderContent('Informasi');
-      case 'akun':
-        return _buildPlaceholderContent('Akun');
+        return const InformasiPage();
       default:
         return _buildDashboardContent();
     }
