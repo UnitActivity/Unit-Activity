@@ -38,6 +38,12 @@ class _RegisterPageState extends State<RegisterPage> {
   int _countdown = 0;
   Timer? _countdownTimer;
 
+  // Password validation states
+  bool _hasMinLength = false;
+  bool _hasUppercase = false;
+  bool _hasNumber = false;
+  bool _hasSymbol = false;
+
   @override
   void dispose() {
     _fullnameController.dispose();
@@ -68,6 +74,15 @@ class _RegisterPageState extends State<RegisterPage> {
       } else {
         timer.cancel();
       }
+    });
+  }
+
+  void _validatePassword(String password) {
+    setState(() {
+      _hasMinLength = password.length >= 8;
+      _hasUppercase = RegExp(r'[A-Z]').hasMatch(password);
+      _hasNumber = RegExp(r'[0-9]').hasMatch(password);
+      _hasSymbol = RegExp(r'[!@#\$%^&*]').hasMatch(password);
     });
   }
 
@@ -300,6 +315,29 @@ class _RegisterPageState extends State<RegisterPage> {
 
   void _handleLogin() {
     Navigator.pop(context);
+  }
+
+  Widget _buildRequirement(String text, bool isMet) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        children: [
+          Icon(
+            Icons.check_circle_outline,
+            size: 16,
+            color: isMet ? Colors.green : Colors.grey[600],
+          ),
+          const SizedBox(width: 8),
+          Text(
+            text,
+            style: TextStyle(
+              color: isMet ? Colors.green : Colors.grey[600],
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildVerificationCodeInput(int index) {
@@ -666,6 +704,7 @@ class _RegisterPageState extends State<RegisterPage> {
                           TextFormField(
                             controller: _passwordController,
                             obscureText: _obscurePassword,
+                            onChanged: _validatePassword,
                             decoration: InputDecoration(
                               hintText: 'Password',
                               hintStyle: TextStyle(color: Colors.grey[400]),
@@ -709,7 +748,26 @@ class _RegisterPageState extends State<RegisterPage> {
                               ),
                             ),
                           ),
-                          const SizedBox(height: 32),
+                          const SizedBox(height: 12),
+
+                          // Password Requirements
+                          Text(
+                            'Password harus mengandung:',
+                            style: TextStyle(
+                              color: Colors.grey[700],
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          _buildRequirement(
+                            'Minimal 8 karakter',
+                            _hasMinLength,
+                          ),
+                          _buildRequirement('1 huruf kapital', _hasUppercase),
+                          _buildRequirement('1 angka', _hasNumber),
+                          _buildRequirement('1 simbol (!@#\$%^&*)', _hasSymbol),
+                          const SizedBox(height: 24),
 
                           // Register Button
                           SizedBox(

@@ -1,12 +1,26 @@
 const express = require('express');
 const nodemailer = require('nodemailer');
 const cors = require('cors');
+const bcrypt = require('bcrypt');
+const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 
 const { getVerificationEmailTemplate, getPasswordResetEmailTemplate } = require('./emailTemplates');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Initialize Supabase Admin Client
+const supabaseAdmin = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  }
+);
 
 // Middleware
 app.use(cors());
@@ -115,6 +129,91 @@ app.post('/api/send-password-reset-email', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Gagal mengirim email reset password',
+      details: error.message,
+    });
+  }
+});
+
+/**
+ * POST /api/reset-password
+ * Reset user password menggunakan bcrypt manual
+ */
+app.post('/api/reset-password', async (req, res) => {
+  try {
+    const { email, newPassword } = req.body;
+
+    // Validation
+    if (!email || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email dan password baru wajib diisi',
+      });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // ===== GET USER DATA DARI DATABASE =====
+    const { data: userData, error: userError } = await supabaseAdmin
+      .from('users')
+      .select('id_user, password')
+      .eq('email', normalizedEmail)
+      .single();
+
+    if (userError || !userData) {
+      return res.status(404).json({
+        success: false,
+        error: 'User tidak ditemukan',
+      });
+    }
+
+    const userId = userData.id_user;
+    const oldPasswordHash = userData.password;
+
+    // ===== CEK: PASSWORD BARU SAMA DENGAN PASSWORD LAMA? =====
+    // Compare plain text password baru dengan hash password lama
+    const isSamePassword = await bcrypt.compare(newPassword, oldPasswordHash);
+
+    if (isSamePassword) {
+      console.log('❌ Password baru sama dengan password lama untuk:', normalizedEmail);
+      return res.status(400).json({
+        success: false,
+        error: 'Password baru tidak boleh sama dengan password lama',
+        code: 'SAME_PASSWORD',
+      });
+    }
+
+    console.log('✅ Password berbeda, lanjutkan update untuk:', normalizedEmail);
+
+    // ===== HASH PASSWORD BARU =====
+    const saltRounds = 10;
+    const newPasswordHash = await bcrypt.hash(newPassword, saltRounds);
+
+    // ===== UPDATE PASSWORD DI DATABASE =====
+    const { error: updateError } = await supabaseAdmin
+      .from('users')
+      .update({ password: newPasswordHash })
+      .eq('id_user', userId);
+
+    if (updateError) {
+      console.error('❌ Error updating password:', updateError);
+      return res.status(500).json({
+        success: false,
+        error: 'Gagal mereset password',
+        details: updateError.message,
+      });
+    }
+
+    console.log('✅ Password berhasil direset untuk user:', userId);
+
+    res.json({
+      success: true,
+      message: 'Password berhasil direset',
+    });
+  } catch (error) {
+    console.error('❌ Error in reset-password endpoint:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Terjadi kesalahan saat reset password',
       details: error.message,
     });
   }

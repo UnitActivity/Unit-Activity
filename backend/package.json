@@ -7,14 +7,20 @@
     "start": "node server.js",
     "dev": "nodemon server.js"
   },
-  "keywords": ["email", "nodemailer", "express"],
+  "keywords": [
+    "email",
+    "nodemailer",
+    "express"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "express": "^4.18.2",
-    "nodemailer": "^6.9.7",
+    "@supabase/supabase-js": "^2.84.0",
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.5",
     "dotenv": "^16.3.1",
-    "cors": "^2.8.5"
+    "express": "^4.18.2",
+    "nodemailer": "^6.9.7"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"

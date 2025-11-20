@@ -22,11 +22,26 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
 
+  // Password validation states
+  bool _hasMinLength = false;
+  bool _hasUppercase = false;
+  bool _hasNumber = false;
+  bool _hasSymbol = false;
+
   @override
   void dispose() {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
+  }
+
+  void _validatePassword(String password) {
+    setState(() {
+      _hasMinLength = password.length >= 8;
+      _hasUppercase = RegExp(r'[A-Z]').hasMatch(password);
+      _hasNumber = RegExp(r'[0-9]').hasMatch(password);
+      _hasSymbol = RegExp(r'[!@#\$%^&*]').hasMatch(password);
+    });
   }
 
   Future<void> _handleResetPassword() async {
@@ -214,6 +229,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                               controller: _passwordController,
                               obscureText: _obscurePassword,
                               enabled: !_isLoading,
+                              onChanged: _validatePassword,
                               decoration: InputDecoration(
                                 hintText: 'Password Baru',
                                 hintStyle: TextStyle(color: Colors.grey[400]),
@@ -328,10 +344,16 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                               ),
                             ),
                             const SizedBox(height: 8),
-                            _buildRequirement('Minimal 8 karakter'),
-                            _buildRequirement('1 huruf kapital'),
-                            _buildRequirement('1 angka'),
-                            _buildRequirement('1 simbol (!@#\$%^&*)'),
+                            _buildRequirement(
+                              'Minimal 8 karakter',
+                              _hasMinLength,
+                            ),
+                            _buildRequirement('1 huruf kapital', _hasUppercase),
+                            _buildRequirement('1 angka', _hasNumber),
+                            _buildRequirement(
+                              '1 simbol (!@#\$%^&*)',
+                              _hasSymbol,
+                            ),
                             const SizedBox(height: 24),
 
                             // Reset Password Button
@@ -383,14 +405,24 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
     );
   }
 
-  Widget _buildRequirement(String text) {
+  Widget _buildRequirement(String text, bool isMet) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Row(
         children: [
-          Icon(Icons.check_circle_outline, size: 16, color: Colors.grey[600]),
+          Icon(
+            Icons.check_circle_outline,
+            size: 16,
+            color: isMet ? Colors.green : Colors.grey[600],
+          ),
           const SizedBox(width: 8),
-          Text(text, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+          Text(
+            text,
+            style: TextStyle(
+              color: isMet ? Colors.green : Colors.grey[600],
+              fontSize: 12,
+            ),
+          ),
         ],
       ),
     );

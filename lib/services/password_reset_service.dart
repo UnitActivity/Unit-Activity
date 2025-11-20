@@ -1,5 +1,7 @@
 import 'dart:math';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import 'email_api_service.dart';
 
 class PasswordResetService {
@@ -229,21 +231,44 @@ class PasswordResetService {
         };
       }
 
-      // ========== GET USER DATA ==========
-      final userData = await _supabase
-          .from('users')
-          .select('id_user')
+      // ========== CALL BACKEND API TO UPDATE PASSWORD ==========
+      // Backend akan handle pengecekan password lama dan update di Supabase Auth
+      try {
+        final response = await http.post(
+          Uri.parse('http://localhost:3000/api/reset-password'),
+          headers: {'Content-Type': 'application/json'},
+          body: json.encode({
+            'email': trimmedEmail,
+            'newPassword': newPassword,
+          }),
+        );
+
+        final responseData = json.decode(response.body);
+
+        if (response.statusCode != 200 || responseData['success'] != true) {
+          return {
+            'success': false,
+            'error': responseData['error'] ?? 'Gagal mereset password',
+            'code': responseData['code'] ?? 'API_ERROR',
+          };
+        }
+      } catch (e) {
+        return {
+          'success': false,
+          'error': 'Gagal terhubung ke server. Pastikan backend berjalan.',
+          'code': 'CONNECTION_ERROR',
+        };
+      }
+
+      // ========== MARK RESET CODE AS USED ==========
+      await _supabase
+          .from('password_reset')
+          .update({
+            'is_acted': true,
+            'used_at': DateTime.now().toIso8601String(),
+          })
           .eq('email', trimmedEmail)
-          .single();
-
-      // ========== UPDATE PASSWORD DI SUPABASE AUTH ==========
-      await _supabase.auth.admin.updateUserById(
-        userData['id_user'],
-        attributes: AdminUserAttributes(password: newPassword),
-      );
-
-      // ========== DELETE RESET CODE ==========
-      await _supabase.from('password_reset').delete().eq('email', trimmedEmail);
+          .eq('reset_code', trimmedCode);
 
       // ========== RESPONSE SUCCESS ==========
       return {
