@@ -240,29 +240,4 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
       ),
     );
   }
-
-  Widget _buildPlaceholderContent(String title) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.construction, size: 80, color: Colors.grey[400]),
-          const SizedBox(height: 16),
-          Text(
-            'Halaman $title',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey[700],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Coming Soon',
-            style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-          ),
-        ],
-      ),
-    );
-  }
 }
