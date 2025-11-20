@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:unit_activity/components/admin_sidebar.dart';
 import 'package:unit_activity/components/admin_header.dart';
 import 'package:unit_activity/admin/pengguna.dart';
@@ -141,6 +142,7 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
       builder: (context, constraints) {
         final isLargeScreen = constraints.maxWidth > 1200;
         final isMediumScreen = constraints.maxWidth > 768;
+        final isMobile = constraints.maxWidth < 768;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -150,29 +152,32 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               crossAxisCount: isLargeScreen ? 3 : (isMediumScreen ? 2 : 1),
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
+              crossAxisSpacing: isMobile ? 12 : 16,
+              mainAxisSpacing: isMobile ? 12 : 16,
               childAspectRatio: isLargeScreen
                   ? 2.5
-                  : (isMediumScreen ? 2.2 : 3),
+                  : (isMediumScreen ? 2.2 : 3.2),
               children: [
                 _buildStatCard(
                   title: 'Total UKM',
                   value: '13',
                   icon: Icons.groups,
                   color: const Color(0xFF4169E1),
+                  isMobile: isMobile,
                 ),
                 _buildStatCard(
                   title: 'Total Mahasiswa',
                   value: '1800',
                   icon: Icons.people,
                   color: const Color(0xFF10B981),
+                  isMobile: isMobile,
                 ),
                 _buildStatCard(
                   title: 'Total Event Periode ini',
                   value: '6',
                   icon: Icons.event,
                   color: const Color(0xFFF59E0B),
+                  isMobile: isMobile,
                 ),
               ],
             ),
@@ -187,9 +192,10 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
     required String value,
     required IconData icon,
     required Color color,
+    required bool isMobile,
   }) {
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(isMobile ? 16 : 24),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -201,40 +207,44 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
                   title,
-                  style: TextStyle(
-                    fontSize: 14,
+                  style: GoogleFonts.inter(
+                    fontSize: isMobile ? 12 : 14,
                     color: Colors.grey[600],
                     fontWeight: FontWeight.w500,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: GoogleFonts.inter(
+                    fontSize: isMobile ? 24 : 36,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
                 ),
-                child: Icon(icon, color: color, size: 24),
-              ),
-            ],
-          ),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 36,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
+              ],
             ),
+          ),
+          const SizedBox(width: 12),
+          Container(
+            padding: EdgeInsets.all(isMobile ? 8 : 10),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: color, size: isMobile ? 24 : 28),
           ),
         ],
       ),
