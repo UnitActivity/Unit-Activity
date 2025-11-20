@@ -1,9 +1,38 @@
+import 'dart:math';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'email_api_service.dart';
 
 class PasswordResetService {
   final SupabaseClient _supabase = Supabase.instance.client;
   final EmailApiService _emailService = EmailApiService();
+
+  /// Generate random 6-character reset code (alphanumeric)
+  /// Dipastikan mengandung minimal: 1 huruf besar, 1 huruf kecil, 1 angka
+  String _generateResetCode() {
+    const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+    const numbers = '0123456789';
+    final random = Random.secure();
+
+    // Pastikan ada minimal 1 dari setiap kategori
+    final List<String> code = [
+      uppercase[random.nextInt(uppercase.length)], // 1 huruf besar
+      lowercase[random.nextInt(lowercase.length)], // 1 huruf kecil
+      numbers[random.nextInt(numbers.length)], // 1 angka
+    ];
+
+    // Isi 3 karakter sisanya dengan random dari semua kategori
+    const allChars =
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    for (int i = 0; i < 3; i++) {
+      code.add(allChars[random.nextInt(allChars.length)]);
+    }
+
+    // Acak urutan karakter
+    code.shuffle(random);
+
+    return code.join();
+  }
 
   /// Request password reset
   Future<Map<String, dynamic>> requestPasswordReset(String email) async {
@@ -17,11 +46,14 @@ class PasswordResetService {
         };
       }
 
+      // Normalisasi email
+      final trimmedEmail = email.trim().toLowerCase();
+
       // ========== CEK APAKAH EMAIL TERDAFTAR ==========
       final user = await _supabase
           .from('users')
           .select('email')
-          .eq('email', email)
+          .eq('email', trimmedEmail)
           .maybeSingle();
 
       if (user == null) {
@@ -33,22 +65,16 @@ class PasswordResetService {
       }
 
       // ========== GENERATE RESET CODE ==========
-      final resetCode =
-          (100000 +
-                  (900000 *
-                          (DateTime.now().millisecondsSinceEpoch % 1000) /
-                          1000)
-                      .floor())
-              .toString();
+      final resetCode = _generateResetCode();
       final expiredAt = DateTime.now().add(const Duration(hours: 1));
 
       // ========== DELETE KODE LAMA ==========
-      await _supabase.from('password_reset').delete().eq('email', email);
+      await _supabase.from('password_reset').delete().eq('email', trimmedEmail);
 
       // ========== INSERT KODE BARU ==========
       await _supabase.from('password_reset').insert({
-        'email': email,
-        'code': resetCode,
+        'email': trimmedEmail,
+        'reset_code': resetCode,
         'is_verified': false,
         'expired_at': expiredAt.toIso8601String(),
         'create_at': DateTime.now().toIso8601String(),
@@ -56,7 +82,7 @@ class PasswordResetService {
 
       // ========== KIRIM EMAIL RESET PASSWORD ==========
       final emailResult = await _emailService.sendPasswordResetEmail(
-        email: email,
+        email: trimmedEmail,
         code: resetCode,
       );
 
@@ -93,7 +119,10 @@ class PasswordResetService {
   ) async {
     try {
       // ========== VALIDASI INPUT ==========
-      if (email.isEmpty || code.isEmpty) {
+      final trimmedEmail = email.trim().toLowerCase();
+      final trimmedCode = code.trim();
+
+      if (trimmedEmail.isEmpty || trimmedCode.isEmpty) {
         return {
           'success': false,
           'error': 'Email dan kode reset wajib diisi',
@@ -105,8 +134,8 @@ class PasswordResetService {
       final resetData = await _supabase
           .from('password_reset')
           .select()
-          .eq('email', email)
-          .eq('code', code)
+          .eq('email', trimmedEmail)
+          .eq('reset_code', trimmedCode)
           .eq('is_verified', false)
           .maybeSingle();
 
@@ -137,8 +166,8 @@ class PasswordResetService {
             'is_verified': true,
             'verified_at': DateTime.now().toIso8601String(),
           })
-          .eq('email', email)
-          .eq('code', code);
+          .eq('email', trimmedEmail)
+          .eq('reset_code', trimmedCode);
 
       // ========== RESPONSE SUCCESS ==========
       return {
@@ -164,7 +193,10 @@ class PasswordResetService {
   }) async {
     try {
       // ========== VALIDASI INPUT ==========
-      if (email.isEmpty || code.isEmpty || newPassword.isEmpty) {
+      final trimmedEmail = email.trim().toLowerCase();
+      final trimmedCode = code.trim();
+
+      if (trimmedEmail.isEmpty || trimmedCode.isEmpty || newPassword.isEmpty) {
         return {
           'success': false,
           'error': 'Email, kode reset, dan password baru wajib diisi',
@@ -184,8 +216,8 @@ class PasswordResetService {
       final resetData = await _supabase
           .from('password_reset')
           .select()
-          .eq('email', email)
-          .eq('code', code)
+          .eq('email', trimmedEmail)
+          .eq('reset_code', trimmedCode)
           .eq('is_verified', true)
           .maybeSingle();
 
@@ -201,7 +233,7 @@ class PasswordResetService {
       final userData = await _supabase
           .from('users')
           .select('id_user')
-          .eq('email', email)
+          .eq('email', trimmedEmail)
           .single();
 
       // ========== UPDATE PASSWORD DI SUPABASE AUTH ==========
@@ -211,7 +243,7 @@ class PasswordResetService {
       );
 
       // ========== DELETE RESET CODE ==========
-      await _supabase.from('password_reset').delete().eq('email', email);
+      await _supabase.from('password_reset').delete().eq('email', trimmedEmail);
 
       // ========== RESPONSE SUCCESS ==========
       return {

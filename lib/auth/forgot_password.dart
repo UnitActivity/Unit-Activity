@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:unit_activity/services/auth_service.dart';
+import 'verify_reset_code_page.dart';
 
 class ForgotPasswordPage extends StatefulWidget {
   const ForgotPasswordPage({super.key});
@@ -11,7 +13,8 @@ class ForgotPasswordPage extends StatefulWidget {
 class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
-  bool _isEmailSent = false;
+  final _authService = AuthService();
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -19,22 +22,70 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     super.dispose();
   }
 
-  void _handleSendVerification() {
+  Future<void> _handleSendVerification() async {
     if (_formKey.currentState!.validate()) {
-      // TODO: Implement send verification logic
       setState(() {
-        _isEmailSent = true;
+        _isLoading = true;
       });
-      print('Send verification to: ${_emailController.text}');
 
-      // Show success message
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Verification email has been sent!'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      try {
+        final result = await _authService.requestPasswordReset(
+          _emailController.text.trim(),
+        );
+
+        setState(() {
+          _isLoading = false;
+        });
+
+        if (!mounted) return;
+
+        if (result['success'] == true) {
+          // Navigate to verify code page dengan pushReplacement agar tidak bisa back
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) =>
+                  VerifyResetCodePage(email: _emailController.text.trim()),
+            ),
+          );
+        } else {
+          _showErrorDialog(result['error'] ?? 'Gagal mengirim kode reset');
+        }
+      } catch (e) {
+        setState(() {
+          _isLoading = false;
+        });
+        _showErrorDialog('Terjadi kesalahan saat mengirim kode reset');
+      }
     }
+  }
+
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.error, color: Colors.red, size: 32),
+            const SizedBox(width: 12),
+            Text(
+              'Error',
+              style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: Text(message, style: GoogleFonts.inter(fontSize: 14)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'OK',
+              style: GoogleFonts.inter(color: const Color(0xFF4169E1)),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _handleBackToLogin() {
@@ -90,7 +141,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                             'FORGOT PASSWORD',
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              fontSize: 32,
+                              fontSize: 28,
                               fontWeight: FontWeight.bold,
                               color: Colors.black,
                             ),
@@ -99,11 +150,11 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
 
                           // Subtitle
                           Text(
-                            'Enter your email to receive a verification code',
+                            'Masukkan email Anda untuk menerima kode reset password',
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              fontSize: 14,
                               color: Colors.grey[600],
+                              fontSize: 14,
                             ),
                           ),
                           const SizedBox(height: 32),
@@ -112,9 +163,14 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                           TextFormField(
                             controller: _emailController,
                             keyboardType: TextInputType.emailAddress,
+                            enabled: !_isLoading,
                             decoration: InputDecoration(
                               hintText: 'Email',
                               hintStyle: TextStyle(color: Colors.grey[400]),
+                              prefixIcon: Icon(
+                                Icons.email_outlined,
+                                color: Colors.grey[600],
+                              ),
                               filled: true,
                               fillColor: Colors.grey[50],
                               border: OutlineInputBorder(
@@ -143,46 +199,49 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                             ),
                             validator: (value) {
                               if (value == null || value.isEmpty) {
-                                return 'Please enter your email';
+                                return 'Silakan masukkan email';
                               }
                               if (!value.contains('@')) {
-                                return 'Please enter a valid email';
+                                return 'Email tidak valid';
                               }
                               return null;
                             },
                           ),
-                          const SizedBox(height: 32),
+                          const SizedBox(height: 24),
 
                           // Send Verification Button
                           SizedBox(
                             width: double.infinity,
                             height: 56,
                             child: ElevatedButton(
-                              onPressed: _isEmailSent
+                              onPressed: _isLoading
                                   ? null
                                   : _handleSendVerification,
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: _isEmailSent
-                                    ? Colors.green
-                                    : const Color(0xFF4169E1),
+                                backgroundColor: const Color(0xFF4169E1),
                                 foregroundColor: Colors.white,
                                 elevation: 0,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8),
                                 ),
-                                disabledBackgroundColor: Colors.green,
-                                disabledForegroundColor: Colors.white,
                               ),
-                              child: Text(
-                                _isEmailSent
-                                    ? 'VERIFICATION SENT'
-                                    : 'SEND VERIFICATION',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1.5,
-                                ),
-                              ),
+                              child: _isLoading
+                                  ? const SizedBox(
+                                      height: 24,
+                                      width: 24,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Text(
+                                      'KIRIM KODE',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 1.5,
+                                      ),
+                                    ),
                             ),
                           ),
                           const SizedBox(height: 24),
@@ -192,7 +251,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Text(
-                                "Remember your password? ",
+                                'Sudah ingat password? ',
                                 style: TextStyle(
                                   color: Colors.grey[600],
                                   fontSize: 14,
@@ -207,7 +266,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                                       MaterialTapTargetSize.shrinkWrap,
                                 ),
                                 child: const Text(
-                                  'Back to Login',
+                                  'Login',
                                   style: TextStyle(
                                     color: Color(0xFF4169E1),
                                     fontSize: 14,

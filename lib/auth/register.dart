@@ -245,49 +245,29 @@ class _RegisterPageState extends State<RegisterPage> {
       if (!mounted) return;
 
       if (result['success'] == true) {
-        _showSuccessDialog();
+        // Langsung redirect ke login tanpa pop-up
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Registrasi berhasil! Silakan login untuk melanjutkan.',
+            ),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+
+        // Redirect ke login setelah 500ms
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) {
+            Navigator.pop(context); // Back to login
+          }
+        });
       } else {
         _showErrorDialog(result['error'] ?? 'Registrasi gagal');
       }
     }
-  }
-
-  void _showSuccessDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            const Icon(Icons.check_circle, color: Colors.green, size: 32),
-            const SizedBox(width: 12),
-            Text(
-              'Berhasil!',
-              style: GoogleFonts.inter(fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-        content: Text(
-          'Registrasi berhasil! Silakan login untuk melanjutkan.',
-          style: GoogleFonts.inter(fontSize: 14),
-        ),
-        actions: [
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context); // Close dialog
-              Navigator.pop(context); // Back to login
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF4169E1),
-            ),
-            child: Text(
-              'Login Sekarang',
-              style: GoogleFonts.inter(color: Colors.white),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   void _showErrorDialog(String message) {
