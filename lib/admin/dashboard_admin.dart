@@ -7,6 +7,7 @@ import 'package:unit_activity/admin/ukm.dart';
 import 'package:unit_activity/admin/event.dart';
 import 'package:unit_activity/admin/periode.dart';
 import 'package:unit_activity/admin/informasi.dart';
+import 'package:unit_activity/services/dashboard_service.dart';
 
 class DashboardAdminPage extends StatefulWidget {
   const DashboardAdminPage({super.key});
@@ -18,6 +19,40 @@ class DashboardAdminPage extends StatefulWidget {
 class _DashboardAdminPageState extends State<DashboardAdminPage> {
   String _selectedMenu = 'dashboard';
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  final DashboardService _dashboardService = DashboardService();
+
+  // Dashboard stats
+  Map<String, dynamic>? _dashboardStats;
+  bool _isLoadingStats = true;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDashboardStats();
+  }
+
+  Future<void> _loadDashboardStats() async {
+    setState(() {
+      _isLoadingStats = true;
+      _errorMessage = null;
+    });
+
+    final result = await _dashboardService.getDashboardStats();
+
+    if (mounted) {
+      setState(() {
+        if (result['success'] == true) {
+          _dashboardStats = result['data'];
+          _errorMessage = null;
+        } else {
+          _dashboardStats = null;
+          _errorMessage = result['error'] ?? 'Terjadi kesalahan';
+        }
+        _isLoadingStats = false;
+      });
+    }
+  }
 
   void _handleMenuSelected(String menu) {
     setState(() {
@@ -138,6 +173,62 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
   }
 
   Widget _buildDashboardContent() {
+    if (_isLoadingStats) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_dashboardStats == null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 48, color: Colors.red),
+            const SizedBox(height: 16),
+            Text(
+              'Gagal memuat data dashboard',
+              style: GoogleFonts.inter(
+                color: Colors.grey[800],
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            if (_errorMessage != null) const SizedBox(height: 8),
+            if (_errorMessage != null)
+              Container(
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.symmetric(horizontal: 24),
+                decoration: BoxDecoration(
+                  color: Colors.red[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.red[200]!),
+                ),
+                child: Text(
+                  _errorMessage!,
+                  style: GoogleFonts.inter(
+                    color: Colors.red[700],
+                    fontSize: 12,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: _loadDashboardStats,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Coba Lagi'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4169E1),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final totalUkm = _dashboardStats!['totalUkm'] ?? 0;
+    final totalUsers = _dashboardStats!['totalUsers'] ?? 0;
+    final totalEvent = _dashboardStats!['totalEvent'] ?? 0;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final isLargeScreen = constraints.maxWidth > 1200;
@@ -160,21 +251,21 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
               children: [
                 _buildStatCard(
                   title: 'Total UKM',
-                  value: '13',
+                  value: '$totalUkm',
                   icon: Icons.groups,
                   color: const Color(0xFF4169E1),
                   isMobile: isMobile,
                 ),
                 _buildStatCard(
                   title: 'Total Mahasiswa',
-                  value: '1800',
+                  value: '$totalUsers',
                   icon: Icons.people,
                   color: const Color(0xFF10B981),
                   isMobile: isMobile,
                 ),
                 _buildStatCard(
-                  title: 'Total Event Periode ini',
-                  value: '6',
+                  title: 'Total Event',
+                  value: '$totalEvent',
                   icon: Icons.event,
                   color: const Color(0xFFF59E0B),
                   isMobile: isMobile,
