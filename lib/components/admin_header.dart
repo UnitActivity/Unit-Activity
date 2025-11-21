@@ -13,7 +13,7 @@ class AdminHeader extends StatelessWidget {
     final isDesktop = MediaQuery.of(context).size.width >= 768;
 
     return Container(
-      margin: const EdgeInsets.all(16),
+      margin: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
@@ -29,7 +29,7 @@ class AdminHeader extends StatelessWidget {
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.7),
               borderRadius: BorderRadius.circular(20),
