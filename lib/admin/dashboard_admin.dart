@@ -34,6 +34,10 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
   List<dynamic>? _upcomingEvents;
   List<dynamic>? _alerts;
 
+  // Filter states
+  String _eventTrendPeriod = 'hari_ini';
+  String _followerTrendPeriod = 'hari_ini';
+
   @override
   void initState() {
     super.initState();
@@ -49,9 +53,9 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
     // Load all dashboard data in parallel
     final results = await Future.wait([
       _dashboardService.getDashboardStats(),
-      _dashboardService.getEventsByMonth(),
+      _dashboardService.getEventsByMonth(_eventTrendPeriod),
       _dashboardService.getUkmRanking(),
-      _dashboardService.getFollowerTrend(),
+      _dashboardService.getFollowerTrend(_followerTrendPeriod),
       _dashboardService.getRecentActivities(),
       _dashboardService.getUpcomingEvents(),
       _dashboardService.getAlerts(),
@@ -95,6 +99,26 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
         }
 
         _isLoadingStats = false;
+      });
+    }
+  }
+
+  Future<void> _reloadEventTrend() async {
+    final result = await _dashboardService.getEventsByMonth(_eventTrendPeriod);
+    if (mounted && result['success'] == true) {
+      setState(() {
+        _eventsByMonth = result['data'];
+      });
+    }
+  }
+
+  Future<void> _reloadFollowerTrend() async {
+    final result = await _dashboardService.getFollowerTrend(
+      _followerTrendPeriod,
+    );
+    if (mounted && result['success'] == true) {
+      setState(() {
+        _followerTrend = result['data'];
       });
     }
   }
@@ -362,8 +386,15 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _buildSectionTitle(
-                          '📊 Event Trend (6 Bulan)',
+                        _buildSectionTitleWithDropdown(
+                          '📊 Event Trend',
+                          _eventTrendPeriod,
+                          (newPeriod) {
+                            setState(() {
+                              _eventTrendPeriod = newPeriod!;
+                            });
+                            _reloadEventTrend();
+                          },
                           isMobile,
                         ),
                         const SizedBox(height: 6),
@@ -376,8 +407,20 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _buildSectionTitle('🏆 Top UKM', isMobile),
-                        const SizedBox(height: 6),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              '🏆 Top UKM',
+                              style: GoogleFonts.inter(
+                                fontSize: isMobile ? 14 : 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 17),
                         _buildUkmRanking(isMobile),
                       ],
                     ),
@@ -388,7 +431,17 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildSectionTitle('📊 Event Trend (6 Bulan)', isMobile),
+                  _buildSectionTitleWithDropdown(
+                    '📊 Event Trend',
+                    _eventTrendPeriod,
+                    (newPeriod) {
+                      setState(() {
+                        _eventTrendPeriod = newPeriod!;
+                      });
+                      _reloadEventTrend();
+                    },
+                    isMobile,
+                  ),
                   SizedBox(height: isMobile ? 6 : 8),
                   _buildEventChart(isMobile),
                   SizedBox(height: isMobile ? 10 : 14),
@@ -401,7 +454,17 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
             SizedBox(height: isMobile ? 10 : 14),
 
             // Follower Trend Chart
-            _buildSectionTitle('📈 Pertumbuhan Anggota (6 Bulan)', isMobile),
+            _buildSectionTitleWithDropdown(
+              '📈 Pertumbuhan Anggota',
+              _followerTrendPeriod,
+              (newPeriod) {
+                setState(() {
+                  _followerTrendPeriod = newPeriod!;
+                });
+                _reloadFollowerTrend();
+              },
+              isMobile,
+            ),
             SizedBox(height: isMobile ? 6 : 8),
             _buildFollowerTrendChart(isMobile),
 
@@ -525,6 +588,60 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
         fontWeight: FontWeight.bold,
         color: Colors.black87,
       ),
+    );
+  }
+
+  Widget _buildSectionTitleWithDropdown(
+    String title,
+    String selectedPeriod,
+    ValueChanged<String?> onChanged,
+    bool isMobile,
+  ) {
+    final periodOptions = {
+      'hari_ini': 'Hari Ini',
+      'minggu_ini': 'Minggu Ini',
+      'bulan_ini': 'Bulan Ini',
+      '3_bulan': '3 Bulan',
+      '6_bulan': '6 Bulan',
+      'tahun_ini': 'Tahun Ini',
+    };
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          title,
+          style: GoogleFonts.inter(
+            fontSize: isMobile ? 14 : 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.grey[100],
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey[300]!),
+          ),
+          child: DropdownButton<String>(
+            value: selectedPeriod,
+            underline: const SizedBox(),
+            isDense: true,
+            style: GoogleFonts.inter(
+              fontSize: isMobile ? 11 : 12,
+              color: Colors.black87,
+            ),
+            items: periodOptions.entries.map((entry) {
+              return DropdownMenuItem<String>(
+                value: entry.key,
+                child: Text(entry.value),
+              );
+            }).toList(),
+            onChanged: onChanged,
+          ),
+        ),
+      ],
     );
   }
 

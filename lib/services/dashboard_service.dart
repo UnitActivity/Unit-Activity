@@ -106,17 +106,44 @@ class DashboardService {
     }
   }
 
-  /// Get event statistics by month (last 6 months)
-  Future<Map<String, dynamic>> getEventsByMonth() async {
+  /// Get event statistics by month (with custom period)
+  Future<Map<String, dynamic>> getEventsByMonth([
+    String period = '6_bulan',
+  ]) async {
     try {
       final now = DateTime.now();
-      final sixMonthsAgo = DateTime(now.year, now.month - 6, 1);
+      DateTime startDate;
+
+      // Calculate start date based on period
+      switch (period) {
+        case 'hari_ini':
+          startDate = DateTime(now.year, now.month, now.day);
+          break;
+        case 'minggu_ini':
+          startDate = now.subtract(Duration(days: now.weekday - 1));
+          startDate = DateTime(startDate.year, startDate.month, startDate.day);
+          break;
+        case 'bulan_ini':
+          startDate = DateTime(now.year, now.month, 1);
+          break;
+        case '3_bulan':
+          startDate = DateTime(now.year, now.month - 3, 1);
+          break;
+        case '6_bulan':
+          startDate = DateTime(now.year, now.month - 6, 1);
+          break;
+        case 'tahun_ini':
+          startDate = DateTime(now.year, 1, 1);
+          break;
+        default:
+          startDate = DateTime(now.year, now.month - 6, 1);
+      }
 
       final response =
           await _supabase
                   .from('events')
                   .select('tanggal_mulai, nama_event')
-                  .gte('tanggal_mulai', sixMonthsAgo.toIso8601String())
+                  .gte('tanggal_mulai', startDate.toIso8601String())
                   .order('tanggal_mulai')
               as List;
 
@@ -182,17 +209,44 @@ class DashboardService {
     }
   }
 
-  /// Get follower growth trend (last 6 months)
-  Future<Map<String, dynamic>> getFollowerTrend() async {
+  /// Get follower growth trend (with custom period)
+  Future<Map<String, dynamic>> getFollowerTrend([
+    String period = '6_bulan',
+  ]) async {
     try {
       final now = DateTime.now();
-      final sixMonthsAgo = DateTime(now.year, now.month - 6, 1);
+      DateTime startDate;
+
+      // Calculate start date based on period
+      switch (period) {
+        case 'hari_ini':
+          startDate = DateTime(now.year, now.month, now.day);
+          break;
+        case 'minggu_ini':
+          startDate = now.subtract(Duration(days: now.weekday - 1));
+          startDate = DateTime(startDate.year, startDate.month, startDate.day);
+          break;
+        case 'bulan_ini':
+          startDate = DateTime(now.year, now.month, 1);
+          break;
+        case '3_bulan':
+          startDate = DateTime(now.year, now.month - 3, 1);
+          break;
+        case '6_bulan':
+          startDate = DateTime(now.year, now.month - 6, 1);
+          break;
+        case 'tahun_ini':
+          startDate = DateTime(now.year, 1, 1);
+          break;
+        default:
+          startDate = DateTime(now.year, now.month - 6, 1);
+      }
 
       final response =
           await _supabase
                   .from('user_halaman_ukm')
                   .select('follow, created_at')
-                  .gte('created_at', sixMonthsAgo.toIso8601String())
+                  .gte('created_at', startDate.toIso8601String())
                   .order('created_at')
               as List;
 
