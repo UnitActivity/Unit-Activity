@@ -15,7 +15,6 @@ class UkmPage extends StatefulWidget {
 
 class _UkmPageState extends State<UkmPage> {
   final SupabaseClient _supabase = Supabase.instance.client;
-  final ImagePicker _imagePicker = ImagePicker();
 
   String _sortBy = 'Urutkan';
   String _searchQuery = '';
@@ -160,66 +159,48 @@ class _UkmPageState extends State<UkmPage> {
     return true;
   }
 
-  // Helper function to pick and upload image
-  Future<String?> _pickAndUploadImage() async {
+  // Helper function to upload image from XFile path
+  Future<String?> _uploadImageFromPath(String imagePath) async {
     try {
-      final XFile? pickedFile = await _imagePicker.pickImage(
+      // Read file bytes from path
+      final ImagePicker picker = ImagePicker();
+      final XFile? file = await picker.pickImage(
         source: ImageSource.gallery,
         imageQuality: 85,
       );
 
-      if (pickedFile == null) return null;
+      if (file == null) return null;
 
-      // Validate file type - support both path extension and mimeType
+      final fileBytes = await file.readAsBytes();
+
+      // Detect extension
       String? extension;
-
-      // Try to get extension from mimeType first (works better on web)
-      if (pickedFile.mimeType != null) {
-        final mimeType = pickedFile.mimeType!.toLowerCase();
-        if (mimeType.contains('jpeg') || mimeType.contains('jpg')) {
-          extension = 'jpg';
-        } else if (mimeType.contains('png')) {
+      if (file.mimeType != null) {
+        final mimeType = file.mimeType!.toLowerCase();
+        if (mimeType.contains('png')) {
           extension = 'png';
         } else if (mimeType.contains('webp')) {
           extension = 'webp';
+        } else {
+          extension = 'jpg';
         }
-      }
-
-      // Fallback to path extension if mimeType not available
-      if (extension == null) {
-        final pathExtension = pickedFile.path.split('.').last.toLowerCase();
-        if (['jpg', 'jpeg', 'png', 'webp'].contains(pathExtension)) {
-          extension = pathExtension;
+      } else {
+        final nameExt = file.name.split('.').last.toLowerCase();
+        if (['jpg', 'jpeg', 'png', 'webp'].contains(nameExt)) {
+          extension = nameExt;
+        } else {
+          extension = 'jpg';
         }
-      }
-
-      // If still no valid extension, check name
-      if (extension == null && pickedFile.name.isNotEmpty) {
-        final nameExtension = pickedFile.name.split('.').last.toLowerCase();
-        if (['jpg', 'jpeg', 'png', 'webp'].contains(nameExtension)) {
-          extension = nameExtension;
-        }
-      }
-
-      if (extension == null) {
-        throw 'Format gambar tidak didukung. Gunakan JPG, PNG, JPEG, atau WEBP';
       }
 
       print('Detected extension: $extension');
-      print('MimeType: ${pickedFile.mimeType}');
-      print('Path: ${pickedFile.path}');
-      print('Name: ${pickedFile.name}');
-
-      // Read file as bytes (works for both web and mobile)
-      final fileBytes = await pickedFile.readAsBytes();
-      print('File size: ${fileBytes.length} bytes');
 
       // Validate file size (max 10MB)
       if (fileBytes.length > 10 * 1024 * 1024) {
         throw 'Ukuran file terlalu besar. Maksimal 10MB';
       }
 
-      // Generate unique filename with timestamp and random
+      // Generate unique filename
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final fileName = 'ukm_$timestamp.$extension';
 
@@ -243,16 +224,13 @@ class _UkmPageState extends State<UkmPage> {
       }
 
       try {
-        // Upload to Supabase Storage with proper content type and public access
+        // Upload to Supabase Storage
         final uploadPath = await _supabase.storage
             .from('ukm-logos')
             .uploadBinary(
               fileName,
               fileBytes,
-              fileOptions: FileOptions(
-                contentType: contentType,
-                upsert: true, // Allow overwrite if filename exists
-              ),
+              fileOptions: FileOptions(contentType: contentType, upsert: true),
             );
 
         print('Upload successful! Path: $uploadPath');
@@ -269,7 +247,6 @@ class _UkmPageState extends State<UkmPage> {
         print('StorageException: ${e.message}');
         print('StatusCode: ${e.statusCode}');
 
-        // Provide user-friendly error messages
         if (e.statusCode == '403' || e.statusCode == '401') {
           throw 'Tidak memiliki izin untuk upload. Silakan login ulang atau hubungi administrator.';
         } else if (e.statusCode == '413') {
@@ -279,7 +256,7 @@ class _UkmPageState extends State<UkmPage> {
         }
       }
     } catch (e) {
-      print('Error in _pickAndUploadImage: $e');
+      print('Error in _uploadImageFromPath: $e');
       rethrow;
     }
   }
@@ -1517,7 +1494,7 @@ class _UkmPageState extends State<UkmPage> {
                                         });
                                         try {
                                           final imageUrl =
-                                              await _pickAndUploadImage();
+                                              await _uploadImageFromPath('');
                                           if (imageUrl != null) {
                                             setDialogState(() {
                                               selectedImageUrl = imageUrl;
@@ -1573,7 +1550,7 @@ class _UkmPageState extends State<UkmPage> {
                                       });
                                       try {
                                         final imageUrl =
-                                            await _pickAndUploadImage();
+                                            await _uploadImageFromPath('');
                                         if (imageUrl != null) {
                                           setDialogState(() {
                                             selectedImageUrl = imageUrl;
@@ -2128,7 +2105,7 @@ class _UkmPageState extends State<UkmPage> {
                                       });
                                       try {
                                         final imageUrl =
-                                            await _pickAndUploadImage();
+                                            await _uploadImageFromPath('');
                                         if (imageUrl != null) {
                                           setDialogState(() {
                                             selectedImageUrl = imageUrl;
