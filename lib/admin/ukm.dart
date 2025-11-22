@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:image_cropper/image_cropper.dart';
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
+import 'dart:typed_data';
 
 class UkmPage extends StatefulWidget {
   const UkmPage({super.key});
@@ -159,37 +162,122 @@ class _UkmPageState extends State<UkmPage> {
     return true;
   }
 
-  // Helper function to upload image from XFile path
+  // Helper function to pick, crop, and upload image
   Future<String?> _uploadImageFromPath(String imagePath) async {
     try {
-      // Read file bytes from path
+      // Step 1: Pick image from gallery
       final ImagePicker picker = ImagePicker();
-      final XFile? file = await picker.pickImage(
+      final XFile? pickedFile = await picker.pickImage(
         source: ImageSource.gallery,
-        imageQuality: 85,
+        imageQuality: 100, // Max quality, will compress after crop
       );
 
-      if (file == null) return null;
+      if (pickedFile == null) return null;
 
-      final fileBytes = await file.readAsBytes();
+      print('Original file: ${pickedFile.path}');
+      print('Original name: ${pickedFile.name}');
+      print('Original mimeType: ${pickedFile.mimeType}');
 
-      // Detect extension
+      // Step 2: Crop the image (skip on web, use cropper on mobile/desktop)
+      Uint8List fileBytes;
       String? extension;
-      if (file.mimeType != null) {
-        final mimeType = file.mimeType!.toLowerCase();
-        if (mimeType.contains('png')) {
-          extension = 'png';
-        } else if (mimeType.contains('webp')) {
-          extension = 'webp';
-        } else {
-          extension = 'jpg';
+
+      if (!kIsWeb) {
+        // Mobile/Desktop: Use image cropper
+        try {
+          final CroppedFile? croppedFile = await ImageCropper().cropImage(
+            sourcePath: pickedFile.path,
+            compressQuality: 85,
+            maxWidth: 1024,
+            maxHeight: 1024,
+            compressFormat: ImageCompressFormat.jpg,
+            uiSettings: [
+              // Android settings
+              AndroidUiSettings(
+                toolbarTitle: 'Crop Logo UKM',
+                toolbarColor: const Color(0xFF4169E1),
+                toolbarWidgetColor: Colors.white,
+                initAspectRatio: CropAspectRatioPreset.square,
+                lockAspectRatio: true,
+                aspectRatioPresets: [
+                  CropAspectRatioPreset.square,
+                  CropAspectRatioPreset.ratio3x2,
+                  CropAspectRatioPreset.original,
+                  CropAspectRatioPreset.ratio4x3,
+                  CropAspectRatioPreset.ratio16x9,
+                ],
+                hideBottomControls: false,
+                showCropGrid: true,
+                cropGridColor: Colors.white,
+                cropFrameColor: const Color(0xFF4169E1),
+                cropGridColumnCount: 3,
+                cropGridRowCount: 3,
+                backgroundColor: Colors.black,
+              ),
+              // iOS settings
+              IOSUiSettings(
+                title: 'Crop Logo UKM',
+                doneButtonTitle: 'Selesai',
+                cancelButtonTitle: 'Batal',
+                aspectRatioLockEnabled: true,
+                resetAspectRatioEnabled: false,
+                aspectRatioPickerButtonHidden: false,
+                rotateButtonsHidden: false,
+                aspectRatioPresets: [
+                  CropAspectRatioPreset.square,
+                  CropAspectRatioPreset.ratio3x2,
+                  CropAspectRatioPreset.original,
+                  CropAspectRatioPreset.ratio4x3,
+                  CropAspectRatioPreset.ratio16x9,
+                ],
+              ),
+            ],
+          );
+
+          if (croppedFile == null) {
+            print('Cropping cancelled by user');
+            return null;
+          }
+
+          print('Cropped file: ${croppedFile.path}');
+
+          // Read cropped file bytes
+          fileBytes = await croppedFile.readAsBytes();
+          print('Cropped file size: ${fileBytes.length} bytes');
+
+          // Detect extension from cropped file
+          final pathExtension = croppedFile.path.split('.').last.toLowerCase();
+          if (['jpg', 'jpeg', 'png', 'webp'].contains(pathExtension)) {
+            extension = pathExtension;
+          } else {
+            extension = 'jpg';
+          }
+        } catch (e) {
+          print('Cropping error: $e');
+          throw 'Gagal melakukan crop gambar. Error: $e';
         }
       } else {
-        final nameExt = file.name.split('.').last.toLowerCase();
-        if (['jpg', 'jpeg', 'png', 'webp'].contains(nameExt)) {
-          extension = nameExt;
+        // Web: Skip cropper, use original image
+        print('Web platform: Using original image without crop');
+        fileBytes = await pickedFile.readAsBytes();
+
+        // Detect extension from original file
+        if (pickedFile.mimeType != null) {
+          final mimeType = pickedFile.mimeType!.toLowerCase();
+          if (mimeType.contains('png')) {
+            extension = 'png';
+          } else if (mimeType.contains('webp')) {
+            extension = 'webp';
+          } else {
+            extension = 'jpg';
+          }
         } else {
-          extension = 'jpg';
+          final nameExt = pickedFile.name.split('.').last.toLowerCase();
+          if (['jpg', 'jpeg', 'png', 'webp'].contains(nameExt)) {
+            extension = nameExt;
+          } else {
+            extension = 'jpg';
+          }
         }
       }
 
