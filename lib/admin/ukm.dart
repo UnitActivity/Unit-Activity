@@ -170,31 +170,116 @@ class _UkmPageState extends State<UkmPage> {
 
       if (pickedFile == null) return null;
 
-      // Validate file type
-      final extension = pickedFile.path.split('.').last.toLowerCase();
-      if (!['jpg', 'jpeg', 'png', 'webp'].contains(extension)) {
+      // Validate file type - support both path extension and mimeType
+      String? extension;
+
+      // Try to get extension from mimeType first (works better on web)
+      if (pickedFile.mimeType != null) {
+        final mimeType = pickedFile.mimeType!.toLowerCase();
+        if (mimeType.contains('jpeg') || mimeType.contains('jpg')) {
+          extension = 'jpg';
+        } else if (mimeType.contains('png')) {
+          extension = 'png';
+        } else if (mimeType.contains('webp')) {
+          extension = 'webp';
+        }
+      }
+
+      // Fallback to path extension if mimeType not available
+      if (extension == null) {
+        final pathExtension = pickedFile.path.split('.').last.toLowerCase();
+        if (['jpg', 'jpeg', 'png', 'webp'].contains(pathExtension)) {
+          extension = pathExtension;
+        }
+      }
+
+      // If still no valid extension, check name
+      if (extension == null && pickedFile.name.isNotEmpty) {
+        final nameExtension = pickedFile.name.split('.').last.toLowerCase();
+        if (['jpg', 'jpeg', 'png', 'webp'].contains(nameExtension)) {
+          extension = nameExtension;
+        }
+      }
+
+      if (extension == null) {
         throw 'Format gambar tidak didukung. Gunakan JPG, PNG, JPEG, atau WEBP';
       }
 
+      print('Detected extension: $extension');
+      print('MimeType: ${pickedFile.mimeType}');
+      print('Path: ${pickedFile.path}');
+      print('Name: ${pickedFile.name}');
+
       // Read file as bytes (works for both web and mobile)
       final fileBytes = await pickedFile.readAsBytes();
+      print('File size: ${fileBytes.length} bytes');
 
-      // Generate unique filename
-      final fileName =
-          'ukm_${DateTime.now().millisecondsSinceEpoch}.$extension';
+      // Validate file size (max 10MB)
+      if (fileBytes.length > 10 * 1024 * 1024) {
+        throw 'Ukuran file terlalu besar. Maksimal 10MB';
+      }
 
-      // Upload to Supabase Storage
-      await _supabase.storage
-          .from('ukm-logos')
-          .uploadBinary(fileName, fileBytes);
+      // Generate unique filename with timestamp and random
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final fileName = 'ukm_$timestamp.$extension';
 
-      // Get public URL
-      final imageUrl = _supabase.storage
-          .from('ukm-logos')
-          .getPublicUrl(fileName);
+      print('Uploading to bucket: ukm-logos with filename: $fileName');
 
-      return imageUrl;
+      // Determine content type
+      String contentType;
+      switch (extension) {
+        case 'jpg':
+        case 'jpeg':
+          contentType = 'image/jpeg';
+          break;
+        case 'png':
+          contentType = 'image/png';
+          break;
+        case 'webp':
+          contentType = 'image/webp';
+          break;
+        default:
+          contentType = 'image/jpeg';
+      }
+
+      try {
+        // Upload to Supabase Storage with proper content type and public access
+        final uploadPath = await _supabase.storage
+            .from('ukm-logos')
+            .uploadBinary(
+              fileName,
+              fileBytes,
+              fileOptions: FileOptions(
+                contentType: contentType,
+                upsert: true, // Allow overwrite if filename exists
+              ),
+            );
+
+        print('Upload successful! Path: $uploadPath');
+
+        // Get public URL
+        final imageUrl = _supabase.storage
+            .from('ukm-logos')
+            .getPublicUrl(fileName);
+
+        print('Public URL: $imageUrl');
+
+        return imageUrl;
+      } on StorageException catch (e) {
+        print('StorageException: ${e.message}');
+        print('StatusCode: ${e.statusCode}');
+
+        // Provide user-friendly error messages
+        if (e.statusCode == '403' || e.statusCode == '401') {
+          throw 'Tidak memiliki izin untuk upload. Silakan login ulang atau hubungi administrator.';
+        } else if (e.statusCode == '413') {
+          throw 'File terlalu besar. Maksimal 10MB';
+        } else {
+          throw 'Gagal upload gambar: ${e.message}';
+        }
+      }
     } catch (e) {
+      print('Error in _pickAndUploadImage: $e');
       rethrow;
     }
   }
@@ -1237,7 +1322,7 @@ class _UkmPageState extends State<UkmPage> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Email
+                    // Email Field
                     Text(
                       'Email *',
                       style: GoogleFonts.inter(
@@ -1566,6 +1651,18 @@ class _UkmPageState extends State<UkmPage> {
                     return;
                   }
 
+                  // Validate email format
+                  final emailRegex = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
+                  if (!emailRegex.hasMatch(emailController.text.trim())) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Format email tidak valid'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                    return;
+                  }
+
                   if (changePassword) {
                     if (passwordController.text.isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -1589,18 +1686,6 @@ class _UkmPageState extends State<UkmPage> {
                       );
                       return;
                     }
-                  }
-
-                  // Validate email format
-                  final emailRegex = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
-                  if (!emailRegex.hasMatch(emailController.text.trim())) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Format email tidak valid'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                    return;
                   }
 
                   try {
@@ -1867,7 +1952,7 @@ class _UkmPageState extends State<UkmPage> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Email
+                    // Email Field
                     Text(
                       'Email *',
                       style: GoogleFonts.inter(
@@ -2124,24 +2209,24 @@ class _UkmPageState extends State<UkmPage> {
                     return;
                   }
 
-                  if (!_isPasswordValid(passwordController.text)) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Password harus memenuhi semua persyaratan',
-                        ),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                    return;
-                  }
-
                   // Validate email format
                   final emailRegex = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
                   if (!emailRegex.hasMatch(emailController.text.trim())) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text('Format email tidak valid'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                    return;
+                  }
+
+                  if (!_isPasswordValid(passwordController.text)) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Password harus memenuhi semua persyaratan',
+                        ),
                         backgroundColor: Colors.red,
                       ),
                     );

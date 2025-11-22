@@ -8,6 +8,7 @@ import 'package:unit_activity/auth/register.dart';
 import 'package:unit_activity/auth/forgot_password.dart';
 import 'package:unit_activity/admin/dashboard_admin.dart';
 import 'package:unit_activity/config/config.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,7 +17,14 @@ Future<void> main() async {
   usePathUrlStrategy();
 
   // Load environment variables
-  await dotenv.load(fileName: ".env");
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    // For web, .env might not load properly, so we'll use fallback
+    if (kIsWeb) {
+      print('Running on web, using hardcoded config');
+    }
+  }
 
   // Initialize Supabase
   await Supabase.initialize(
