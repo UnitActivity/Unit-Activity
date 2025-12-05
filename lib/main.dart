@@ -6,56 +6,78 @@ import 'package:device_preview/device_preview.dart';
 import 'package:unit_activity/auth/login.dart';
 import 'package:unit_activity/auth/register.dart';
 import 'package:unit_activity/auth/forgot_password.dart';
+import 'package:unit_activity/user/dashboard_user.dart';
 import 'package:unit_activity/admin/dashboard_admin.dart';
+import 'package:unit_activity/config/routes.dart';
 import 'package:unit_activity/config/config.dart';
+import 'package:unit_activity/user/profile_page.dart'; // Tambahkan import ini
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Remove # from URL (for web only)
   usePathUrlStrategy();
-
-  // Load environment variables
   await dotenv.load(fileName: ".env");
-
-  // Initialize Supabase
   await Supabase.initialize(
     url: SupabaseConfig.supabaseUrl,
     anonKey: SupabaseConfig.supabaseAnonKey,
   );
 
-  runApp(
-    DevicePreview(
-      enabled: false, // Set to false untuk disable device preview
-      builder: (context) => const MyApp(),
-    ),
-  );
+  runApp(DevicePreview(enabled: true, builder: (context) => const MyApp()));
 }
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Unit Activity',
       debugShowCheckedModeBanner: false,
-      // Konfigurasi untuk Device Preview
       locale: DevicePreview.locale(context),
       builder: DevicePreview.appBuilder,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF4169E1)),
         useMaterial3: true,
       ),
-      initialRoute: '/login',
+      initialRoute: AppRoutes.login,
       routes: {
-        '/': (context) => const LoginPage(),
-        '/login': (context) => const LoginPage(),
-        '/register': (context) => const RegisterPage(),
-        '/forgot-password': (context) => const ForgotPasswordPage(),
-        '/admin': (context) => const DashboardAdminPage(),
-        '/admin/dashboard': (context) => const DashboardAdminPage(),
+        // Auth Routes
+        AppRoutes.home: (context) => const DashboardUser(),
+        AppRoutes.login: (context) => const LoginPage(),
+        AppRoutes.register: (context) => const RegisterPage(),
+        AppRoutes.forgotPassword: (context) => const ForgotPasswordPage(),
+
+        // User Routes
+        AppRoutes.user: (context) => const DashboardUser(),
+        AppRoutes.userDashboard: (context) => const DashboardUser(),
+        AppRoutes.userEvent: (context) => const DashboardUser(), // Placeholder
+        AppRoutes.userUKM: (context) => const DashboardUser(), // Placeholder
+        AppRoutes.userHistory: (context) =>
+            const DashboardUser(), // Placeholder
+        AppRoutes.userProfile: (context) => const ProfilePage(), // Placeholder
+        // Admin Routes
+        AppRoutes.admin: (context) => const DashboardAdminPage(),
+        AppRoutes.adminDashboard: (context) => const DashboardAdminPage(),
+      },
+      onUnknownRoute: (settings) {
+        return MaterialPageRoute(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text('Page not found: ${settings.name}'),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.pushReplacementNamed(context, AppRoutes.login);
+                    },
+                    child: const Text('Back to Login'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
       },
     );
   }
