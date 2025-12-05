@@ -7,10 +7,11 @@ import 'package:unit_activity/auth/login.dart';
 import 'package:unit_activity/auth/register.dart';
 import 'package:unit_activity/auth/forgot_password.dart';
 import 'package:unit_activity/user/dashboard_user.dart';
+import 'package:unit_activity/user/event.dart';
+import 'package:unit_activity/user/profile.dart';
 import 'package:unit_activity/admin/dashboard_admin.dart';
 import 'package:unit_activity/config/routes.dart';
 import 'package:unit_activity/config/config.dart';
-import 'package:unit_activity/user/profile_page.dart'; // Tambahkan import ini
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -49,11 +50,13 @@ class MyApp extends StatelessWidget {
         // User Routes
         AppRoutes.user: (context) => const DashboardUser(),
         AppRoutes.userDashboard: (context) => const DashboardUser(),
-        AppRoutes.userEvent: (context) => const DashboardUser(), // Placeholder
-        AppRoutes.userUKM: (context) => const DashboardUser(), // Placeholder
+        AppRoutes.userEvent: (context) => const UserEventPage(),
+        AppRoutes.userUKM: (context) =>
+            const DashboardUser(), // Ganti dengan UKMPage jika ada
         AppRoutes.userHistory: (context) =>
-            const DashboardUser(), // Placeholder
-        AppRoutes.userProfile: (context) => const ProfilePage(), // Placeholder
+            const DashboardUser(), // Ganti dengan HistoryPage jika ada
+        AppRoutes.userProfile: (context) => const ProfilePage(),
+
         // Admin Routes
         AppRoutes.admin: (context) => const DashboardAdminPage(),
         AppRoutes.adminDashboard: (context) => const DashboardAdminPage(),
