@@ -3,6 +3,23 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class DashboardService {
   final SupabaseClient _supabase = Supabase.instance.client;
 
+  // Timeout duration for requests
+  static const Duration _requestTimeout = Duration(seconds: 10);
+
+  /// Helper method to execute query with timeout
+  Future<List<dynamic>> _executeQuery(
+    dynamic query, {
+    String errorContext = '',
+  }) async {
+    try {
+      final result = await query.timeout(_requestTimeout);
+      return result as List<dynamic>;
+    } catch (e) {
+      print('Error $errorContext: $e');
+      return [];
+    }
+  }
+
   /// Get comprehensive dashboard statistics
   Future<Map<String, dynamic>> getDashboardStats() async {
     try {
@@ -15,8 +32,10 @@ class DashboardService {
 
       // ========== GET TOTAL UKM ==========
       try {
-        final ukmResponse =
-            await _supabase.from('ukm').select('id_ukm') as List;
+        final ukmResponse = await _executeQuery(
+          _supabase.from('ukm').select('id_ukm'),
+          errorContext: 'fetching UKM',
+        );
         ukmCount = ukmResponse.length;
       } catch (e) {
         print('Error fetching UKM: $e');
@@ -25,8 +44,10 @@ class DashboardService {
 
       // ========== GET TOTAL USERS (MAHASISWA) ==========
       try {
-        final usersResponse =
-            await _supabase.from('users').select('id_user') as List;
+        final usersResponse = await _executeQuery(
+          _supabase.from('users').select('id_user'),
+          errorContext: 'fetching Users',
+        );
         usersCount = usersResponse.length;
       } catch (e) {
         print('Error fetching Users: $e');
@@ -35,8 +56,10 @@ class DashboardService {
 
       // ========== GET TOTAL EVENTS ==========
       try {
-        final eventResponse =
-            await _supabase.from('events').select('id_events') as List;
+        final eventResponse = await _executeQuery(
+          _supabase.from('events').select('id_events'),
+          errorContext: 'fetching Events',
+        );
         eventCount = eventResponse.length;
       } catch (e) {
         print('Error fetching Events: $e');
@@ -45,12 +68,10 @@ class DashboardService {
 
       // ========== GET ACTIVE EVENTS (status=true) ==========
       try {
-        final activeEventsResponse =
-            await _supabase
-                    .from('events')
-                    .select('id_events')
-                    .eq('status', true)
-                as List;
+        final activeEventsResponse = await _executeQuery(
+          _supabase.from('events').select('id_events').eq('status', true),
+          errorContext: 'fetching Active Events',
+        );
         activeEvents = activeEventsResponse.length;
       } catch (e) {
         print('Error fetching Active Events: $e');
@@ -59,12 +80,13 @@ class DashboardService {
 
       // ========== GET OPEN REGISTRATIONS ==========
       try {
-        final openRegsResponse =
-            await _supabase
-                    .from('periode_ukm')
-                    .select('id_periode')
-                    .eq('is_registration_open', true)
-                as List;
+        final openRegsResponse = await _executeQuery(
+          _supabase
+              .from('periode_ukm')
+              .select('id_periode')
+              .eq('is_registration_open', true),
+          errorContext: 'fetching Open Registrations',
+        );
         openRegistrations = openRegsResponse.length;
       } catch (e) {
         print('Error fetching Open Registrations: $e');
@@ -73,9 +95,10 @@ class DashboardService {
 
       // ========== GET TOTAL FOLLOWERS ==========
       try {
-        final followersResponse =
-            await _supabase.from('user_halaman_ukm').select('id_follow')
-                as List;
+        final followersResponse = await _executeQuery(
+          _supabase.from('user_halaman_ukm').select('id_follow'),
+          errorContext: 'fetching Followers',
+        );
         totalFollowers = followersResponse.length;
       } catch (e) {
         print('Error fetching Followers: $e');
@@ -139,13 +162,14 @@ class DashboardService {
           startDate = DateTime(now.year, now.month - 6, 1);
       }
 
-      final response =
-          await _supabase
-                  .from('events')
-                  .select('tanggal_mulai, nama_event')
-                  .gte('tanggal_mulai', startDate.toIso8601String())
-                  .order('tanggal_mulai')
-              as List;
+      final response = await _executeQuery(
+        _supabase
+            .from('events')
+            .select('tanggal_mulai, nama_event')
+            .gte('tanggal_mulai', startDate.toIso8601String())
+            .order('tanggal_mulai'),
+        errorContext: 'fetching events by month',
+      );
 
       // Group by month
       Map<String, int> monthlyData = {};
@@ -168,11 +192,10 @@ class DashboardService {
   /// Get UKM ranking by member count
   Future<Map<String, dynamic>> getUkmRanking() async {
     try {
-      final response =
-          await _supabase
-                  .from('user_halaman_ukm')
-                  .select('id_ukm, ukm(nama_ukm)')
-              as List;
+      final response = await _executeQuery(
+        _supabase.from('user_halaman_ukm').select('id_ukm, ukm(nama_ukm)'),
+        errorContext: 'fetching UKM ranking',
+      );
 
       // Count members per UKM
       Map<String, dynamic> ukmCounts = {};
@@ -242,13 +265,14 @@ class DashboardService {
           startDate = DateTime(now.year, now.month - 6, 1);
       }
 
-      final response =
-          await _supabase
-                  .from('user_halaman_ukm')
-                  .select('follow, created_at')
-                  .gte('created_at', startDate.toIso8601String())
-                  .order('created_at')
-              as List;
+      final response = await _executeQuery(
+        _supabase
+            .from('user_halaman_ukm')
+            .select('follow, created_at')
+            .gte('created_at', startDate.toIso8601String())
+            .order('created_at'),
+        errorContext: 'fetching follower trend',
+      );
 
       // Group by month
       Map<String, int> monthlyData = {};
@@ -272,13 +296,14 @@ class DashboardService {
   /// Get recent activities (last 5 events)
   Future<Map<String, dynamic>> getRecentActivities() async {
     try {
-      final response =
-          await _supabase
-                  .from('events')
-                  .select('id_events, nama_event, create_at, ukm(nama_ukm)')
-                  .order('create_at', ascending: false)
-                  .limit(5)
-              as List;
+      final response = await _executeQuery(
+        _supabase
+            .from('events')
+            .select('id_events, nama_event, create_at, ukm(nama_ukm)')
+            .order('create_at', ascending: false)
+            .limit(5),
+        errorContext: 'fetching recent activities',
+      );
 
       return {'success': true, 'data': response};
     } catch (e) {
@@ -291,16 +316,17 @@ class DashboardService {
   Future<Map<String, dynamic>> getUpcomingEvents() async {
     try {
       final now = DateTime.now();
-      final response =
-          await _supabase
-                  .from('events')
-                  .select(
-                    'id_events, nama_event, tanggal_mulai, lokasi, ukm(nama_ukm)',
-                  )
-                  .gte('tanggal_mulai', now.toIso8601String())
-                  .order('tanggal_mulai')
-                  .limit(5)
-              as List;
+      final response = await _executeQuery(
+        _supabase
+            .from('events')
+            .select(
+              'id_events, nama_event, tanggal_mulai, lokasi, ukm(nama_ukm)',
+            )
+            .gte('tanggal_mulai', now.toIso8601String())
+            .order('tanggal_mulai')
+            .limit(5),
+        errorContext: 'fetching upcoming events',
+      );
 
       return {'success': true, 'data': response};
     } catch (e) {
@@ -316,15 +342,14 @@ class DashboardService {
 
       // Check events without proposal
       try {
-        final eventsNoProposal =
-            await _supabase
-                    .from('events')
-                    .select('id_events, nama_event')
-                    .or(
-                      'status_proposal.is.null,status_proposal.eq.belum_ajukan',
-                    )
-                    .eq('status', true)
-                as List;
+        final eventsNoProposal = await _executeQuery(
+          _supabase
+              .from('events')
+              .select('id_events, nama_event')
+              .or('status_proposal.is.null,status_proposal.eq.belum_ajukan')
+              .eq('status', true),
+          errorContext: 'checking events without proposal',
+        );
 
         if (eventsNoProposal.isNotEmpty) {
           alerts.add({
@@ -342,13 +367,14 @@ class DashboardService {
       // Check overdue LPJ (events ended but no LPJ)
       try {
         final now = DateTime.now();
-        final overdueEvents =
-            await _supabase
-                    .from('events')
-                    .select('id_events, nama_event, tanggal_akhir')
-                    .lt('tanggal_akhir', now.toIso8601String())
-                    .or('status_lpj.is.null,status_lpj.eq.belum_ajukan')
-                as List;
+        final overdueEvents = await _executeQuery(
+          _supabase
+              .from('events')
+              .select('id_events, nama_event, tanggal_akhir')
+              .lt('tanggal_akhir', now.toIso8601String())
+              .or('status_lpj.is.null,status_lpj.eq.belum_ajukan'),
+          errorContext: 'checking overdue LPJ',
+        );
 
         if (overdueEvents.isNotEmpty) {
           alerts.add({
@@ -369,24 +395,26 @@ class DashboardService {
         int pendingLpj = 0;
 
         try {
-          final proposals =
-              await _supabase
-                      .from('event_proposal')
-                      .select('id_proposal')
-                      .eq('status', 'menunggu')
-                  as List;
+          final proposals = await _executeQuery(
+            _supabase
+                .from('event_proposal')
+                .select('id_proposal')
+                .eq('status', 'menunggu'),
+            errorContext: 'fetching pending proposals',
+          );
           pendingProposals = proposals.length;
         } catch (e) {
           print('Error fetching pending proposals: $e');
         }
 
         try {
-          final lpjs =
-              await _supabase
-                      .from('event_lpj')
-                      .select('id_lpj')
-                      .eq('status', 'menunggu')
-                  as List;
+          final lpjs = await _executeQuery(
+            _supabase
+                .from('event_lpj')
+                .select('id_lpj')
+                .eq('status', 'menunggu'),
+            errorContext: 'fetching pending LPJs',
+          );
           pendingLpj = lpjs.length;
         } catch (e) {
           print('Error fetching pending LPJs: $e');

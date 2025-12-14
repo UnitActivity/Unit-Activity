@@ -19,10 +19,22 @@ Future<void> main() async {
   await dotenv.load(fileName: ".env");
 
   // Initialize Supabase
-  await Supabase.initialize(
-    url: SupabaseConfig.supabaseUrl,
-    anonKey: SupabaseConfig.supabaseAnonKey,
-  );
+  try {
+    await Supabase.initialize(
+      url: SupabaseConfig.supabaseUrl,
+      anonKey: SupabaseConfig.supabaseAnonKey,
+      authOptions: const FlutterAuthClientOptions(
+        authFlowType: AuthFlowType.pkce,
+      ),
+      realtimeClientOptions: const RealtimeClientOptions(
+        logLevel: RealtimeLogLevel.info,
+      ),
+      storageOptions: const StorageClientOptions(retryAttempts: 3),
+    );
+    print('Supabase initialized successfully');
+  } catch (e) {
+    print('Error initializing Supabase: $e');
+  }
 
   runApp(
     DevicePreview(
