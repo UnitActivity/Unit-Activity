@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-class UKMSidebar extends StatelessWidget {
+class UserSidebar extends StatelessWidget {
   final String selectedMenu;
   final Function(String) onMenuSelected;
   final VoidCallback onLogout;
 
-  const UKMSidebar({
+  const UserSidebar({
     super.key,
     required this.selectedMenu,
     required this.onMenuSelected,
@@ -48,13 +48,6 @@ class UKMSidebar extends StatelessWidget {
                   onTap: () => onMenuSelected('dashboard'),
                 ),
                 _buildMenuItem(
-                  icon: Icons.people_outline,
-                  title: 'Peserta',
-                  value: 'peserta',
-                  isSelected: selectedMenu == 'peserta',
-                  onTap: () => onMenuSelected('peserta'),
-                ),
-                _buildMenuItem(
                   icon: Icons.event_note_outlined,
                   title: 'Event',
                   value: 'event',
@@ -62,25 +55,25 @@ class UKMSidebar extends StatelessWidget {
                   onTap: () => onMenuSelected('event'),
                 ),
                 _buildMenuItem(
-                  icon: Icons.info_outline,
-                  title: 'Informasi',
-                  value: 'informasi',
-                  isSelected: selectedMenu == 'informasi',
-                  onTap: () => onMenuSelected('informasi'),
+                  icon: Icons.groups_outlined,
+                  title: 'UKM',
+                  value: 'ukm',
+                  isSelected: selectedMenu == 'ukm',
+                  onTap: () => onMenuSelected('ukm'),
                 ),
                 _buildMenuItem(
-                  icon: Icons.notifications_outlined,
-                  title: 'Notifikasi',
-                  value: 'notifikasi',
-                  isSelected: selectedMenu == 'notifikasi',
-                  onTap: () => onMenuSelected('notifikasi'),
+                  icon: Icons.history_outlined,
+                  title: 'Histori',
+                  value: 'histori',
+                  isSelected: selectedMenu == 'histori',
+                  onTap: () => onMenuSelected('histori'),
                 ),
                 _buildMenuItem(
                   icon: Icons.person_outline,
-                  title: 'Akun',
-                  value: 'akun',
-                  isSelected: selectedMenu == 'akun',
-                  onTap: () => onMenuSelected('akun'),
+                  title: 'Profile',
+                  value: 'profile',
+                  isSelected: selectedMenu == 'profile',
+                  onTap: () => onMenuSelected('profile'),
                 ),
               ],
             ),

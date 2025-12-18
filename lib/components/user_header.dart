@@ -2,18 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:ui';
 
-class UKMHeader extends StatelessWidget {
+class UserHeader extends StatelessWidget {
   final VoidCallback? onMenuPressed;
   final VoidCallback? onLogout;
-  final String ukmName;
-  final String periode;
+  final String userName;
 
-  const UKMHeader({
+  const UserHeader({
     super.key,
     this.onMenuPressed,
     this.onLogout,
-    required this.ukmName,
-    required this.periode,
+    required this.userName,
   });
 
   @override
@@ -21,12 +19,12 @@ class UKMHeader extends StatelessWidget {
     final isDesktop = MediaQuery.of(context).size.width >= 768;
 
     return Container(
-      margin: const EdgeInsets.all(16),
+      margin: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
+            color: Colors.black.withOpacity(0.1),
             blurRadius: 20,
             offset: const Offset(0, 4),
           ),
@@ -37,12 +35,12 @@ class UKMHeader extends StatelessWidget {
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.7),
+              color: Colors.white.withOpacity(0.7),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: Colors.white.withValues(alpha: 0.3),
+                color: Colors.white.withOpacity(0.3),
                 width: 1.5,
               ),
             ),
@@ -79,7 +77,7 @@ class UKMHeader extends StatelessWidget {
         style: GoogleFonts.inter(fontSize: 16, color: Colors.black87),
         children: [
           TextSpan(
-            text: ukmName,
+            text: userName,
             style: GoogleFonts.inter(
               fontWeight: FontWeight.bold,
               color: Colors.black,
