@@ -76,6 +76,13 @@ class AdminSidebar extends StatelessWidget {
                   onTap: () => onMenuSelected('periode'),
                 ),
                 _buildMenuItem(
+                  icon: Icons.notifications_outlined,
+                  title: 'Notifikasi',
+                  value: 'notifikasi',
+                  isSelected: selectedMenu == 'notifikasi',
+                  onTap: () => onMenuSelected('notifikasi'),
+                ),
+                _buildMenuItem(
                   icon: Icons.info_outline,
                   title: 'Informasi',
                   value: 'informasi',

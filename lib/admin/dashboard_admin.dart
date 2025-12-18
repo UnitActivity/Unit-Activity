@@ -6,6 +6,7 @@ import 'package:unit_activity/admin/pengguna.dart';
 import 'package:unit_activity/admin/ukm.dart';
 import 'package:unit_activity/admin/event.dart';
 import 'package:unit_activity/admin/periode.dart';
+import 'package:unit_activity/admin/notifikasi.dart';
 import 'package:unit_activity/admin/informasi.dart';
 import 'package:unit_activity/services/dashboard_service.dart';
 
@@ -234,6 +235,8 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
         return const EventPage();
       case 'periode':
         return const PeriodePage();
+      case 'notifikasi':
+        return const NotifikasiPage();
       case 'informasi':
         return const InformasiPage();
       default:
