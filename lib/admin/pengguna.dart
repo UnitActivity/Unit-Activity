@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
+import 'add_pengguna_page.dart';
+import 'edit_pengguna_page.dart';
 
 class PenggunaPage extends StatefulWidget {
   const PenggunaPage({super.key});
@@ -431,6 +433,35 @@ class _PenggunaPageState extends State<PenggunaPage> {
             ),
           ),
         ],
+
+        // Add User Button
+        const SizedBox(width: 12),
+        ElevatedButton.icon(
+          onPressed: () async {
+            final result = await Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const AddPenggunaPage()),
+            );
+            // Refresh list if user was added
+            if (result == true) {
+              _loadUsers();
+            }
+          },
+          icon: const Icon(Icons.add, size: 20),
+          label: Text(
+            'Tambah Pengguna',
+            style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF4169E1),
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            elevation: 0,
+          ),
+        ),
       ],
     );
   }
@@ -1167,32 +1198,15 @@ class _PenggunaPageState extends State<PenggunaPage> {
     );
   }
 
-  void _editUser(Map<String, dynamic> user) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          'Edit Pengguna',
-          style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.bold),
-        ),
-        content: Text(
-          'Fitur edit pengguna akan segera tersedia.',
-          style: GoogleFonts.inter(fontSize: 14),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Tutup',
-              style: GoogleFonts.inter(
-                color: const Color(0xFF4169E1),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
+  void _editUser(Map<String, dynamic> user) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => EditPenggunaPage(userData: user)),
     );
+    // Refresh list if user was updated
+    if (result == true) {
+      _loadUsers();
+    }
   }
 
   void _deleteUser(String userId) {
