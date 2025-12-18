@@ -16,7 +16,7 @@ class ImageUploadWidget extends StatefulWidget {
   final Color? backgroundColor;
 
   const ImageUploadWidget({
-    Key? key,
+    super.key,
     this.allowMultiple = false,
     this.title = "Upload Image",
     this.cameraText = "Camera",
@@ -27,7 +27,7 @@ class ImageUploadWidget extends StatefulWidget {
     this.imageSize = 120,
     this.primaryColor,
     this.backgroundColor,
-  }) : super(key: key);
+  });
 
   @override
   State<ImageUploadWidget> createState() => _ImageUploadWidgetState();

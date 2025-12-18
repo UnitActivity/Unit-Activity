@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:unit_activity/config/routes.dart';
 
 class HistoryPage extends StatefulWidget {
-  const HistoryPage({Key? key}) : super(key: key);
+  const HistoryPage({super.key});
 
   @override
   State<HistoryPage> createState() => _HistoryPageState();
@@ -129,7 +129,7 @@ class _HistoryPageState extends State<HistoryPage> {
           ),
           ...entry.value.map((activity) {
             return _buildActivityCard(activity);
-          }).toList(),
+          }),
           const SizedBox(height: 16),
         ],
       );
@@ -547,7 +547,7 @@ class IllustrationPainter extends CustomPainter {
 class HistoryDetailPage extends StatelessWidget {
   final Map<String, dynamic> activity;
 
-  const HistoryDetailPage({Key? key, required this.activity}) : super(key: key);
+  const HistoryDetailPage({super.key, required this.activity});
 
   @override
   Widget build(BuildContext context) {

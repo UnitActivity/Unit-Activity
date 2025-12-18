@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:unit_activity/config/routes.dart';
 
 class UserUKMPage extends StatefulWidget {
-  const UserUKMPage({Key? key}) : super(key: key);
+  const UserUKMPage({super.key});
 
   @override
   State<UserUKMPage> createState() => _UserUKMPageState();
 }
 
 class _UserUKMPageState extends State<UserUKMPage> {
-  int _selectedIndex = 2; // UKM selected by default
+  final int _selectedIndex = 2; // UKM selected by default
   String _selectedMenu = 'UKM';
   Map<String, dynamic>? _selectedUKM;
   String _selectedFilter = 'Semua';
@@ -1099,7 +1099,7 @@ class _UserUKMPageState extends State<UserUKMPage> {
               ],
             ),
           );
-        }).toList(),
+        }),
       ],
     );
   }

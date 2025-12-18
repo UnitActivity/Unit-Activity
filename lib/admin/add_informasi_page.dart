@@ -454,7 +454,7 @@ class _AddInformasiPageState extends State<AddInformasiPage> {
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          value: value,
+          initialValue: value,
           decoration: InputDecoration(
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
@@ -503,7 +503,7 @@ class _AddInformasiPageState extends State<AddInformasiPage> {
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          value: value,
+          initialValue: value,
           decoration: InputDecoration(
             hintText: 'Pilih $label (optional)',
             hintStyle: GoogleFonts.inter(color: Colors.grey[400]),

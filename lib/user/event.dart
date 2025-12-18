@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:unit_activity/config/routes.dart';
 
 class UserEventPage extends StatefulWidget {
-  const UserEventPage({Key? key}) : super(key: key);
+  const UserEventPage({super.key});
 
   @override
   State<UserEventPage> createState() => _UserEventPageState();
 }
 
 class _UserEventPageState extends State<UserEventPage> {
-  int _selectedIndex = 1;
+  final int _selectedIndex = 1;
   String _selectedMenu = 'Event';
   Map<String, dynamic>? _selectedEvent;
 

@@ -13,7 +13,7 @@ class PenggunaPage extends StatefulWidget {
 class _PenggunaPageState extends State<PenggunaPage> {
   final SupabaseClient _supabase = Supabase.instance.client;
 
-  String _sortBy = 'Urutkan';
+  final String _sortBy = 'Urutkan';
   String _searchQuery = '';
   int _currentPage = 1;
   final int _itemsPerPage = 10;
@@ -24,7 +24,7 @@ class _PenggunaPageState extends State<PenggunaPage> {
   Set<String> _selectedUsers = {};
 
   // Column visibility settings
-  Map<String, bool> _columnVisibility = {
+  final Map<String, bool> _columnVisibility = {
     'picture': true,
     'nim': true,
     'email': false,

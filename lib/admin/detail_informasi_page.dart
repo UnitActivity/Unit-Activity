@@ -37,7 +37,7 @@ Tanggal: ${_formatDate(informasi['create_at'])}
 
   @override
   Widget build(BuildContext context) {
-    final _supabase = Supabase.instance.client;
+    final supabase = Supabase.instance.client;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -109,7 +109,7 @@ Tanggal: ${_formatDate(informasi['create_at'])}
                   AspectRatio(
                     aspectRatio: 1,
                     child: Image.network(
-                      _supabase.storage
+                      supabase.storage
                           .from('informasi-images')
                           .getPublicUrl(informasi['gambar']),
                       fit: BoxFit.cover,

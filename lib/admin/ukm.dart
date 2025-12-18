@@ -19,7 +19,7 @@ class UkmPage extends StatefulWidget {
 class _UkmPageState extends State<UkmPage> {
   final SupabaseClient _supabase = Supabase.instance.client;
 
-  String _sortBy = 'Urutkan';
+  final String _sortBy = 'Urutkan';
   String _searchQuery = '';
   int _currentPage = 1;
   final int _itemsPerPage = 10;
@@ -30,7 +30,7 @@ class _UkmPageState extends State<UkmPage> {
   Set<String> _selectedUkm = {};
 
   // Column visibility settings
-  Map<String, bool> _columnVisibility = {
+  final Map<String, bool> _columnVisibility = {
     'picture': true,
     'name': true,
     'email': true,
