@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'detail_event_page.dart';
 
 class EventPage extends StatefulWidget {
   const EventPage({super.key});
@@ -12,55 +13,64 @@ class _EventPageState extends State<EventPage> {
   String _sortBy = 'Urutkan';
   String _searchQuery = '';
   int _currentPage = 1;
-  final int _totalPages = 1;
-  final int _itemsPerPage = 5;
+  final int _itemsPerPage = 10;
 
-  // Sample data - replace with actual data from API/database
+  // Dummy data
   final List<Map<String, dynamic>> _allEvents = [
     {
-      'namaEvent': 'Sparing w/ UWIKA',
+      'namaEvent': 'Sparing Basket w/ UWIKA',
+      'ukm': 'UKM Basket',
       'tipeEvent': 'Sparing',
-      'lokasi': 'Lapangan Basket',
+      'lokasi': 'Lapangan Basket Kampus',
       'tanggal': '22-12-2025',
       'jam': '17:00',
       'dibuat': '20-12-2025',
-      'detail': 'Lihat',
+      'deskripsi':
+          'Pertandingan persahabatan basket antara tim UKM Basket dengan UWIKA. Event ini bertujuan untuk meningkatkan kemampuan dan kerjasama tim.',
     },
     {
-      'namaEvent': 'Friendly Match Futsal Kampus',
+      'namaEvent': 'Friendly Match Futsal',
+      'ukm': 'UKM Futsal',
       'tipeEvent': 'Sparing',
-      'lokasi': 'Lapangan Futsal',
-      'tanggal': '1-12-2025',
+      'lokasi': 'Lapangan Futsal Indoor',
+      'tanggal': '01-12-2025',
       'jam': '15:00',
       'dibuat': '28-11-2025',
-      'detail': 'Lihat',
+      'deskripsi':
+          'Pertandingan futsal antar kampus untuk mempererat tali silaturahmi dan meningkatkan sportivitas.',
     },
     {
       'namaEvent': 'Mini Tournament Badminton',
+      'ukm': 'UKM Badminton',
       'tipeEvent': 'Turnamen Internal',
-      'lokasi': 'Merr badminton Court',
-      'tanggal': '5-12-2025',
+      'lokasi': 'Merr Badminton Court',
+      'tanggal': '05-12-2025',
       'jam': '10:00',
-      'dibuat': '4-12-2025',
-      'detail': 'Lihat',
+      'dibuat': '04-12-2025',
+      'deskripsi':
+          'Turnamen badminton internal untuk seluruh anggota UKM. Hadiah menarik untuk juara 1, 2, dan 3.',
     },
     {
       'namaEvent': 'Pentas Musik Akustik',
+      'ukm': 'UKM Musik',
       'tipeEvent': 'Penampilan',
-      'lokasi': 'Vidya Loka Lt2',
+      'lokasi': 'Vidya Loka Lt.2',
       'tanggal': '14-12-2025',
       'jam': '18:00',
       'dibuat': '10-12-2025',
-      'detail': 'Lihat',
+      'deskripsi':
+          'Penampilan musik akustik dari anggota UKM Musik. Menampilkan berbagai genre musik dari pop, jazz, hingga indie.',
     },
     {
-      'namaEvent': 'E-Sport Scrim Mobile legend',
+      'namaEvent': 'E-Sport Scrim Mobile Legends',
+      'ukm': 'UKM E-Sport',
       'tipeEvent': 'Sparing',
-      'lokasi': 'Ruangan 5 A',
+      'lokasi': 'Ruangan 5A',
       'tanggal': '26-12-2025',
       'jam': '17:00',
       'dibuat': '23-12-2025',
-      'detail': 'Lihat',
+      'deskripsi':
+          'Latihan bersama (scrim) Mobile Legends untuk persiapan turnamen regional. Terbuka untuk semua anggota UKM E-Sport.',
     },
   ];
 
@@ -70,7 +80,7 @@ class _EventPageState extends State<EventPage> {
       return event['namaEvent'].toString().toLowerCase().contains(
             _searchQuery.toLowerCase(),
           ) ||
-          event['tipeEvent'].toString().toLowerCase().contains(
+          event['ukm'].toString().toLowerCase().contains(
             _searchQuery.toLowerCase(),
           ) ||
           event['lokasi'].toString().toLowerCase().contains(
@@ -79,6 +89,10 @@ class _EventPageState extends State<EventPage> {
     }).toList();
 
     return events;
+  }
+
+  int get _totalPages {
+    return (_filteredEvents.length / _itemsPerPage).ceil();
   }
 
   List<Map<String, dynamic>> get _paginatedEvents {
@@ -227,15 +241,6 @@ class _EventPageState extends State<EventPage> {
             ),
             child: Row(
               children: [
-                // Checkbox
-                SizedBox(
-                  width: 50,
-                  child: Checkbox(
-                    value: false,
-                    onChanged: (value) {},
-                    activeColor: const Color(0xFF4169E1),
-                  ),
-                ),
                 // Nama Event
                 Expanded(
                   flex: 3,
@@ -248,11 +253,11 @@ class _EventPageState extends State<EventPage> {
                     ),
                   ),
                 ),
-                // Tipe Event
+                // UKM
                 Expanded(
                   flex: 2,
                   child: Text(
-                    'Tipe Event',
+                    'UKM',
                     style: GoogleFonts.inter(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -264,7 +269,7 @@ class _EventPageState extends State<EventPage> {
                 Expanded(
                   flex: 2,
                   child: Text(
-                    'lokasi',
+                    'Lokasi',
                     style: GoogleFonts.inter(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -276,7 +281,7 @@ class _EventPageState extends State<EventPage> {
                 Expanded(
                   flex: 2,
                   child: Text(
-                    'tanggal',
+                    'Tanggal',
                     style: GoogleFonts.inter(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -289,18 +294,6 @@ class _EventPageState extends State<EventPage> {
                   flex: 1,
                   child: Text(
                     'Jam',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                ),
-                // Dibuat
-                Expanded(
-                  flex: 2,
-                  child: Text(
-                    'Dibuat',
                     style: GoogleFonts.inter(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -343,31 +336,23 @@ class _EventPageState extends State<EventPage> {
                 ),
                 child: Row(
                   children: [
-                    // Checkbox
-                    SizedBox(
-                      width: 50,
-                      child: Checkbox(
-                        value: false,
-                        onChanged: (value) {},
-                        activeColor: const Color(0xFF4169E1),
-                      ),
-                    ),
                     // Nama Event
                     Expanded(
                       flex: 3,
                       child: Text(
-                        event['namaEvent'],
+                        event['namaEvent'] ?? '-',
                         style: GoogleFonts.inter(
                           fontSize: 14,
+                          fontWeight: FontWeight.w600,
                           color: Colors.black87,
                         ),
                       ),
                     ),
-                    // Tipe Event
+                    // UKM
                     Expanded(
                       flex: 2,
                       child: Text(
-                        event['tipeEvent'],
+                        event['ukm'] ?? '-',
                         style: GoogleFonts.inter(
                           fontSize: 14,
                           color: Colors.black87,
@@ -378,7 +363,7 @@ class _EventPageState extends State<EventPage> {
                     Expanded(
                       flex: 2,
                       child: Text(
-                        event['lokasi'],
+                        event['lokasi'] ?? '-',
                         style: GoogleFonts.inter(
                           fontSize: 14,
                           color: Colors.black87,
@@ -389,7 +374,7 @@ class _EventPageState extends State<EventPage> {
                     Expanded(
                       flex: 2,
                       child: Text(
-                        event['tanggal'],
+                        event['tanggal'] ?? '-',
                         style: GoogleFonts.inter(
                           fontSize: 14,
                           color: Colors.black87,
@@ -400,18 +385,7 @@ class _EventPageState extends State<EventPage> {
                     Expanded(
                       flex: 1,
                       child: Text(
-                        event['jam'],
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          color: Colors.black87,
-                        ),
-                      ),
-                    ),
-                    // Dibuat
-                    Expanded(
-                      flex: 2,
-                      child: Text(
-                        event['dibuat'],
+                        event['jam'] ?? '-',
                         style: GoogleFonts.inter(
                           fontSize: 14,
                           color: Colors.black87,
@@ -421,27 +395,19 @@ class _EventPageState extends State<EventPage> {
                     // Detail Button
                     Expanded(
                       flex: 1,
-                      child: TextButton(
+                      child: IconButton(
                         onPressed: () {
-                          _showDetailDialog(event);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  DetailEventPage(event: event),
+                            ),
+                          );
                         },
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                          backgroundColor: Colors.grey[100],
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                        ),
-                        child: Text(
-                          event['detail'],
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            color: Colors.black87,
-                          ),
-                        ),
+                        icon: const Icon(Icons.visibility_outlined),
+                        color: const Color(0xFF4169E1),
+                        tooltip: 'Lihat Detail',
                       ),
                     ),
                   ],
@@ -499,7 +465,7 @@ class _EventPageState extends State<EventPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          event['namaEvent'],
+                          event['namaEvent'] ?? '-',
                           style: GoogleFonts.inter(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
@@ -508,7 +474,7 @@ class _EventPageState extends State<EventPage> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          event['tipeEvent'],
+                          event['ukm'] ?? '-',
                           style: GoogleFonts.inter(
                             fontSize: 14,
                             color: Colors.grey[600],
@@ -517,33 +483,31 @@ class _EventPageState extends State<EventPage> {
                       ],
                     ),
                   ),
-                  Checkbox(
-                    value: false,
-                    onChanged: (value) {},
-                    activeColor: const Color(0xFF4169E1),
-                  ),
                 ],
               ),
               const SizedBox(height: 12),
               const Divider(),
               const SizedBox(height: 8),
-              _buildMobileInfoRow(Icons.location_on_outlined, event['lokasi']),
-              const SizedBox(height: 8),
               _buildMobileInfoRow(
-                Icons.calendar_today_outlined,
-                '${event['tanggal']} - ${event['jam']}',
+                Icons.location_on_outlined,
+                event['lokasi'] ?? '-',
               ),
               const SizedBox(height: 8),
               _buildMobileInfoRow(
-                Icons.access_time_outlined,
-                'Dibuat: ${event['dibuat']}',
+                Icons.calendar_today_outlined,
+                '${event['tanggal'] ?? '-'} - ${event['jam'] ?? '-'}',
               ),
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () {
-                    _showDetailDialog(event);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => DetailEventPage(event: event),
+                      ),
+                    );
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF4169E1),
@@ -629,74 +593,6 @@ class _EventPageState extends State<EventPage> {
           icon: const Icon(Icons.chevron_right),
           color: const Color(0xFF4169E1),
           disabledColor: Colors.grey[400],
-        ),
-      ],
-    );
-  }
-
-  void _showDetailDialog(Map<String, dynamic> event) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          'Detail Event',
-          style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.bold),
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildDetailRow('Nama Event', event['namaEvent']),
-              const SizedBox(height: 12),
-              _buildDetailRow('Tipe Event', event['tipeEvent']),
-              const SizedBox(height: 12),
-              _buildDetailRow('Lokasi', event['lokasi']),
-              const SizedBox(height: 12),
-              _buildDetailRow('Tanggal', event['tanggal']),
-              const SizedBox(height: 12),
-              _buildDetailRow('Jam', event['jam']),
-              const SizedBox(height: 12),
-              _buildDetailRow('Dibuat pada', event['dibuat']),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Tutup',
-              style: GoogleFonts.inter(
-                color: const Color(0xFF4169E1),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDetailRow(String label, String value) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.inter(
-            fontSize: 12,
-            color: Colors.grey[600],
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: GoogleFonts.inter(
-            fontSize: 14,
-            color: Colors.black87,
-            fontWeight: FontWeight.w600,
-          ),
         ),
       ],
     );
