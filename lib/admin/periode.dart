@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:intl/intl.dart';
+import 'add_periode_page.dart';
 
 class PeriodePage extends StatefulWidget {
   const PeriodePage({super.key});
@@ -9,79 +12,58 @@ class PeriodePage extends StatefulWidget {
 }
 
 class _PeriodePageState extends State<PeriodePage> {
+  final _supabase = Supabase.instance.client;
+
   String _sortBy = 'Urutkan';
   String _searchQuery = '';
   int _currentPage = 1;
-  final int _totalPages = 2;
   final int _itemsPerPage = 8;
 
-  // Sample data - replace with actual data from API/database
-  final List<Map<String, dynamic>> _allPeriode = [
-    {
-      'periode': '2025.1',
-      'tanggalAwal': '1-08-2025',
-      'tanggalAkhir': '31-01-2026',
-      'dibuat': '10-12-2025',
-    },
-    {
-      'periode': '2024.2',
-      'tanggalAwal': '1-02-2025',
-      'tanggalAkhir': '31-07-2025',
-      'dibuat': '10-12-2025',
-    },
-    {
-      'periode': '2024.1',
-      'tanggalAwal': '1-08-2024',
-      'tanggalAkhir': '31-01-2024',
-      'dibuat': '10-12-2025',
-    },
-    {
-      'periode': '2023.2',
-      'tanggalAwal': '1-02-2024',
-      'tanggalAkhir': '31-07-2024',
-      'dibuat': '10-12-2025',
-    },
-    {
-      'periode': '2023.1',
-      'tanggalAwal': '1-08-2023',
-      'tanggalAkhir': '31-01-2024',
-      'dibuat': '10-12-2025',
-    },
-    {
-      'periode': '2022.2',
-      'tanggalAwal': '1-02-2023',
-      'tanggalAkhir': '31-07-2023',
-      'dibuat': '10-12-2025',
-    },
-    {
-      'periode': '2022.1',
-      'tanggalAwal': '1-08-2022',
-      'tanggalAkhir': '31-01-2023',
-      'dibuat': '10-12-2025',
-    },
-    {
-      'periode': '2021.2',
-      'tanggalAwal': '1-02-2022',
-      'tanggalAkhir': '31-01-2022',
-      'dibuat': '10-12-2025',
-    },
-  ];
+  List<Map<String, dynamic>> _allPeriode = [];
+  bool _isLoading = true;
+  int _totalPeriode = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPeriode();
+  }
+
+  Future<void> _loadPeriode() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final response = await _supabase
+          .from('periode_ukm')
+          .select(
+            'id_periode, nama_periode, semester, tahun, tanggal_awal, tanggal_akhir, status, create_at',
+          )
+          .order('nama_periode', ascending: false);
+
+      setState(() {
+        _allPeriode = List<Map<String, dynamic>>.from(response);
+        _totalPeriode = _allPeriode.length;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error loading periode: $e');
+      setState(() => _isLoading = false);
+    }
+  }
 
   List<Map<String, dynamic>> get _filteredPeriode {
     var periode = _allPeriode.where((item) {
       if (_searchQuery.isEmpty) return true;
-      return item['periode'].toString().toLowerCase().contains(
-            _searchQuery.toLowerCase(),
-          ) ||
-          item['tanggalAwal'].toString().toLowerCase().contains(
-            _searchQuery.toLowerCase(),
-          ) ||
-          item['tanggalAkhir'].toString().toLowerCase().contains(
-            _searchQuery.toLowerCase(),
-          );
+      return item['nama_periode'].toString().toLowerCase().contains(
+        _searchQuery.toLowerCase(),
+      );
     }).toList();
 
     return periode;
+  }
+
+  int get _totalPages {
+    return (_filteredPeriode.length / _itemsPerPage).ceil();
   }
 
   List<Map<String, dynamic>> get _paginatedPeriode {
@@ -115,8 +97,18 @@ class _PeriodePageState extends State<PeriodePage> {
         _buildSearchAndFilterBar(isDesktop),
         const SizedBox(height: 24),
 
-        // Table
-        if (isDesktop) _buildDesktopTable() else _buildMobileList(),
+        // Loading or Table
+        if (_isLoading)
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.all(40),
+              child: CircularProgressIndicator(),
+            ),
+          )
+        else if (isDesktop)
+          _buildDesktopTable()
+        else
+          _buildMobileList(),
 
         const SizedBox(height: 24),
 
@@ -207,9 +199,16 @@ class _PeriodePageState extends State<PeriodePage> {
 
             // Add Button
             ElevatedButton.icon(
-              onPressed: () {
-                // TODO: Implement add periode
-                _showAddPeriodeDialog();
+              onPressed: () async {
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AddPeriodePage(),
+                  ),
+                );
+                if (result == true) {
+                  _loadPeriode();
+                }
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF4169E1),
@@ -239,173 +238,179 @@ class _PeriodePageState extends State<PeriodePage> {
   }
 
   Widget _buildDesktopTable() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          // Table Header
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            decoration: BoxDecoration(
-              color: Colors.grey[50],
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(12),
-                topRight: Radius.circular(12),
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: _paginatedPeriode.length,
+      itemBuilder: (context, index) {
+        final periode = _paginatedPeriode[index];
+        final isActive = periode['status'] == 'Active';
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey[200]!),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
               ),
-            ),
-            child: Row(
-              children: [
-                // Checkbox
-                SizedBox(
-                  width: 50,
-                  child: Checkbox(
-                    value: false,
-                    onChanged: (value) {},
-                    activeColor: const Color(0xFF4169E1),
-                  ),
-                ),
-                // Periode
-                Expanded(
-                  flex: 2,
-                  child: Text(
-                    'Periode',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                ),
-                // Tanggal Awal
-                Expanded(
-                  flex: 2,
-                  child: Text(
-                    'Tanggal Awal',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                ),
-                // Tanggal Akhir
-                Expanded(
-                  flex: 2,
-                  child: Text(
-                    'Tanggal Akhir',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                ),
-                // Dibuat
-                Expanded(
-                  flex: 2,
-                  child: Text(
-                    'Dibuat',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                ),
-              ],
-            ),
+            ],
           ),
-
-          // Table Rows
-          ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _paginatedPeriode.length,
-            itemBuilder: (context, index) {
-              final periode = _paginatedPeriode[index];
-              final isEven = index % 2 == 0;
-
-              return Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 16,
-                ),
-                decoration: BoxDecoration(
-                  color: isEven ? Colors.white : Colors.grey[50],
-                ),
-                child: Row(
+          child: Row(
+            children: [
+              // Left: Periode Info
+              Expanded(
+                flex: 3,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Checkbox
-                    SizedBox(
-                      width: 50,
-                      child: Checkbox(
-                        value: false,
-                        onChanged: (value) {},
-                        activeColor: const Color(0xFF4169E1),
-                      ),
-                    ),
-                    // Periode
-                    Expanded(
-                      flex: 2,
-                      child: Text(
-                        periode['periode'],
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black87,
+                    Row(
+                      children: [
+                        Text(
+                          '${periode['semester'] ?? '-'} ${periode['tahun'] ?? '-'}',
+                          style: GoogleFonts.inter(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black87,
+                          ),
                         ),
-                      ),
-                    ),
-                    // Tanggal Awal
-                    Expanded(
-                      flex: 2,
-                      child: Text(
-                        periode['tanggalAwal'],
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          color: Colors.black87,
+                        const SizedBox(width: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isActive
+                                ? Colors.green.withOpacity(0.1)
+                                : Colors.grey.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isActive ? Colors.green : Colors.grey,
+                              width: 1,
+                            ),
+                          ),
+                          child: Text(
+                            isActive ? 'Aktif' : 'Selesai',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: isActive ? Colors.green : Colors.grey,
+                            ),
+                          ),
                         ),
-                      ),
+                      ],
                     ),
-                    // Tanggal Akhir
-                    Expanded(
-                      flex: 2,
-                      child: Text(
-                        periode['tanggalAkhir'],
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          color: Colors.black87,
-                        ),
-                      ),
-                    ),
-                    // Dibuat
-                    Expanded(
-                      flex: 2,
-                      child: Text(
-                        periode['dibuat'],
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          color: Colors.black87,
-                        ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'ID: ${periode['nama_periode'] ?? '-'}',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: Colors.grey[600],
                       ),
                     ),
                   ],
                 ),
-              );
-            },
+              ),
+              // Middle: Dates
+              Expanded(
+                flex: 4,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _buildDateInfo(
+                        'Tanggal Awal',
+                        _formatDate(periode['tanggal_awal']),
+                        Icons.calendar_today,
+                        const Color(0xFF4169E1),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: _buildDateInfo(
+                        'Tanggal Akhir',
+                        _formatDate(periode['tanggal_akhir']),
+                        Icons.event,
+                        Colors.red,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Right: Created & Actions
+              Expanded(
+                flex: 2,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          'Dibuat',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        Text(
+                          _formatDate(periode['create_at']),
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(width: 12),
+                    IconButton(
+                      onPressed: () => _deletePeriode(periode),
+                      icon: const Icon(Icons.delete_outline),
+                      color: Colors.red,
+                      tooltip: 'Hapus',
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDateInfo(String label, String date, IconData icon, Color color) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600]),
+        ),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                date,
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.black87,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -416,105 +421,184 @@ class _PeriodePageState extends State<PeriodePage> {
       itemCount: _paginatedPeriode.length,
       itemBuilder: (context, index) {
         final periode = _paginatedPeriode[index];
+        final isActive = periode['status'] == 'Active';
 
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey[200]!),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(0.05),
                 blurRadius: 10,
-                offset: const Offset(0, 4),
+                offset: const Offset(0, 2),
               ),
             ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Header with checkbox and title
               Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF4169E1).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(
-                      Icons.calendar_month,
-                      color: Color(0xFF4169E1),
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
+                  // Title and status
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Periode ${periode['periode']}',
+                          '${periode['semester'] ?? '-'} ${periode['tahun'] ?? '-'}',
                           style: GoogleFonts.inter(
-                            fontSize: 16,
+                            fontSize: 20,
                             fontWeight: FontWeight.w600,
                             color: Colors.black87,
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Tahun Akademik',
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            color: Colors.grey[600],
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isActive
+                                ? Colors.green.withOpacity(0.1)
+                                : Colors.grey.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            isActive ? 'Aktif' : 'Selesai',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: isActive ? Colors.green : Colors.grey,
+                            ),
                           ),
                         ),
                       ],
                     ),
                   ),
-                  Checkbox(
-                    value: false,
-                    onChanged: (value) {},
-                    activeColor: const Color(0xFF4169E1),
+                  // More button
+                  IconButton(
+                    onPressed: () => _deletePeriode(periode),
+                    icon: const Icon(Icons.more_vert),
+                    color: Colors.grey[400],
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              const Divider(),
-              const SizedBox(height: 8),
-              _buildMobileInfoRow(
-                Icons.play_arrow,
-                'Mulai: ${periode['tanggalAwal']}',
+              const SizedBox(height: 20),
+
+              // Dates section
+              Row(
+                children: [
+                  // Tanggal Awal
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Tanggal Awal',
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.calendar_today,
+                              size: 16,
+                              color: const Color(0xFF4169E1),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                _formatDate(periode['tanggal_awal']),
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  // Tanggal Akhir
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Tanggal Akhir',
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.calendar_today,
+                              size: 16,
+                              color: Colors.red,
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                _formatDate(periode['tanggal_akhir']),
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 8),
-              _buildMobileInfoRow(
-                Icons.stop,
-                'Berakhir: ${periode['tanggalAkhir']}',
-              ),
-              const SizedBox(height: 8),
-              _buildMobileInfoRow(
-                Icons.access_time_outlined,
-                'Dibuat: ${periode['dibuat']}',
+              const SizedBox(height: 16),
+
+              // Footer
+              Row(
+                children: [
+                  Icon(Icons.access_time, size: 14, color: Colors.grey[500]),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Dibuat: ${_formatDate(periode['create_at'])}',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: Colors.grey[500],
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    'ID: ${periode['nama_periode'] ?? '-'}',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
         );
       },
-    );
-  }
-
-  Widget _buildMobileInfoRow(IconData icon, String text) {
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: Colors.grey[600]),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            text,
-            style: GoogleFonts.inter(fontSize: 14, color: Colors.black87),
-          ),
-        ),
-      ],
     );
   }
 
@@ -567,31 +651,68 @@ class _PeriodePageState extends State<PeriodePage> {
     );
   }
 
-  void _showAddPeriodeDialog() {
-    showDialog(
+  String _formatDate(String? dateStr) {
+    if (dateStr == null) return '-';
+    try {
+      final date = DateTime.parse(dateStr);
+      return DateFormat('dd-MM-yyyy').format(date);
+    } catch (e) {
+      return dateStr;
+    }
+  }
+
+  Future<void> _deletePeriode(Map<String, dynamic> periode) async {
+    final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(
-          'Tambah Periode',
-          style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.bold),
+          'Hapus Periode',
+          style: GoogleFonts.inter(fontWeight: FontWeight.bold),
         ),
         content: Text(
-          'Fitur tambah periode akan segera tersedia.',
-          style: GoogleFonts.inter(fontSize: 14),
+          'Apakah Anda yakin ingin menghapus periode ${periode['nama_periode']}?',
+          style: GoogleFonts.inter(),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, false),
             child: Text(
-              'Tutup',
-              style: GoogleFonts.inter(
-                color: const Color(0xFF4169E1),
-                fontWeight: FontWeight.w600,
-              ),
+              'Batal',
+              style: GoogleFonts.inter(color: Colors.grey[700]),
             ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: Text('Hapus', style: GoogleFonts.inter(color: Colors.white)),
           ),
         ],
       ),
     );
+
+    if (confirm == true) {
+      try {
+        await _supabase
+            .from('periode_ukm')
+            .delete()
+            .eq('id_periode', periode['id_periode']);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Periode berhasil dihapus'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          _loadPeriode();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
   }
 }
