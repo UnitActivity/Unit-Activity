@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:unit_activity/components/admin_sidebar.dart';
-import 'package:unit_activity/components/admin_header.dart';
+import 'package:unit_activity/widgets/admin_sidebar.dart';
+import 'package:unit_activity/widgets/admin_header.dart';
 import 'package:unit_activity/admin/pengguna.dart';
 import 'package:unit_activity/admin/ukm.dart';
 import 'package:unit_activity/admin/event.dart';

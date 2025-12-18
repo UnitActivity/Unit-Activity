@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:unit_activity/config/routes.dart';
-import 'package:unit_activity/components/user_sidebar.dart';
-import 'package:unit_activity/components/user_header.dart';
+import 'package:unit_activity/widgets/user_sidebar.dart';
+import 'package:unit_activity/widgets/user_header.dart';
 
 class DashboardUser extends StatefulWidget {
   const DashboardUser({super.key});

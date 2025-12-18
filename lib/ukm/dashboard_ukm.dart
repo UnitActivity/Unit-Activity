@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:unit_activity/components/ukm_sidebar.dart';
-import 'package:unit_activity/components/ukm_header.dart';
+import 'package:unit_activity/widgets/ukm_sidebar.dart';
+import 'package:unit_activity/widgets/ukm_header.dart';
 import 'package:unit_activity/ukm/peserta_ukm.dart';
 import 'package:unit_activity/ukm/event_ukm.dart';
 import 'package:unit_activity/ukm/informasi_ukm.dart';
@@ -38,11 +38,7 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
       'category': 'UKM Basket',
       'image': '',
     },
-    {
-      'title': 'Futsal Tournament',
-      'category': 'UKM Futsal',
-      'image': '',
-    },
+    {'title': 'Futsal Tournament', 'category': 'UKM Futsal', 'image': ''},
   ];
 
   int _currentCarouselIndex = 0;
@@ -445,11 +441,7 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
                   color: color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(
-                  icon,
-                  color: color,
-                  size: 24,
-                ),
+                child: Icon(icon, color: color, size: 24),
               ),
             ],
           ),
