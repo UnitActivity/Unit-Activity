@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'add_pengguna_page.dart';
 import 'edit_pengguna_page.dart';
+import 'detail_pengguna_page.dart';
 
 class PenggunaPage extends StatefulWidget {
   const PenggunaPage({super.key});
@@ -716,7 +717,7 @@ class _PenggunaPageState extends State<PenggunaPage> {
                     // Actions Column
                     if (_columnVisibility['actions']!)
                       SizedBox(
-                        width: 120,
+                        width: 80,
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -728,12 +729,6 @@ class _PenggunaPageState extends State<PenggunaPage> {
                               ),
                               color: Colors.grey[700],
                               tooltip: 'View',
-                            ),
-                            IconButton(
-                              onPressed: () => _editUser(user),
-                              icon: const Icon(Icons.edit_outlined, size: 20),
-                              color: Colors.blue[700],
-                              tooltip: 'Edit',
                             ),
                             IconButton(
                               onPressed: () => _deleteUser(userId),
@@ -998,17 +993,6 @@ class _PenggunaPageState extends State<PenggunaPage> {
                             color: Colors.grey[300],
                           ),
                           _buildActionButton(
-                            icon: Icons.edit_rounded,
-                            label: 'Edit',
-                            color: const Color(0xFF3B82F6),
-                            onPressed: () => _editUser(user),
-                          ),
-                          Container(
-                            width: 1,
-                            height: 30,
-                            color: Colors.grey[300],
-                          ),
-                          _buildActionButton(
                             icon: Icons.delete_rounded,
                             label: 'Hapus',
                             color: const Color(0xFFEF4444),
@@ -1138,72 +1122,13 @@ class _PenggunaPageState extends State<PenggunaPage> {
     );
   }
 
-  void _viewUserDetail(Map<String, dynamic> user) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          'Detail Pengguna',
-          style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.bold),
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildDetailRow('Username', user['username'] ?? '-'),
-              _buildDetailRow('Email', user['email'] ?? '-'),
-              _buildDetailRow('NIM', user['nim'] ?? '-'),
-              _buildDetailRow('Terdaftar', _formatDate(user['create_at'])),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Tutup',
-              style: GoogleFonts.inter(
-                color: const Color(0xFF4169E1),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDetailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              color: Colors.grey[600],
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: GoogleFonts.inter(fontSize: 14, color: Colors.black87),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _editUser(Map<String, dynamic> user) async {
+  Future<void> _viewUserDetail(Map<String, dynamic> user) async {
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => EditPenggunaPage(userData: user)),
+      MaterialPageRoute(builder: (context) => DetailPenggunaPage(user: user)),
     );
-    // Refresh list if user was updated
+
+    // Refresh if user was updated
     if (result == true) {
       _loadUsers();
     }
