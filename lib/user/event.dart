@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:unit_activity/config/routes.dart';
+import 'package:unit_activity/widgets/user_sidebar.dart';
+import 'package:unit_activity/widgets/user_header.dart';
 
 class UserEventPage extends StatefulWidget {
   const UserEventPage({super.key});
@@ -9,8 +11,6 @@ class UserEventPage extends StatefulWidget {
 }
 
 class _UserEventPageState extends State<UserEventPage> {
-  final int _selectedIndex = 1;
-  String _selectedMenu = 'Event';
   Map<String, dynamic>? _selectedEvent;
 
   final List<Map<String, dynamic>> _allEvents = [
@@ -97,15 +97,41 @@ class _UserEventPageState extends State<UserEventPage> {
   // ==================== MOBILE LAYOUT ====================
   Widget _buildMobileLayout() {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Unit Activity'),
-        backgroundColor: Colors.blue[700],
-        elevation: 0,
+      backgroundColor: Colors.grey[50],
+      body: Column(
+        children: [
+          UserHeader(
+            userName: 'Adam',
+            onMenuPressed: () {
+              Scaffold.of(context).openDrawer();
+            },
+            onLogout: () => AppRoutes.logout(context),
+          ),
+          Expanded(
+            child: _selectedEvent == null
+                ? _buildEventListViewMobile()
+                : _buildEventDetailViewMobile(),
+          ),
+        ],
       ),
-      drawer: Drawer(child: _buildSidebarVertical()),
-      body: _selectedEvent == null
-          ? _buildEventListViewMobile()
-          : _buildEventDetailViewMobile(),
+      drawer: Drawer(
+        child: UserSidebar(
+          selectedMenu: 'event',
+          onMenuSelected: (menu) {
+            Navigator.pop(context);
+            if (menu == 'dashboard') {
+              AppRoutes.navigateToUserDashboard(context);
+            } else if (menu == 'ukm') {
+              AppRoutes.navigateToUserUKM(context);
+            } else if (menu == 'histori') {
+              AppRoutes.navigateToUserHistory(context);
+            } else if (menu == 'profile') {
+              AppRoutes.navigateToUserProfile(context);
+            }
+          },
+          onLogout: () => AppRoutes.logout(context),
+        ),
+      ),
     );
   }
 
@@ -115,11 +141,28 @@ class _UserEventPageState extends State<UserEventPage> {
       backgroundColor: Colors.grey[50],
       body: Column(
         children: [
-          _buildTopBar(),
+          UserHeader(
+            userName: 'Adam',
+            onLogout: () => AppRoutes.logout(context),
+          ),
           Expanded(
             child: Row(
               children: [
-                SizedBox(width: 200, child: _buildSidebarVertical()),
+                UserSidebar(
+                  selectedMenu: 'event',
+                  onMenuSelected: (menu) {
+                    if (menu == 'dashboard') {
+                      AppRoutes.navigateToUserDashboard(context);
+                    } else if (menu == 'ukm') {
+                      AppRoutes.navigateToUserUKM(context);
+                    } else if (menu == 'histori') {
+                      AppRoutes.navigateToUserHistory(context);
+                    } else if (menu == 'profile') {
+                      AppRoutes.navigateToUserProfile(context);
+                    }
+                  },
+                  onLogout: () => AppRoutes.logout(context),
+                ),
                 Expanded(
                   child: _selectedEvent == null
                       ? _buildEventListViewTablet()
@@ -139,11 +182,28 @@ class _UserEventPageState extends State<UserEventPage> {
       backgroundColor: Colors.grey[50],
       body: Row(
         children: [
-          _buildSidebar(),
+          UserSidebar(
+            selectedMenu: 'event',
+            onMenuSelected: (menu) {
+              if (menu == 'dashboard') {
+                AppRoutes.navigateToUserDashboard(context);
+              } else if (menu == 'ukm') {
+                AppRoutes.navigateToUserUKM(context);
+              } else if (menu == 'histori') {
+                AppRoutes.navigateToUserHistory(context);
+              } else if (menu == 'profile') {
+                AppRoutes.navigateToUserProfile(context);
+              }
+            },
+            onLogout: () => AppRoutes.logout(context),
+          ),
           Expanded(
             child: Column(
               children: [
-                _buildTopBar(),
+                UserHeader(
+                  userName: 'Adam',
+                  onLogout: () => AppRoutes.logout(context),
+                ),
                 Expanded(
                   child: _selectedEvent == null
                       ? _buildEventListViewDesktop()
@@ -152,289 +212,6 @@ class _UserEventPageState extends State<UserEventPage> {
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  // ==================== SIDEBAR ====================
-  Widget _buildSidebar() {
-    return Container(
-      width: 250,
-      color: Colors.white,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text(
-              'Unit Activity',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w900,
-                fontStyle: FontStyle.italic,
-                color: Colors.blue[700],
-              ),
-            ),
-          ),
-          _buildMenuItem(Icons.dashboard, 'Dashboard', AppRoutes.userDashboard),
-          _buildMenuItem(Icons.event, 'Event', AppRoutes.userEvent),
-          _buildMenuItem(Icons.groups, 'UKM', AppRoutes.userUKM),
-          _buildMenuItem(Icons.history, 'Histori', AppRoutes.userHistory),
-          _buildMenuItem(Icons.person, 'Profile', AppRoutes.userProfile),
-          const Spacer(),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  AppRoutes.logout(context);
-                },
-                icon: const Icon(Icons.logout, size: 18),
-                label: const Text('Log Out'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red[400],
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSidebarVertical() {
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Text(
-              'Unit Activity',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
-                fontStyle: FontStyle.italic,
-                color: Colors.blue[700],
-              ),
-            ),
-          ),
-          const Divider(height: 1),
-          _buildMenuItemCompact(
-            Icons.dashboard,
-            'Dashboard',
-            AppRoutes.userDashboard,
-          ),
-          _buildMenuItemCompact(Icons.event, 'Event', AppRoutes.userEvent),
-          _buildMenuItemCompact(Icons.groups, 'UKM', AppRoutes.userUKM),
-          _buildMenuItemCompact(
-            Icons.history,
-            'Histori',
-            AppRoutes.userHistory,
-          ),
-          _buildMenuItemCompact(Icons.person, 'Profile', AppRoutes.userProfile),
-          const SizedBox(height: 16),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  AppRoutes.logout(context);
-                },
-                icon: const Icon(Icons.logout, size: 16),
-                label: const Text('Log Out', style: TextStyle(fontSize: 12)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red[400],
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ==================== MENU ITEM (Desktop) ====================
-  Widget _buildMenuItem(IconData icon, String title, String route) {
-    final isSelected = _selectedMenu == title;
-
-    return InkWell(
-      onTap: () {
-        setState(() {
-          _selectedMenu = title;
-        });
-        if (route == AppRoutes.userDashboard) {
-          AppRoutes.navigateToUserDashboard(context);
-        } else if (route == AppRoutes.userEvent) {
-          AppRoutes.navigateToUserEvent(context);
-        } else if (route == AppRoutes.userUKM) {
-          AppRoutes.navigateToUserUKM(context);
-        } else if (route == AppRoutes.userHistory) {
-          AppRoutes.navigateToUserHistory(context);
-        } else if (route == AppRoutes.userProfile) {
-          AppRoutes.navigateToUserProfile(context);
-        }
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.blue[50] : Colors.transparent,
-          border: Border(
-            left: BorderSide(
-              color: isSelected ? Colors.blue[700]! : Colors.transparent,
-              width: 3,
-            ),
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              size: 20,
-              color: isSelected ? Colors.blue[700] : Colors.grey[600],
-            ),
-            const SizedBox(width: 12),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                color: isSelected ? Colors.blue[700] : Colors.grey[700],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ==================== MENU ITEM (Mobile) ====================
-  Widget _buildMenuItemCompact(IconData icon, String title, String route) {
-    final isSelected = _selectedMenu == title;
-
-    return ListTile(
-      dense: true,
-      leading: Icon(
-        icon,
-        size: 20,
-        color: isSelected ? Colors.blue[700] : Colors.grey[600],
-      ),
-      title: Text(
-        title,
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-          color: isSelected ? Colors.blue[700] : Colors.grey[700],
-        ),
-      ),
-      selected: isSelected,
-      selectedTileColor: Colors.blue[50],
-      onTap: () {
-        setState(() {
-          _selectedMenu = title;
-        });
-        Navigator.pop(context); // Close drawer first
-        Future.delayed(const Duration(milliseconds: 200), () {
-          if (route == AppRoutes.userDashboard) {
-            AppRoutes.navigateToUserDashboard(context);
-          } else if (route == AppRoutes.userEvent) {
-            AppRoutes.navigateToUserEvent(context);
-          } else if (route == AppRoutes.userUKM) {
-            AppRoutes.navigateToUserUKM(context);
-          } else if (route == AppRoutes.userHistory) {
-            AppRoutes.navigateToUserHistory(context);
-          } else if (route == AppRoutes.userProfile) {
-            AppRoutes.navigateToUserProfile(context);
-          }
-        });
-      },
-    );
-  }
-
-  // ==================== TOP BAR ====================
-  Widget _buildTopBar() {
-    final isMobile = MediaQuery.of(context).size.width < 768;
-
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: isMobile ? 12 : 24,
-        vertical: isMobile ? 12 : 16,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          if (!isMobile)
-            IconButton(
-              onPressed: () => Navigator.pushNamed(context, AppRoutes.home),
-              icon: const Icon(Icons.home_outlined),
-            ),
-          if (!isMobile) const SizedBox(width: 8),
-          if (!isMobile)
-            IconButton(onPressed: () {}, icon: const Icon(Icons.search)),
-          if (!isMobile) const SizedBox(width: 8),
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.notifications_outlined),
-          ),
-          if (!isMobile) const SizedBox(width: 8),
-          GestureDetector(
-            onTap: () => Navigator.pushNamed(context, AppRoutes.userProfile),
-            child: Container(
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: CircleAvatar(
-                radius: isMobile ? 14 : 16,
-                backgroundColor: Colors.grey,
-                child: Icon(
-                  Icons.person,
-                  size: isMobile ? 16 : 20,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ),
-          if (!isMobile) const SizedBox(width: 8),
-          if (!isMobile)
-            GestureDetector(
-              onTap: () => Navigator.pushNamed(context, AppRoutes.userProfile),
-              child: const Text(
-                'Adam',
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-              ),
-            ),
         ],
       ),
     );

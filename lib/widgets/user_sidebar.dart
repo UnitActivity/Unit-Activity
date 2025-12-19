@@ -68,13 +68,6 @@ class UserSidebar extends StatelessWidget {
                   isSelected: selectedMenu == 'histori',
                   onTap: () => onMenuSelected('histori'),
                 ),
-                _buildMenuItem(
-                  icon: Icons.person_outline,
-                  title: 'Profile',
-                  value: 'profile',
-                  isSelected: selectedMenu == 'profile',
-                  onTap: () => onMenuSelected('profile'),
-                ),
               ],
             ),
           ),

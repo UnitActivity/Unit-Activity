@@ -8,7 +8,6 @@ import 'package:unit_activity/auth/register.dart';
 import 'package:unit_activity/auth/forgot_password.dart';
 import 'package:unit_activity/user/dashboard_user.dart';
 import 'package:unit_activity/user/event.dart';
-import 'package:unit_activity/user/profile.dart';
 import 'package:unit_activity/user/ukm.dart';
 import 'package:unit_activity/ukm/dashboard_ukm.dart';
 import 'package:unit_activity/user/history.dart';
@@ -78,7 +77,7 @@ class MyApp extends StatelessWidget {
         '/user/event': (context) => const UserEventPage(),
         '/user/ukm': (context) => const UserUKMPage(),
         '/user/history': (context) => const HistoryPage(),
-        '/user/profile': (context) => const ProfilePage(),
+
         // Admin Routes
         '/admin': (context) => const DashboardAdminPage(),
         '/admin/dashboard': (context) => const DashboardAdminPage(),
