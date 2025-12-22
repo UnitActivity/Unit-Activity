@@ -9,7 +9,7 @@ import 'package:crypto/crypto.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'add_ukm_page.dart';
-import 'edit_ukm_page.dart';
+import 'detail_ukm_page.dart';
 
 class UkmPage extends StatefulWidget {
   const UkmPage({super.key});
@@ -29,7 +29,6 @@ class _UkmPageState extends State<UkmPage> {
   List<Map<String, dynamic>> _allUkm = [];
   bool _isLoading = true;
   int _totalUkm = 0;
-  Set<String> _selectedUkm = {};
 
   // Column visibility settings
   final Map<String, bool> _columnVisibility = {
@@ -126,26 +125,6 @@ class _UkmPageState extends State<UkmPage> {
     } catch (e) {
       return dateStr;
     }
-  }
-
-  void _toggleSelectAll(bool? value) {
-    setState(() {
-      if (value == true) {
-        _selectedUkm = _allUkm.map((u) => u['id_ukm'].toString()).toSet();
-      } else {
-        _selectedUkm.clear();
-      }
-    });
-  }
-
-  void _toggleUkmSelection(String ukmId) {
-    setState(() {
-      if (_selectedUkm.contains(ukmId)) {
-        _selectedUkm.remove(ukmId);
-      } else {
-        _selectedUkm.add(ukmId);
-      }
-    });
   }
 
   // Helper function to hash password
@@ -372,45 +351,6 @@ class _UkmPageState extends State<UkmPage> {
                 color: Colors.black87,
               ),
             ),
-            if (_selectedUkm.isNotEmpty)
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF4169E1).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.check_circle,
-                      size: 18,
-                      color: const Color(0xFF4169E1),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      '${_selectedUkm.length} dipilih',
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF4169E1),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    IconButton(
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      onPressed: _showDeleteConfirmation,
-                      icon: const Icon(Icons.delete_outline, size: 18),
-                      color: Colors.red,
-                      tooltip: 'Hapus UKM',
-                    ),
-                  ],
-                ),
-              ),
           ],
         ),
         const SizedBox(height: 24),
@@ -689,16 +629,6 @@ class _UkmPageState extends State<UkmPage> {
             ),
             child: Row(
               children: [
-                SizedBox(
-                  width: 50,
-                  child: Checkbox(
-                    value:
-                        _selectedUkm.length == _allUkm.length &&
-                        _allUkm.isNotEmpty,
-                    onChanged: _toggleSelectAll,
-                    activeColor: const Color(0xFF4169E1),
-                  ),
-                ),
                 if (_columnVisibility['picture']!)
                   Expanded(
                     flex: 3,
@@ -772,26 +702,14 @@ class _UkmPageState extends State<UkmPage> {
             itemBuilder: (context, index) {
               final ukm = _allUkm[index];
               final ukmId = ukm['id_ukm'].toString();
-              final isSelected = _selectedUkm.contains(ukmId);
 
               return Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 20,
                   vertical: 16,
                 ),
-                color: isSelected
-                    ? const Color(0xFF4169E1).withOpacity(0.05)
-                    : null,
                 child: Row(
                   children: [
-                    SizedBox(
-                      width: 50,
-                      child: Checkbox(
-                        value: isSelected,
-                        onChanged: (value) => _toggleUkmSelection(ukmId),
-                        activeColor: const Color(0xFF4169E1),
-                      ),
-                    ),
                     // Name & Picture Column
                     if (_columnVisibility['picture']!)
                       Expanded(
@@ -889,12 +807,6 @@ class _UkmPageState extends State<UkmPage> {
                               tooltip: 'View',
                             ),
                             IconButton(
-                              onPressed: () => _editUkm(ukm),
-                              icon: const Icon(Icons.edit_outlined, size: 20),
-                              color: Colors.blue[700],
-                              tooltip: 'Edit',
-                            ),
-                            IconButton(
                               onPressed: () => _deleteUkm(ukmId),
                               icon: const Icon(Icons.delete_outline, size: 20),
                               color: Colors.red[700],
@@ -921,7 +833,6 @@ class _UkmPageState extends State<UkmPage> {
       itemBuilder: (context, index) {
         final ukm = _allUkm[index];
         final ukmId = ukm['id_ukm'].toString();
-        final isSelected = _selectedUkm.contains(ukmId);
 
         return Container(
           margin: const EdgeInsets.only(bottom: 16),
@@ -929,24 +840,14 @@ class _UkmPageState extends State<UkmPage> {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: isSelected
-                  ? [
-                      const Color(0xFF4169E1).withOpacity(0.05),
-                      const Color(0xFF4169E1).withOpacity(0.02),
-                    ]
-                  : [Colors.white, Colors.grey[50]!],
+              colors: [Colors.white, Colors.grey[50]!],
             ),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isSelected ? const Color(0xFF4169E1) : Colors.grey[200]!,
-              width: isSelected ? 2 : 1,
-            ),
+            border: Border.all(color: Colors.grey[200]!, width: 1),
             boxShadow: [
               BoxShadow(
-                color: isSelected
-                    ? const Color(0xFF4169E1).withOpacity(0.1)
-                    : Colors.black.withOpacity(0.04),
-                blurRadius: isSelected ? 12 : 8,
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 8,
                 offset: const Offset(0, 4),
               ),
             ],
@@ -972,19 +873,6 @@ class _UkmPageState extends State<UkmPage> {
                 ),
                 child: Row(
                   children: [
-                    // Checkbox with custom styling
-                    Transform.scale(
-                      scale: 1.1,
-                      child: Checkbox(
-                        value: isSelected,
-                        onChanged: (value) => _toggleUkmSelection(ukmId),
-                        activeColor: const Color(0xFF4169E1),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
                     // Avatar with border
                     Container(
                       decoration: BoxDecoration(
@@ -1110,17 +998,6 @@ class _UkmPageState extends State<UkmPage> {
                             label: 'View',
                             color: const Color(0xFF6B7280),
                             onPressed: () => _viewUkmDetail(ukm),
-                          ),
-                          Container(
-                            width: 1,
-                            height: 30,
-                            color: Colors.grey[300],
-                          ),
-                          _buildActionButton(
-                            icon: Icons.edit_rounded,
-                            label: 'Edit',
-                            color: const Color(0xFF3B82F6),
-                            onPressed: () => _editUkm(ukm),
                           ),
                           Container(
                             width: 1,
@@ -1257,81 +1134,10 @@ class _UkmPageState extends State<UkmPage> {
     );
   }
 
-  void _viewUkmDetail(Map<String, dynamic> ukm) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          'Detail UKM',
-          style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.bold),
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (ukm['logo'] != null && ukm['logo'].toString().isNotEmpty)
-                Center(
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: CircleAvatar(
-                      radius: 50,
-                      backgroundImage: NetworkImage(ukm['logo']),
-                      backgroundColor: const Color(0xFF4169E1).withOpacity(0.1),
-                    ),
-                  ),
-                ),
-              _buildDetailRow('Nama UKM', ukm['nama_ukm'] ?? '-'),
-              _buildDetailRow('Email', ukm['email'] ?? '-'),
-              _buildDetailRow('Deskripsi', ukm['description'] ?? '-'),
-              _buildDetailRow('Dibuat', _formatDate(ukm['create_at'])),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Tutup',
-              style: GoogleFonts.inter(
-                color: const Color(0xFF4169E1),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDetailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              color: Colors.grey[600],
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: GoogleFonts.inter(fontSize: 14, color: Colors.black87),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _editUkm(Map<String, dynamic> ukm) async {
+  void _viewUkmDetail(Map<String, dynamic> ukm) async {
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => EditUkmPage(ukmData: ukm)),
+      MaterialPageRoute(builder: (context) => DetailUkmPage(ukm: ukm)),
     );
     // Refresh list if UKM was updated
     if (result == true) {
@@ -1381,89 +1187,17 @@ class _UkmPageState extends State<UkmPage> {
     );
   }
 
-  void _showDeleteConfirmation() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          'Konfirmasi Hapus',
-          style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.bold),
-        ),
-        content: Text(
-          'Apakah Anda yakin ingin menghapus ${_selectedUkm.length} UKM yang dipilih?',
-          style: GoogleFonts.inter(fontSize: 14),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Batal',
-              style: GoogleFonts.inter(
-                color: Colors.grey[600],
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await _performBulkDelete();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-            child: Text(
-              'Hapus Semua',
-              style: GoogleFonts.inter(fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _performDelete(String ukmId) async {
     try {
       await _supabase.from('ukm').delete().eq('id_ukm', ukmId);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('UKM berhasil dihapus'),
             backgroundColor: Colors.green,
           ),
         );
-        _loadUkm();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Gagal menghapus UKM: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _performBulkDelete() async {
-    try {
-      for (String ukmId in _selectedUkm) {
-        await _supabase.from('ukm').delete().eq('id_ukm', ukmId);
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${_selectedUkm.length} UKM berhasil dihapus'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        setState(() {
-          _selectedUkm.clear();
-        });
         _loadUkm();
       }
     } catch (e) {

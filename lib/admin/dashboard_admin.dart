@@ -541,6 +541,7 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
         ],
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
@@ -569,11 +570,11 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           Text(
             value,
             style: GoogleFonts.inter(
-              fontSize: isMobile ? 28 : 36,
+              fontSize: isMobile ? 24 : 32,
               fontWeight: FontWeight.bold,
               color: Colors.black87,
             ),
