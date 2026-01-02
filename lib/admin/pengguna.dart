@@ -1,9 +1,10 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'add_pengguna_page.dart';
-import 'detail_pengguna_page.dart';
+import 'edit_pengguna_page.dart';
 
 class PenggunaPage extends StatefulWidget {
   const PenggunaPage({super.key});
@@ -23,15 +24,16 @@ class _PenggunaPageState extends State<PenggunaPage> {
   List<Map<String, dynamic>> _allUsers = [];
   bool _isLoading = true;
   int _totalUsers = 0;
-  Set<String> _selectedUsers = {};
+
+  // Period and growth data
+  Map<String, dynamic>? _activePeriode;
+  List<Map<String, dynamic>> _growthData = [];
 
   // Column visibility settings
   final Map<String, bool> _columnVisibility = {
     'picture': true,
     'nim': true,
     'email': false,
-    'role': true,
-    'joinAt': false,
     'actions': true,
   };
 
@@ -39,6 +41,58 @@ class _PenggunaPageState extends State<PenggunaPage> {
   void initState() {
     super.initState();
     _loadUsers();
+    _loadPeriodeAndGrowth();
+  }
+
+  Future<void> _loadPeriodeAndGrowth() async {
+    try {
+      // Load active periode
+      final periodeResponse = await _supabase
+          .from('periode_ukm')
+          .select('id_periode, nama_periode, semester, tahun')
+          .eq('status', 'aktif')
+          .maybeSingle();
+
+      // Load user growth data for the last 6 months
+      final now = DateTime.now();
+      final sixMonthsAgo = DateTime(now.year, now.month - 5, 1);
+
+      final usersResponse = await _supabase
+          .from('users')
+          .select('create_at')
+          .gte('create_at', sixMonthsAgo.toIso8601String());
+
+      // Group users by month
+      Map<String, int> monthlyCount = {};
+      for (int i = 0; i < 6; i++) {
+        final month = DateTime(now.year, now.month - (5 - i), 1);
+        final monthKey = DateFormat('MMM').format(month);
+        monthlyCount[monthKey] = 0;
+      }
+
+      for (var user in usersResponse) {
+        final createAt = DateTime.parse(user['create_at']);
+        final monthKey = DateFormat('MMM').format(createAt);
+        if (monthlyCount.containsKey(monthKey)) {
+          monthlyCount[monthKey] = monthlyCount[monthKey]! + 1;
+        }
+      }
+
+      // Convert to cumulative growth
+      List<Map<String, dynamic>> growthList = [];
+      int cumulative = 0;
+      monthlyCount.forEach((month, count) {
+        cumulative += count;
+        growthList.add({'month': month, 'count': cumulative});
+      });
+
+      setState(() {
+        _activePeriode = periodeResponse;
+        _growthData = growthList;
+      });
+    } catch (e) {
+      print('Error loading periode and growth: $e');
+    }
   }
 
   Future<void> _loadUsers() async {
@@ -122,26 +176,6 @@ class _PenggunaPageState extends State<PenggunaPage> {
     }
   }
 
-  void _toggleSelectAll(bool? value) {
-    setState(() {
-      if (value == true) {
-        _selectedUsers = _allUsers.map((u) => u['id_user'].toString()).toSet();
-      } else {
-        _selectedUsers.clear();
-      }
-    });
-  }
-
-  void _toggleUserSelection(String userId) {
-    setState(() {
-      if (_selectedUsers.contains(userId)) {
-        _selectedUsers.remove(userId);
-      } else {
-        _selectedUsers.add(userId);
-      }
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final isDesktop = MediaQuery.of(context).size.width >= 900;
@@ -152,91 +186,27 @@ class _PenggunaPageState extends State<PenggunaPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              '',
-              style: GoogleFonts.inter(
-                fontSize: isDesktop ? 24 : 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
-            ),
-            if (_selectedUsers.isNotEmpty)
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF4169E1).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.check_circle,
-                      size: 18,
-                      color: const Color(0xFF4169E1),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      '${_selectedUsers.length} dipilih',
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF4169E1),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    IconButton(
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      onPressed: _showDeleteConfirmation,
-                      icon: const Icon(Icons.delete_outline, size: 18),
-                      color: Colors.red,
-                      tooltip: 'Hapus pengguna',
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        ),
+        // Modern Header
+        _buildModernHeader(isDesktop),
         const SizedBox(height: 24),
 
+        // Stats Cards
+        _buildStatsCards(isDesktop),
+        const SizedBox(height: 24),
+
+        // Growth Chart
+        _buildGrowthChart(isDesktop),
+        const SizedBox(height: 24),
+
+        // Search and Actions Bar
         _buildSearchAndFilterBar(isDesktop),
         const SizedBox(height: 20),
 
+        // Content
         if (_isLoading)
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.all(60),
-              child: CircularProgressIndicator(color: Color(0xFF4169E1)),
-            ),
-          )
+          _buildLoadingState()
         else if (_allUsers.isEmpty)
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.all(60),
-              child: Column(
-                children: [
-                  Icon(Icons.people_outline, size: 64, color: Colors.grey[400]),
-                  const SizedBox(height: 16),
-                  Text(
-                    _searchQuery.isEmpty
-                        ? 'Belum ada pengguna'
-                        : 'Tidak ada hasil pencarian',
-                    style: GoogleFonts.inter(
-                      fontSize: 16,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          )
+          _buildEmptyState()
         else if (isDesktop || isTablet)
           _buildDesktopTable(isDesktop)
         else
@@ -250,264 +220,541 @@ class _PenggunaPageState extends State<PenggunaPage> {
     );
   }
 
-  Widget _buildSearchAndFilterBar(bool isDesktop) {
+  Widget _buildModernHeader(bool isDesktop) {
+    return const SizedBox.shrink();
+  }
+
+  Widget _buildStatsCards(bool isDesktop) {
     return Row(
       children: [
         Expanded(
-          child: Container(
-            constraints: BoxConstraints(
-              maxWidth: isDesktop ? 400 : double.infinity,
+          child: _buildStatCard(
+            title: 'Total Pengguna',
+            value: '$_totalUsers',
+            icon: Icons.people_outline,
+            gradient: const LinearGradient(
+              colors: [Color(0xFF4169E1), Color(0xFF5B7FE8)],
             ),
-            child: TextField(
-              onChanged: (value) {
-                _searchQuery = value;
-                _currentPage = 1;
-                _loadUsers();
-              },
-              decoration: InputDecoration(
-                hintText: 'Cari NIM, Username atau Email...',
-                hintStyle: GoogleFonts.inter(
-                  fontSize: 14,
-                  color: Colors.grey[500],
-                ),
-                prefixIcon: Icon(
-                  Icons.search,
-                  color: Colors.grey[600],
-                  size: 20,
-                ),
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.grey[300]!),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.grey[300]!),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(
-                    color: Color(0xFF4169E1),
-                    width: 2,
-                  ),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-              ),
-            ),
+            isDesktop: isDesktop,
           ),
         ),
-
-        // Column Visibility Dropdown - only show on desktop
-        if (isDesktop) ...[
-          const SizedBox(width: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border.all(color: Colors.grey[300]!),
-              borderRadius: BorderRadius.circular(8),
+        const SizedBox(width: 16),
+        Expanded(
+          child: _buildStatCard(
+            title: 'Periode',
+            value: _activePeriode != null
+                ? '${_activePeriode!['semester']} ${_activePeriode!['tahun']}'
+                : '-',
+            icon: Icons.calendar_today_outlined,
+            gradient: const LinearGradient(
+              colors: [Color(0xFFF59E0B), Color(0xFFFBBF24)],
             ),
-            child: PopupMenuButton<String>(
-              icon: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.view_column, color: Colors.grey[700], size: 20),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Kolom',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                  Icon(Icons.arrow_drop_down, color: Colors.grey[700]),
-                ],
-              ),
-              tooltip: 'Pilih kolom yang ditampilkan',
-              itemBuilder: (context) => [
-                PopupMenuItem<String>(
-                  enabled: false,
-                  child: Text(
-                    'Tampilkan Kolom',
-                    style: GoogleFonts.inter(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                ),
-                PopupMenuItem<String>(
-                  value: 'picture',
-                  child: Row(
-                    children: [
-                      Checkbox(
-                        value: _columnVisibility['picture'],
-                        onChanged: null,
-                        activeColor: const Color(0xFF4169E1),
-                      ),
-                      const SizedBox(width: 8),
-                      Text('Name', style: GoogleFonts.inter(fontSize: 14)),
-                    ],
-                  ),
-                ),
-                PopupMenuItem<String>(
-                  value: 'nim',
-                  child: Row(
-                    children: [
-                      Checkbox(
-                        value: _columnVisibility['nim'],
-                        onChanged: null,
-                        activeColor: const Color(0xFF4169E1),
-                      ),
-                      const SizedBox(width: 8),
-                      Text('NIM', style: GoogleFonts.inter(fontSize: 14)),
-                    ],
-                  ),
-                ),
-                PopupMenuItem<String>(
-                  value: 'email',
-                  child: Row(
-                    children: [
-                      Checkbox(
-                        value: _columnVisibility['email'],
-                        onChanged: null,
-                        activeColor: const Color(0xFF4169E1),
-                      ),
-                      const SizedBox(width: 8),
-                      Text('Email', style: GoogleFonts.inter(fontSize: 14)),
-                    ],
-                  ),
-                ),
-                PopupMenuItem<String>(
-                  value: 'role',
-                  child: Row(
-                    children: [
-                      Checkbox(
-                        value: _columnVisibility['role'],
-                        onChanged: null,
-                        activeColor: const Color(0xFF4169E1),
-                      ),
-                      const SizedBox(width: 8),
-                      Text('Role', style: GoogleFonts.inter(fontSize: 14)),
-                    ],
-                  ),
-                ),
-                PopupMenuItem<String>(
-                  value: 'joinAt',
-                  child: Row(
-                    children: [
-                      Checkbox(
-                        value: _columnVisibility['joinAt'],
-                        onChanged: null,
-                        activeColor: const Color(0xFF4169E1),
-                      ),
-                      const SizedBox(width: 8),
-                      Text('Join At', style: GoogleFonts.inter(fontSize: 14)),
-                    ],
-                  ),
-                ),
-                PopupMenuItem<String>(
-                  value: 'actions',
-                  child: Row(
-                    children: [
-                      Checkbox(
-                        value: _columnVisibility['actions'],
-                        onChanged: null,
-                        activeColor: const Color(0xFF4169E1),
-                      ),
-                      const SizedBox(width: 8),
-                      Text('Actions', style: GoogleFonts.inter(fontSize: 14)),
-                    ],
-                  ),
-                ),
-              ],
-              onSelected: (value) {
-                setState(() {
-                  _columnVisibility[value] = !_columnVisibility[value]!;
-                });
-              },
-            ),
-          ),
-        ],
-
-        // Add User Button
-        const SizedBox(width: 12),
-        ElevatedButton.icon(
-          onPressed: () async {
-            final result = await Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const AddPenggunaPage()),
-            );
-            // Refresh list if user was added
-            if (result == true) {
-              _loadUsers();
-            }
-          },
-          icon: const Icon(Icons.add, size: 20),
-          label: Text(
-            'Tambah Pengguna',
-            style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600),
-          ),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF4169E1),
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-            elevation: 0,
+            isDesktop: isDesktop,
           ),
         ),
       ],
     );
   }
 
+  Widget _buildStatCard({
+    required String title,
+    required String value,
+    required IconData icon,
+    required Gradient gradient,
+    required bool isDesktop,
+  }) {
+    return Container(
+      padding: EdgeInsets.all(isDesktop ? 20 : 16),
+      decoration: BoxDecoration(
+        gradient: gradient,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.25),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: Colors.white, size: 24),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.white.withOpacity(0.9),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: GoogleFonts.inter(
+                    fontSize: isDesktop ? 24 : 20,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGrowthChart(bool isDesktop) {
+    if (_growthData.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final maxValue = _growthData
+        .map((e) => e['count']!)
+        .reduce((a, b) => a > b ? a : b)
+        .toDouble();
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF4169E1), Color(0xFF5B7FE8)],
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.trending_up_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Pertumbuhan Anggota',
+                style: GoogleFonts.inter(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.black87,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4169E1).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '6 Bulan Terakhir',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF4169E1),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // Line Chart
+          SizedBox(
+            height: 220,
+            child: CustomPaint(
+              size: Size.infinite,
+              painter: LineChartPainter(data: _growthData, maxValue: maxValue),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoadingState() {
+    return Container(
+      height: 400,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const SizedBox(
+              width: 50,
+              height: 50,
+              child: CircularProgressIndicator(
+                strokeWidth: 3,
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4169E1)),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Memuat data pengguna...',
+              style: GoogleFonts.inter(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[700],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Container(
+      height: 400,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.people_outline,
+                size: 64,
+                color: Colors.grey[400],
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              _searchQuery.isEmpty ? 'Belum Ada Pengguna' : 'Tidak Ada Hasil',
+              style: GoogleFonts.inter(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[800],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _searchQuery.isEmpty
+                  ? 'Klik tombol Tambah untuk menambah pengguna baru'
+                  : 'Coba kata kunci lain untuk pencarian',
+              style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchAndFilterBar(bool isDesktop) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Search Bar
+          Expanded(
+            flex: 3,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey[200]!),
+              ),
+              child: TextField(
+                onChanged: (value) {
+                  _searchQuery = value;
+                  _currentPage = 1;
+                  _loadUsers();
+                },
+                decoration: InputDecoration(
+                  hintText: 'Cari NIM, Username atau Email...',
+                  hintStyle: GoogleFonts.inter(
+                    fontSize: 14,
+                    color: Colors.grey[500],
+                  ),
+                  prefixIcon: Icon(
+                    Icons.search_rounded,
+                    color: Colors.grey[600],
+                    size: 22,
+                  ),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? IconButton(
+                          icon: Icon(Icons.clear, color: Colors.grey[600]),
+                          onPressed: () {
+                            setState(() {
+                              _searchQuery = '';
+                              _currentPage = 1;
+                            });
+                            _loadUsers();
+                          },
+                        )
+                      : null,
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(width: 12),
+
+          // Column Visibility - Desktop only
+          if (isDesktop) ...[
+            _buildIconButton(
+              icon: Icons.view_column_rounded,
+              tooltip: 'Tampilkan Kolom',
+              onPressed: () => _showColumnVisibilityMenu(context),
+            ),
+            const SizedBox(width: 8),
+          ],
+
+          // Refresh Button
+          _buildIconButton(
+            icon: Icons.refresh_rounded,
+            tooltip: 'Refresh Data',
+            onPressed: _loadUsers,
+          ),
+
+          const SizedBox(width: 8),
+
+          // Add Button
+          ElevatedButton.icon(
+            onPressed: _showAddUserDialog,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF4169E1),
+              foregroundColor: Colors.white,
+              padding: EdgeInsets.symmetric(
+                horizontal: isDesktop ? 20 : 16,
+                vertical: isDesktop ? 16 : 14,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              elevation: 0,
+            ),
+            icon: const Icon(Icons.add_rounded, size: 20),
+            label: Text(
+              isDesktop ? 'Tambah Pengguna' : 'Tambah',
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIconButton({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onPressed,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: IconButton(
+        icon: Icon(icon, size: 20),
+        color: Colors.grey[700],
+        tooltip: tooltip,
+        onPressed: onPressed,
+        padding: const EdgeInsets.all(12),
+      ),
+    );
+  }
+
+  void _showColumnVisibilityMenu(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF4169E1).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.view_column_rounded,
+                      color: Color(0xFF4169E1),
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Pilih Kolom',
+                    style: GoogleFonts.inter(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              ..._columnVisibility.entries.map((entry) {
+                return CheckboxListTile(
+                  title: Text(
+                    _getColumnLabel(entry.key),
+                    style: GoogleFonts.inter(fontSize: 14),
+                  ),
+                  value: entry.value,
+                  activeColor: const Color(0xFF4169E1),
+                  onChanged: (value) {
+                    setState(() {
+                      _columnVisibility[entry.key] = value!;
+                    });
+                    Navigator.pop(context);
+                  },
+                );
+              }).toList(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _getColumnLabel(String key) {
+    switch (key) {
+      case 'picture':
+        return 'Foto & Nama';
+      case 'nim':
+        return 'NIM';
+      case 'email':
+        return 'Email';
+      case 'actions':
+        return 'Actions';
+      default:
+        return key;
+    }
+  }
+
   Widget _buildDesktopTable(bool isDesktop) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[300]!),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         children: [
+          // Table Header
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
             decoration: BoxDecoration(
-              color: Colors.grey[50],
+              gradient: LinearGradient(
+                colors: [
+                  const Color(0xFF4169E1).withOpacity(0.08),
+                  const Color(0xFF4169E1).withOpacity(0.03),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
               borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(12),
-                topRight: Radius.circular(12),
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
               ),
               border: Border(
-                bottom: BorderSide(color: Colors.grey[200]!, width: 1),
+                bottom: BorderSide(color: Colors.grey[200]!, width: 1.5),
               ),
             ),
             child: Row(
               children: [
-                SizedBox(
-                  width: 50,
-                  child: Checkbox(
-                    value:
-                        _selectedUsers.length == _allUsers.length &&
-                        _allUsers.isNotEmpty,
-                    onChanged: _toggleSelectAll,
-                    activeColor: const Color(0xFF4169E1),
-                  ),
-                ),
                 if (_columnVisibility['picture']!)
                   Expanded(
                     flex: 3,
                     child: Text(
-                      'NAME',
+                      'PENGGUNA',
                       style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey[700],
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF4169E1),
+                        letterSpacing: 0.5,
                       ),
                     ),
                   ),
@@ -517,9 +764,10 @@ class _PenggunaPageState extends State<PenggunaPage> {
                     child: Text(
                       'NIM',
                       style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey[700],
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF4169E1),
+                        letterSpacing: 0.5,
                       ),
                     ),
                   ),
@@ -529,92 +777,72 @@ class _PenggunaPageState extends State<PenggunaPage> {
                     child: Text(
                       'EMAIL',
                       style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey[700],
-                      ),
-                    ),
-                  ),
-                if (_columnVisibility['role']!)
-                  Expanded(
-                    flex: 2,
-                    child: Text(
-                      'ROLE',
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey[700],
-                      ),
-                    ),
-                  ),
-                if (_columnVisibility['joinAt']!)
-                  Expanded(
-                    flex: 2,
-                    child: Text(
-                      'JOIN AT',
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey[700],
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF4169E1),
+                        letterSpacing: 0.5,
                       ),
                     ),
                   ),
                 if (_columnVisibility['actions']!)
                   SizedBox(
-                    width: 120,
+                    width: 100,
                     child: Text(
-                      'ACTIONS',
+                      'AKSI',
                       style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey[700],
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF4169E1),
+                        letterSpacing: 0.5,
                       ),
+                      textAlign: TextAlign.center,
                     ),
                   ),
               ],
             ),
           ),
 
-          ListView.separated(
+          // Table Body
+          ListView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: _allUsers.length,
-            separatorBuilder: (context, index) =>
-                Divider(height: 1, color: Colors.grey[200]),
             itemBuilder: (context, index) {
               final user = _allUsers[index];
               final userId = user['id_user'].toString();
-              final isSelected = _selectedUsers.contains(userId);
 
               return Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
+                  horizontal: 24,
                   vertical: 16,
                 ),
-                color: isSelected
-                    ? const Color(0xFF4169E1).withOpacity(0.05)
-                    : null,
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(color: Colors.grey[100]!, width: 1),
+                  ),
+                ),
                 child: Row(
                   children: [
-                    SizedBox(
-                      width: 50,
-                      child: Checkbox(
-                        value: isSelected,
-                        onChanged: (value) => _toggleUserSelection(userId),
-                        activeColor: const Color(0xFF4169E1),
-                      ),
-                    ),
-                    // Name & Picture Column
-                    if (_columnVisibility['picture']!)
-                      Expanded(
-                        flex: 3,
-                        child: Row(
-                          children: [
-                            CircleAvatar(
+                    Expanded(
+                      flex: 3,
+                      child: Row(
+                        children: [
+                          Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: CircleAvatar(
                               radius: 20,
                               backgroundColor: const Color(
                                 0xFF4169E1,
-                              ).withOpacity(0.1),
+                              ).withOpacity(0.12),
                               backgroundImage:
                                   user['picture'] != null &&
                                       user['picture'].toString().isNotEmpty
@@ -628,27 +856,30 @@ class _PenggunaPageState extends State<PenggunaPage> {
                                           .toString()[0]
                                           .toUpperCase(),
                                       style: GoogleFonts.inter(
-                                        fontWeight: FontWeight.bold,
+                                        fontWeight: FontWeight.w700,
                                         color: const Color(0xFF4169E1),
+                                        fontSize: 16,
                                       ),
                                     )
                                   : null,
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                user['username'] ?? '-',
-                                style: GoogleFonts.inter(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.black87,
-                                ),
-                                overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Text(
+                              user['username'] ?? '-',
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
                               ),
+                              overflow: TextOverflow.ellipsis,
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
+                    ),
+
                     // NIM Column
                     if (_columnVisibility['nim']!)
                       Expanded(
@@ -657,10 +888,12 @@ class _PenggunaPageState extends State<PenggunaPage> {
                           user['nim'] ?? '-',
                           style: GoogleFonts.inter(
                             fontSize: 13,
-                            color: Colors.black87,
+                            color: Colors.grey[700],
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
                       ),
+
                     // Email Column
                     if (_columnVisibility['email']!)
                       Expanded(
@@ -669,71 +902,31 @@ class _PenggunaPageState extends State<PenggunaPage> {
                           user['email'] ?? '-',
                           style: GoogleFonts.inter(
                             fontSize: 13,
-                            color: Colors.grey[600],
+                            color: Colors.grey[700],
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                    // Role Column
-                    if (_columnVisibility['role']!)
-                      Expanded(
-                        flex: 2,
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF4169E1).withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                'User',
-                                style: GoogleFonts.inter(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                  color: const Color(0xFF4169E1),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    // Join At Column
-                    if (_columnVisibility['joinAt']!)
-                      Expanded(
-                        flex: 2,
-                        child: Text(
-                          _formatDate(user['create_at']),
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                      ),
+
                     // Actions Column
                     if (_columnVisibility['actions']!)
                       SizedBox(
-                        width: 80,
+                        width: 100,
                         child: Row(
-                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            IconButton(
-                              onPressed: () => _viewUserDetail(user),
-                              icon: const Icon(
-                                Icons.visibility_outlined,
-                                size: 20,
-                              ),
-                              color: Colors.grey[700],
-                              tooltip: 'View',
+                            _buildActionButton(
+                              icon: Icons.edit_rounded,
+                              color: Colors.blue,
+                              onPressed: () => _showEditUserDialog(user),
+                              tooltip: 'Edit',
                             ),
-                            IconButton(
-                              onPressed: () => _deleteUser(userId),
-                              icon: const Icon(Icons.delete_outline, size: 20),
-                              color: Colors.red[700],
-                              tooltip: 'Delete',
+                            const SizedBox(width: 8),
+                            _buildActionButton(
+                              icon: Icons.delete_rounded,
+                              color: Colors.red,
+                              onPressed: () => _showDeleteDialog(user),
+                              tooltip: 'Hapus',
                             ),
                           ],
                         ),
@@ -748,473 +941,520 @@ class _PenggunaPageState extends State<PenggunaPage> {
     );
   }
 
+  Widget _buildActionButton({
+    required IconData icon,
+    required Color color,
+    required VoidCallback onPressed,
+    required String tooltip,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 16, color: color),
+        ),
+      ),
+    );
+  }
+
   Widget _buildMobileList() {
     return ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: _allUsers.length,
       itemBuilder: (context, index) {
-        final user = _allUsers[index];
-        final userId = user['id_user'].toString();
-        final isSelected = _selectedUsers.contains(userId);
-
-        return Container(
-          margin: const EdgeInsets.only(bottom: 16),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: isSelected
-                  ? [
-                      const Color(0xFF4169E1).withOpacity(0.05),
-                      const Color(0xFF4169E1).withOpacity(0.02),
-                    ]
-                  : [Colors.white, Colors.grey[50]!],
-            ),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isSelected ? const Color(0xFF4169E1) : Colors.grey[200]!,
-              width: isSelected ? 2 : 1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: isSelected
-                    ? const Color(0xFF4169E1).withOpacity(0.1)
-                    : Colors.black.withOpacity(0.04),
-                blurRadius: isSelected ? 12 : 8,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            children: [
-              // Header Section with Gradient
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      const Color(0xFF4169E1).withOpacity(0.03),
-                      Colors.transparent,
-                    ],
-                  ),
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(16),
-                    topRight: Radius.circular(16),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    // Checkbox with custom styling
-                    Transform.scale(
-                      scale: 1.1,
-                      child: Checkbox(
-                        value: isSelected,
-                        onChanged: (value) => _toggleUserSelection(userId),
-                        activeColor: const Color(0xFF4169E1),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    // Avatar with border
-                    Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: const Color(0xFF4169E1).withOpacity(0.3),
-                          width: 2,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF4169E1).withOpacity(0.2),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: CircleAvatar(
-                        radius: 30,
-                        backgroundColor: const Color(
-                          0xFF4169E1,
-                        ).withOpacity(0.1),
-                        backgroundImage:
-                            user['picture'] != null &&
-                                user['picture'].toString().isNotEmpty
-                            ? NetworkImage(user['picture'])
-                            : null,
-                        child:
-                            user['picture'] == null ||
-                                user['picture'].toString().isEmpty
-                            ? Text(
-                                (user['username'] ?? 'U')
-                                    .toString()[0]
-                                    .toUpperCase(),
-                                style: GoogleFonts.inter(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.bold,
-                                  color: const Color(0xFF4169E1),
-                                ),
-                              )
-                            : null,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  user['username'] ?? '-',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 17,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black87,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              // User Badge
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 3,
-                                ),
-                                decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
-                                    colors: [
-                                      Color(0xFF4169E1),
-                                      Color(0xFF5B7FE8),
-                                    ],
-                                  ),
-                                  borderRadius: BorderRadius.circular(12),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: const Color(
-                                        0xFF4169E1,
-                                      ).withOpacity(0.3),
-                                      blurRadius: 4,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
-                                ),
-                                child: Text(
-                                  'USER',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.badge_outlined,
-                                size: 14,
-                                color: Colors.grey[600],
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                user['nim'] ?? '-',
-                                style: GoogleFonts.inter(
-                                  fontSize: 13,
-                                  color: Colors.grey[600],
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              // Divider with gradient
-              Container(
-                height: 1,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.transparent,
-                      Colors.grey[300]!,
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
-              ),
-              // Info Section
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    _buildMobileInfoRow(
-                      Icons.email_rounded,
-                      user['email'] ?? '-',
-                    ),
-                    const SizedBox(height: 12),
-                    _buildMobileInfoRow(
-                      Icons.access_time_rounded,
-                      'Bergabung: ${_formatDate(user['create_at'])}',
-                    ),
-                    const SizedBox(height: 16),
-                    // Action Buttons with modern design
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[50],
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey[200]!),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          _buildActionButton(
-                            icon: Icons.visibility_rounded,
-                            label: 'View',
-                            color: const Color(0xFF6B7280),
-                            onPressed: () => _viewUserDetail(user),
-                          ),
-                          Container(
-                            width: 1,
-                            height: 30,
-                            color: Colors.grey[300],
-                          ),
-                          _buildActionButton(
-                            icon: Icons.delete_rounded,
-                            label: 'Hapus',
-                            color: const Color(0xFFEF4444),
-                            onPressed: () => _deleteUser(userId),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
+        return _buildMobileCard(_allUsers[index]);
       },
     );
   }
 
-  Widget _buildMobileInfoRow(IconData icon, String text) {
+  Widget _buildMobileCard(Map<String, dynamic> user) {
+    final userId = user['id_user'].toString();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Header Section
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  const Color(0xFF4169E1).withOpacity(0.03),
+                  Colors.transparent,
+                ],
+              ),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
+            ),
+            child: Row(
+              children: [
+                // Avatar
+                Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF4169E1).withOpacity(0.2),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: CircleAvatar(
+                    radius: 28,
+                    backgroundColor: const Color(0xFF4169E1).withOpacity(0.12),
+                    backgroundImage:
+                        user['picture'] != null &&
+                            user['picture'].toString().isNotEmpty
+                        ? NetworkImage(user['picture'])
+                        : null,
+                    child:
+                        user['picture'] == null ||
+                            user['picture'].toString().isEmpty
+                        ? Text(
+                            (user['username'] ?? 'U')
+                                .toString()[0]
+                                .toUpperCase(),
+                            style: GoogleFonts.inter(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF4169E1),
+                            ),
+                          )
+                        : null,
+                  ),
+                ),
+                const SizedBox(width: 14),
+
+                // User Info
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              user['username'] ?? '-',
+                              style: GoogleFonts.inter(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.black87,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.badge_outlined,
+                            size: 14,
+                            color: Colors.grey[600],
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            user['nim'] ?? '-',
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: Colors.grey[600],
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Details Section
+          Container(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                // Email
+                _buildInfoRow(
+                  Icons.email_outlined,
+                  'Email',
+                  user['email'] ?? '-',
+                ),
+                const SizedBox(height: 12),
+
+                // Create Date
+                _buildInfoRow(
+                  Icons.calendar_today_outlined,
+                  'Bergabung',
+                  _formatDate(user['create_at']),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Actions
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _showEditUserDialog(user),
+                        icon: const Icon(Icons.edit_rounded, size: 18),
+                        label: Text(
+                          'Edit',
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.blue,
+                          side: const BorderSide(color: Colors.blue),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _showDeleteDialog(user),
+                        icon: const Icon(Icons.delete_rounded, size: 18),
+                        label: Text(
+                          'Hapus',
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.red,
+                          side: const BorderSide(color: Colors.red),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(IconData icon, String label, String value) {
     return Row(
       children: [
         Container(
-          padding: const EdgeInsets.all(6),
+          padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
             color: const Color(0xFF4169E1).withOpacity(0.08),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(icon, size: 16, color: const Color(0xFF4169E1)),
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: 12),
         Expanded(
-          child: Text(
-            text,
-            style: GoogleFonts.inter(
-              fontSize: 13,
-              color: Colors.black87,
-              fontWeight: FontWeight.w500,
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  color: Colors.black87,
+                  fontWeight: FontWeight.w600,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
           ),
         ),
       ],
     );
   }
 
-  Widget _buildActionButton({
+  Widget _buildPagination() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // Results Info
+          Text(
+            'Menampilkan ${(_currentPage - 1) * _itemsPerPage + 1} - ${(_currentPage * _itemsPerPage) > _totalUsers ? _totalUsers : (_currentPage * _itemsPerPage)} dari $_totalUsers pengguna',
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey[700],
+            ),
+          ),
+
+          // Page Navigation
+          Row(
+            children: [
+              // Previous Button
+              _buildPageButton(
+                icon: Icons.chevron_left_rounded,
+                enabled: _currentPage > 1,
+                onPressed: () {
+                  setState(() {
+                    _currentPage--;
+                  });
+                  _loadUsers();
+                },
+              ),
+
+              const SizedBox(width: 12),
+
+              // Page Numbers
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      const Color(0xFF4169E1).withOpacity(0.1),
+                      const Color(0xFF4169E1).withOpacity(0.05),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: const Color(0xFF4169E1).withOpacity(0.3),
+                  ),
+                ),
+                child: Text(
+                  '$_currentPage / $_totalPages',
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF4169E1),
+                  ),
+                ),
+              ),
+
+              const SizedBox(width: 12),
+
+              // Next Button
+              _buildPageButton(
+                icon: Icons.chevron_right_rounded,
+                enabled: _currentPage < _totalPages,
+                onPressed: () {
+                  setState(() {
+                    _currentPage++;
+                  });
+                  _loadUsers();
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPageButton({
     required IconData icon,
-    required String label,
-    required Color color,
+    required bool enabled,
     required VoidCallback onPressed,
   }) {
-    return InkWell(
-      onTap: onPressed,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 20, color: color),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: color,
+    return Container(
+      decoration: BoxDecoration(
+        color: enabled
+            ? const Color(0xFF4169E1).withOpacity(0.1)
+            : Colors.grey[100],
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: enabled
+              ? const Color(0xFF4169E1).withOpacity(0.3)
+              : Colors.grey[300]!,
+        ),
+      ),
+      child: IconButton(
+        onPressed: enabled ? onPressed : null,
+        icon: Icon(icon, size: 20),
+        color: enabled ? const Color(0xFF4169E1) : Colors.grey[400],
+        padding: const EdgeInsets.all(8),
+      ),
+    );
+  }
+
+  void _showDeleteDialog(Map<String, dynamic> user) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Icon
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.warning_rounded,
+                  color: Colors.red,
+                  size: 48,
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 20),
+
+              // Title
+              Text(
+                'Konfirmasi Hapus',
+                style: GoogleFonts.inter(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Message
+              Text(
+                'Apakah Anda yakin ingin menghapus ${user['username']}?',
+                style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[700]),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+
+              // Actions
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        side: BorderSide(color: Colors.grey[300]!),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: Text(
+                        'Batal',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        Navigator.pop(context);
+                        await _performDelete(user['id_user'].toString());
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: Text(
+                        'Hapus',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildPagination() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        IconButton(
-          onPressed: _currentPage > 1
-              ? () {
-                  setState(() {
-                    _currentPage--;
-                  });
-                  _loadUsers();
-                }
-              : null,
-          icon: const Icon(Icons.chevron_left),
-          color: const Color(0xFF4169E1),
-          disabledColor: Colors.grey[400],
-        ),
-
-        const SizedBox(width: 16),
-
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.grey[100],
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            'Halaman $_currentPage dari $_totalPages',
-            style: GoogleFonts.inter(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: Colors.black87,
-            ),
-          ),
-        ),
-
-        const SizedBox(width: 16),
-
-        IconButton(
-          onPressed: _currentPage < _totalPages
-              ? () {
-                  setState(() {
-                    _currentPage++;
-                  });
-                  _loadUsers();
-                }
-              : null,
-          icon: const Icon(Icons.chevron_right),
-          color: const Color(0xFF4169E1),
-          disabledColor: Colors.grey[400],
-        ),
-      ],
-    );
-  }
-
-  Future<void> _viewUserDetail(Map<String, dynamic> user) async {
+  void _showEditUserDialog(Map<String, dynamic> user) async {
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => DetailPenggunaPage(user: user)),
+      MaterialPageRoute(builder: (context) => EditPenggunaPage(user: user)),
     );
 
-    // Refresh if user was updated
     if (result == true) {
       _loadUsers();
     }
   }
 
-  void _deleteUser(String userId) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          'Konfirmasi Hapus',
-          style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.bold),
-        ),
-        content: Text(
-          'Apakah Anda yakin ingin menghapus pengguna ini?',
-          style: GoogleFonts.inter(fontSize: 14),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Batal',
-              style: GoogleFonts.inter(
-                color: Colors.grey[600],
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await _performDelete(userId);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-            child: Text(
-              'Hapus',
-              style: GoogleFonts.inter(fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
-      ),
+  void _showAddUserDialog() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const AddPenggunaPage()),
     );
-  }
 
-  void _showDeleteConfirmation() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          'Konfirmasi Hapus',
-          style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.bold),
-        ),
-        content: Text(
-          'Apakah Anda yakin ingin menghapus ${_selectedUsers.length} pengguna yang dipilih?',
-          style: GoogleFonts.inter(fontSize: 14),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Batal',
-              style: GoogleFonts.inter(
-                color: Colors.grey[600],
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await _performBulkDelete();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-            child: Text(
-              'Hapus Semua',
-              style: GoogleFonts.inter(fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
-      ),
-    );
+    if (result == true) {
+      _loadUsers();
+    }
   }
 
   Future<void> _performDelete(String userId) async {
@@ -1223,7 +1463,7 @@ class _PenggunaPageState extends State<PenggunaPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('Pengguna berhasil dihapus'),
             backgroundColor: Colors.green,
           ),
@@ -1241,34 +1481,185 @@ class _PenggunaPageState extends State<PenggunaPage> {
       }
     }
   }
+}
 
-  Future<void> _performBulkDelete() async {
-    try {
-      for (String userId in _selectedUsers) {
-        await _supabase.from('users').delete().eq('id_user', userId);
-      }
+// Custom Painter for Line Chart
+class LineChartPainter extends CustomPainter {
+  final List<Map<String, dynamic>> data;
+  final double maxValue;
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${_selectedUsers.length} pengguna berhasil dihapus'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        setState(() {
-          _selectedUsers.clear();
-        });
-        _loadUsers();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Gagal menghapus pengguna: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+  LineChartPainter({required this.data, required this.maxValue});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (data.isEmpty) return;
+
+    final double leftPadding = 40;
+    final double rightPadding = 20;
+    final double topPadding = 20;
+    final double bottomPadding = 40;
+
+    final double chartWidth = size.width - leftPadding - rightPadding;
+    final double chartHeight = size.height - topPadding - bottomPadding;
+
+    // Draw grid lines
+    final gridPaint = Paint()
+      ..color = Colors.grey.withOpacity(0.15)
+      ..strokeWidth = 1;
+
+    for (int i = 0; i <= 5; i++) {
+      final y = topPadding + (chartHeight / 5) * i;
+      canvas.drawLine(
+        Offset(leftPadding, y),
+        Offset(size.width - rightPadding, y),
+        gridPaint,
+      );
+
+      // Draw Y-axis labels
+      final value = (maxValue * (5 - i) / 5).toInt();
+      final textSpan = TextSpan(
+        text: value.toString(),
+        style: GoogleFonts.inter(
+          fontSize: 10,
+          color: Colors.grey[600],
+          fontWeight: FontWeight.w500,
+        ),
+      );
+      final textPainter = TextPainter(
+        text: textSpan,
+        textDirection: ui.TextDirection.ltr,
+      );
+      textPainter.layout();
+      textPainter.paint(
+        canvas,
+        Offset(leftPadding - textPainter.width - 8, y - textPainter.height / 2),
+      );
     }
+
+    // Calculate data points
+    final points = <Offset>[];
+    final double stepX = chartWidth / (data.length - 1);
+
+    for (int i = 0; i < data.length; i++) {
+      final count = data[i]['count']!.toDouble();
+      final x = leftPadding + stepX * i;
+      final y = topPadding + chartHeight - (count / maxValue * chartHeight);
+      points.add(Offset(x, y));
+    }
+
+    // Draw gradient area under the line
+    if (points.length > 1) {
+      final path = Path();
+      path.moveTo(points.first.dx, size.height - bottomPadding);
+      path.lineTo(points.first.dx, points.first.dy);
+
+      for (int i = 1; i < points.length; i++) {
+        final cp1x = points[i - 1].dx + (points[i].dx - points[i - 1].dx) / 2;
+        final cp1y = points[i - 1].dy;
+        final cp2x = points[i - 1].dx + (points[i].dx - points[i - 1].dx) / 2;
+        final cp2y = points[i].dy;
+
+        path.cubicTo(cp1x, cp1y, cp2x, cp2y, points[i].dx, points[i].dy);
+      }
+
+      path.lineTo(points.last.dx, size.height - bottomPadding);
+      path.close();
+
+      final gradientPaint = Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            const Color(0xFF4169E1).withOpacity(0.3),
+            const Color(0xFF4169E1).withOpacity(0.05),
+          ],
+        ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+
+      canvas.drawPath(path, gradientPaint);
+    }
+
+    // Draw curved line
+    if (points.length > 1) {
+      final linePath = Path();
+      linePath.moveTo(points.first.dx, points.first.dy);
+
+      for (int i = 1; i < points.length; i++) {
+        final cp1x = points[i - 1].dx + (points[i].dx - points[i - 1].dx) / 2;
+        final cp1y = points[i - 1].dy;
+        final cp2x = points[i - 1].dx + (points[i].dx - points[i - 1].dx) / 2;
+        final cp2y = points[i].dy;
+
+        linePath.cubicTo(cp1x, cp1y, cp2x, cp2y, points[i].dx, points[i].dy);
+      }
+
+      final linePaint = Paint()
+        ..color = const Color(0xFF4169E1)
+        ..strokeWidth = 3
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round;
+
+      canvas.drawPath(linePath, linePaint);
+    }
+
+    // Draw data points and values
+    for (int i = 0; i < points.length; i++) {
+      // Outer circle (white border)
+      final outerCirclePaint = Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(points[i], 6, outerCirclePaint);
+
+      // Inner circle (blue)
+      final innerCirclePaint = Paint()
+        ..color = const Color(0xFF4169E1)
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(points[i], 4, innerCirclePaint);
+
+      // Draw value above point
+      final valueText = TextSpan(
+        text: data[i]['count'].toString(),
+        style: GoogleFonts.inter(
+          fontSize: 11,
+          color: const Color(0xFF4169E1),
+          fontWeight: FontWeight.w700,
+        ),
+      );
+      final valueTextPainter = TextPainter(
+        text: valueText,
+        textDirection: ui.TextDirection.ltr,
+      );
+      valueTextPainter.layout();
+      valueTextPainter.paint(
+        canvas,
+        Offset(points[i].dx - valueTextPainter.width / 2, points[i].dy - 20),
+      );
+
+      // Draw month label
+      final monthText = TextSpan(
+        text: data[i]['month'],
+        style: GoogleFonts.inter(
+          fontSize: 11,
+          color: Colors.grey[700],
+          fontWeight: FontWeight.w500,
+        ),
+      );
+      final monthTextPainter = TextPainter(
+        text: monthText,
+        textDirection: ui.TextDirection.ltr,
+      );
+      monthTextPainter.layout();
+      monthTextPainter.paint(
+        canvas,
+        Offset(
+          points[i].dx - monthTextPainter.width / 2,
+          size.height - bottomPadding + 10,
+        ),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(LineChartPainter oldDelegate) {
+    return oldDelegate.data != data || oldDelegate.maxValue != maxValue;
   }
 }

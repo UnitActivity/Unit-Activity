@@ -1,101 +1,119 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
-class AddPenggunaPage extends StatefulWidget {
-  const AddPenggunaPage({super.key});
+class EditPenggunaPage extends StatefulWidget {
+  final Map<String, dynamic> user;
+
+  const EditPenggunaPage({super.key, required this.user});
 
   @override
-  State<AddPenggunaPage> createState() => _AddPenggunaPageState();
+  State<EditPenggunaPage> createState() => _EditPenggunaPageState();
 }
 
-class _AddPenggunaPageState extends State<AddPenggunaPage> {
+class _EditPenggunaPageState extends State<EditPenggunaPage> {
   final _supabase = Supabase.instance.client;
   final _formKey = GlobalKey<FormState>();
 
-  final _usernameController = TextEditingController();
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _nimController = TextEditingController();
+  late final TextEditingController _usernameController;
+  late final TextEditingController _emailController;
+  late final TextEditingController _nimController;
+  final _newPasswordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
 
   bool _isLoading = false;
-  bool _obscurePassword = true;
+  bool _isChangingPassword = false;
+  bool _obscureNewPassword = true;
+  bool _obscureConfirmPassword = true;
 
   // Password validation states
   bool _hasMinLength = false;
   bool _hasUppercase = false;
   bool _hasNumber = false;
   bool _hasSymbol = false;
+  bool _passwordsMatch = false;
 
   @override
-  void dispose() {
-    _usernameController.dispose();
-    _emailController.dispose();
-    _passwordController.dispose();
-    _nimController.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    _usernameController = TextEditingController(text: widget.user['username']);
+    _emailController = TextEditingController(text: widget.user['email']);
+    _nimController = TextEditingController(text: widget.user['nim']);
+    _newPasswordController.addListener(_validatePassword);
+    _confirmPasswordController.addListener(_validatePasswordMatch);
   }
 
   void _validatePassword() {
-    final password = _passwordController.text;
+    final password = _newPasswordController.text;
     setState(() {
       _hasMinLength = password.length >= 8;
       _hasUppercase = RegExp(r'[A-Z]').hasMatch(password);
       _hasNumber = RegExp(r'[0-9]').hasMatch(password);
       _hasSymbol = RegExp(r'[!@#\$%^&*]').hasMatch(password);
     });
+    _validatePasswordMatch();
+  }
+
+  void _validatePasswordMatch() {
+    setState(() {
+      _passwordsMatch =
+          _newPasswordController.text.isNotEmpty &&
+          _confirmPasswordController.text.isNotEmpty &&
+          _newPasswordController.text == _confirmPasswordController.text;
+    });
   }
 
   @override
-  void initState() {
-    super.initState();
-    _passwordController.addListener(_validatePassword);
+  void dispose() {
+    _usernameController.dispose();
+    _emailController.dispose();
+    _nimController.dispose();
+    _newPasswordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
   }
 
-  Future<void> _addUser() async {
+  Future<void> _updateUser() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
-    // Validate password requirements
-    final password = _passwordController.text;
-    if (password.length < 8) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Password minimal 8 karakter'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-    if (!RegExp(r'[A-Z]').hasMatch(password)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Password harus mengandung minimal 1 huruf kapital'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-    if (!RegExp(r'[0-9]').hasMatch(password)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Password harus mengandung minimal 1 angka'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-    if (!RegExp(r'[!@#\$%^&*]').hasMatch(password)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Password harus mengandung minimal 1 simbol (!@#\$%^&*)',
+    // Validate password if changing
+    if (_isChangingPassword) {
+      final newPassword = _newPasswordController.text;
+      final confirmPassword = _confirmPasswordController.text;
+
+      if (newPassword.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Password baru tidak boleh kosong'),
+            backgroundColor: Colors.red,
           ),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
+        );
+        return;
+      }
+
+      if (!_hasMinLength || !_hasUppercase || !_hasNumber || !_hasSymbol) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Password tidak memenuhi persyaratan'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      if (newPassword != confirmPassword) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Konfirmasi password tidak cocok'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
     }
 
     setState(() => _isLoading = true);
@@ -103,108 +121,118 @@ class _AddPenggunaPageState extends State<AddPenggunaPage> {
     try {
       final username = _usernameController.text.trim();
       final email = _emailController.text.trim().toLowerCase();
-      final password = _passwordController.text;
       final nim = _nimController.text.trim();
 
-      // Check if email already exists
-      final existingEmail = await _supabase
+      // Check if email already exists (excluding current user)
+      if (email != widget.user['email']) {
+        final existingEmail = await _supabase
+            .from('users')
+            .select('email')
+            .eq('email', email)
+            .maybeSingle();
+
+        if (existingEmail != null) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Email sudah digunakan oleh pengguna lain'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+          setState(() => _isLoading = false);
+          return;
+        }
+      }
+
+      // Check if NIM already exists (excluding current user)
+      if (nim != widget.user['nim']) {
+        final existingNim = await _supabase
+            .from('users')
+            .select('nim')
+            .eq('nim', nim)
+            .maybeSingle();
+
+        if (existingNim != null) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('NIM sudah digunakan oleh pengguna lain'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+          setState(() => _isLoading = false);
+          return;
+        }
+      }
+
+      // Update password in auth if changing (using admin API)
+      if (_isChangingPassword) {
+        try {
+          final response = await http.post(
+            Uri.parse('http://localhost:3000/api/admin-update-password'),
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode({
+              'userId': widget.user['id_user'],
+              'newPassword': _newPasswordController.text,
+            }),
+          );
+
+          final result = json.decode(response.body);
+
+          if (!result['success']) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(result['error'] ?? 'Gagal mengupdate password'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+            setState(() => _isLoading = false);
+            return;
+          }
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error mengupdate password: $e'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+          setState(() => _isLoading = false);
+          return;
+        }
+      }
+
+      // Update user in database
+      await _supabase
           .from('users')
-          .select('email')
-          .eq('email', email)
-          .maybeSingle();
-
-      if (existingEmail != null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Email sudah terdaftar'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        setState(() => _isLoading = false);
-        return;
-      }
-
-      // Check if NIM already exists
-      final existingNim = await _supabase
-          .from('users')
-          .select('nim')
-          .eq('nim', nim)
-          .maybeSingle();
-
-      if (existingNim != null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('NIM sudah terdaftar'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        setState(() => _isLoading = false);
-        return;
-      }
-
-      // Create user in Supabase Auth (skip email confirmation for admin-created users)
-      final authResponse = await _supabase.auth.signUp(
-        email: email,
-        password: password,
-        data: {'username': username, 'nim': nim},
-      );
-
-      if (authResponse.user == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Gagal membuat user'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        setState(() => _isLoading = false);
-        return;
-      }
-
-      // Insert user data into users table
-      await _supabase.from('users').insert({
-        'id_user': authResponse.user!.id,
-        'username': username,
-        'email': email,
-        'password': authResponse.user!.id,
-        'nim': nim,
-        'picture': null,
-        'create_at': DateTime.now().toIso8601String(),
-      });
+          .update({'username': username, 'email': email, 'nim': nim})
+          .eq('id_user', widget.user['id_user']);
 
       if (mounted) {
-        Navigator.pop(context, true);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Pengguna berhasil ditambahkan!'),
+            content: Text('Pengguna berhasil diperbarui'),
             backgroundColor: Colors.green,
           ),
         );
-      }
-    } on AuthException catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.message}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('Gagal memperbarui pengguna: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      setState(() => _isLoading = false);
     }
   }
 
@@ -214,7 +242,7 @@ class _AddPenggunaPageState extends State<AddPenggunaPage> {
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
         title: Text(
-          'Tambah Pengguna',
+          'Edit Pengguna',
           style: GoogleFonts.inter(fontWeight: FontWeight.w700),
         ),
         backgroundColor: const Color(0xFF4169E1),
@@ -228,6 +256,7 @@ class _AddPenggunaPageState extends State<AddPenggunaPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              const SizedBox(height: 24),
               // Form Card
               Container(
                 padding: const EdgeInsets.all(24),
@@ -253,10 +282,6 @@ class _AddPenggunaPageState extends State<AddPenggunaPage> {
                       validator: (value) {
                         if (value == null || value.isEmpty) {
                           return 'Username tidak boleh kosong';
-                        }
-                        final usernameRegex = RegExp(r'^[a-zA-Z0-9_]{3,}$');
-                        if (!usernameRegex.hasMatch(value)) {
-                          return 'Username minimal 3 karakter (huruf, angka, underscore)';
                         }
                         return null;
                       },
@@ -298,7 +323,7 @@ class _AddPenggunaPageState extends State<AddPenggunaPage> {
                     ),
                     const SizedBox(height: 24),
 
-                    // Password Section
+                    // Change Password Section
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
@@ -318,68 +343,132 @@ class _AddPenggunaPageState extends State<AddPenggunaPage> {
                               ),
                               const SizedBox(width: 8),
                               Text(
-                                'Password',
+                                'Ganti Password',
                                 style: GoogleFonts.inter(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w600,
                                   color: Colors.blue[700],
                                 ),
                               ),
+                              const Spacer(),
+                              Switch(
+                                value: _isChangingPassword,
+                                onChanged: (value) {
+                                  setState(() {
+                                    _isChangingPassword = value;
+                                    if (!value) {
+                                      _newPasswordController.clear();
+                                      _confirmPasswordController.clear();
+                                    }
+                                  });
+                                },
+                                activeColor: const Color(0xFF4169E1),
+                              ),
                             ],
                           ),
-                          const SizedBox(height: 16),
+                          if (_isChangingPassword) ...[
+                            const SizedBox(height: 16),
 
-                          // Password Field
-                          _buildPasswordField(
-                            controller: _passwordController,
-                            label: 'Password',
-                            obscureText: _obscurePassword,
-                            onToggleVisibility: () {
-                              setState(() {
-                                _obscurePassword = !_obscurePassword;
-                              });
-                            },
-                          ),
-                          const SizedBox(height: 16),
-
-                          // Password Requirements
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[50],
-                              borderRadius: BorderRadius.circular(8),
+                            // New Password Field
+                            _buildPasswordField(
+                              controller: _newPasswordController,
+                              label: 'Password Baru',
+                              obscureText: _obscureNewPassword,
+                              onToggleVisibility: () {
+                                setState(() {
+                                  _obscureNewPassword = !_obscureNewPassword;
+                                });
+                              },
                             ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Password harus mengandung:',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.grey[700],
+                            const SizedBox(height: 16),
+
+                            // Password Requirements
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.grey[50],
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Password harus mengandung:',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.grey[700],
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(height: 8),
-                                _buildPasswordRequirement(
-                                  'Minimal 8 karakter',
-                                  _hasMinLength,
-                                ),
-                                _buildPasswordRequirement(
-                                  'Minimal 1 huruf kapital',
-                                  _hasUppercase,
-                                ),
-                                _buildPasswordRequirement(
-                                  'Minimal 1 angka',
-                                  _hasNumber,
-                                ),
-                                _buildPasswordRequirement(
-                                  'Minimal 1 simbol (!@#\$%^&*)',
-                                  _hasSymbol,
-                                ),
-                              ],
+                                  const SizedBox(height: 8),
+                                  _buildPasswordRequirement(
+                                    'Minimal 8 karakter',
+                                    _hasMinLength,
+                                  ),
+                                  _buildPasswordRequirement(
+                                    'Minimal 1 huruf kapital',
+                                    _hasUppercase,
+                                  ),
+                                  _buildPasswordRequirement(
+                                    'Minimal 1 angka',
+                                    _hasNumber,
+                                  ),
+                                  _buildPasswordRequirement(
+                                    'Minimal 1 simbol (!@#\$%^&*)',
+                                    _hasSymbol,
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
+                            const SizedBox(height: 16),
+
+                            // Confirm Password Field
+                            _buildPasswordField(
+                              controller: _confirmPasswordController,
+                              label: 'Konfirmasi Password Baru',
+                              obscureText: _obscureConfirmPassword,
+                              onToggleVisibility: () {
+                                setState(() {
+                                  _obscureConfirmPassword =
+                                      !_obscureConfirmPassword;
+                                });
+                              },
+                            ),
+
+                            // Password Match Indicator
+                            if (_confirmPasswordController.text.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 8),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      _passwordsMatch
+                                          ? Icons.check_circle
+                                          : Icons.cancel,
+                                      size: 16,
+                                      color: _passwordsMatch
+                                          ? Colors.green
+                                          : Colors.red,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      _passwordsMatch
+                                          ? 'Password cocok'
+                                          : 'Password tidak cocok',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 12,
+                                        color: _passwordsMatch
+                                            ? Colors.green[700]
+                                            : Colors.red[700],
+                                        fontWeight: _passwordsMatch
+                                            ? FontWeight.w500
+                                            : FontWeight.normal,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                          ],
                         ],
                       ),
                     ),
@@ -411,7 +500,7 @@ class _AddPenggunaPageState extends State<AddPenggunaPage> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: ElevatedButton(
-                            onPressed: _isLoading ? null : _addUser,
+                            onPressed: _isLoading ? null : _updateUser,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF4169E1),
                               foregroundColor: Colors.white,

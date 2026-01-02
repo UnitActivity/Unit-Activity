@@ -220,6 +220,89 @@ app.post('/api/reset-password', async (req, res) => {
 });
 
 /**
+ * POST /api/admin-update-password
+ * Admin endpoint to update a user's password
+ */
+app.post('/api/admin-update-password', async (req, res) => {
+  try {
+    const { userId, newPassword } = req.body;
+
+    // Validate input
+    if (!userId || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        error: 'User ID dan password baru wajib diisi',
+        code: 'MISSING_FIELDS',
+      });
+    }
+
+    // Validate password requirements
+    if (newPassword.length < 8) {
+      return res.status(400).json({
+        success: false,
+        error: 'Password minimal 8 karakter',
+        code: 'PASSWORD_TOO_SHORT',
+      });
+    }
+
+    if (!/[A-Z]/.test(newPassword)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Password harus mengandung minimal 1 huruf kapital',
+        code: 'NO_UPPERCASE',
+      });
+    }
+
+    if (!/[0-9]/.test(newPassword)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Password harus mengandung minimal 1 angka',
+        code: 'NO_NUMBER',
+      });
+    }
+
+    if (!/[!@#$%^&*]/.test(newPassword)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Password harus mengandung minimal 1 simbol (!@#$%^&*)',
+        code: 'NO_SYMBOL',
+      });
+    }
+
+    console.log('🔧 Admin updating password for user:', userId);
+
+    // Update password in Supabase Auth using admin client
+    const { data, error } = await supabaseAdmin.auth.admin.updateUserById(
+      userId,
+      { password: newPassword }
+    );
+
+    if (error) {
+      console.error('❌ Error updating password:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Gagal mengupdate password',
+        details: error.message,
+      });
+    }
+
+    console.log('✅ Password berhasil diupdate untuk user:', userId);
+
+    res.json({
+      success: true,
+      message: 'Password berhasil diupdate',
+    });
+  } catch (error) {
+    console.error('❌ Error in admin-update-password endpoint:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Terjadi kesalahan saat update password',
+      details: error.message,
+    });
+  }
+});
+
+/**
  * GET /api/health
  * Health check endpoint
  */
