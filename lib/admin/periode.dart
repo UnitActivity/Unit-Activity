@@ -491,7 +491,7 @@ class _PeriodePageState extends State<PeriodePage> {
                     Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.all(8),
+                          padding: const EdgeInsets.all(6),
                           decoration: BoxDecoration(
                             gradient: isActive
                                 ? const LinearGradient(
@@ -511,10 +511,10 @@ class _PeriodePageState extends State<PeriodePage> {
                           child: Icon(
                             Icons.calendar_month_rounded,
                             color: Colors.white,
-                            size: 18,
+                            size: 16,
                           ),
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             periode['nama_periode'] ?? '-',
@@ -529,11 +529,11 @@ class _PeriodePageState extends State<PeriodePage> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
+                        horizontal: 8,
+                        vertical: 3,
                       ),
                       decoration: BoxDecoration(
                         gradient: isActive
@@ -594,9 +594,9 @@ class _PeriodePageState extends State<PeriodePage> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           Divider(color: Colors.grey[200], height: 1),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
 
           // Period Details
           _buildInfoChip(
@@ -604,7 +604,7 @@ class _PeriodePageState extends State<PeriodePage> {
             label: 'Semester',
             value: '${periode['semester'] ?? '-'} ${periode['tahun'] ?? '-'}',
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
