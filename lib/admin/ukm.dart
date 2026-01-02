@@ -337,46 +337,68 @@ class _UkmPageState extends State<UkmPage> {
         MediaQuery.of(context).size.width >= 600 &&
         MediaQuery.of(context).size.width < 900;
 
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header Section
-          _buildModernHeader(isDesktop),
-          const SizedBox(height: 24),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Modern Header
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Colors.white, const Color(0xFF4169E1).withOpacity(0.05)],
+            ),
+          ),
+          child: Text(
+            'Manajemen UKM',
+            style: GoogleFonts.inter(
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
+              color: Colors.black87,
+              letterSpacing: -0.5,
+            ),
+          ),
+        ),
+        const SizedBox(height: 24),
 
-          // Stats Cards
-          _buildStatsCards(isDesktop),
-          const SizedBox(height: 24),
+        // Stats Cards
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: _buildStatsCards(isDesktop),
+        ),
+        const SizedBox(height: 24),
 
-          // Search and Actions Bar
-          _buildSearchAndFilterBar(isDesktop),
+        // Search and Actions Bar
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: _buildSearchAndFilterBar(isDesktop),
+        ),
+        const SizedBox(height: 20),
+
+        // Content
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: _isLoading
+              ? _buildLoadingState()
+              : _allUkm.isEmpty
+              ? _buildEmptyState()
+              : isDesktop || isTablet
+              ? _buildDesktopTable(isDesktop)
+              : _buildMobileList(),
+        ),
+
+        if (!_isLoading && _allUkm.isNotEmpty) ...[
           const SizedBox(height: 20),
-
-          // Content
-          if (_isLoading)
-            _buildLoadingState()
-          else if (_allUkm.isEmpty)
-            _buildEmptyState()
-          else if (isDesktop || isTablet)
-            _buildDesktopTable(isDesktop)
-          else
-            _buildMobileList(),
-
-          if (!_isLoading && _allUkm.isNotEmpty) ...[
-            const SizedBox(height: 20),
-            _buildPagination(),
-          ],
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: _buildPagination(),
+          ),
         ],
-      ),
+        const SizedBox(height: 24),
+      ],
     );
-  }
-
-  Widget _buildModernHeader(bool isDesktop) {
-    return Container(child: Row(children: [
-         
-        ],
-      ));
   }
 
   Widget _buildStatsCards(bool isDesktop) {

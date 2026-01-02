@@ -46,12 +46,46 @@ class _PenggunaPageState extends State<PenggunaPage> {
 
   Future<void> _loadPeriodeAndGrowth() async {
     try {
-      // Load active periode
-      final periodeResponse = await _supabase
+      // Load active periode - try different status values
+      var periodeResponse = await _supabase
           .from('periode_ukm')
-          .select('id_periode, nama_periode, semester, tahun')
+          .select('id_periode, nama_periode, semester, tahun, status')
           .eq('status', 'aktif')
+          .limit(1)
           .maybeSingle();
+
+      // If not found, try with capital 'Aktif'
+      if (periodeResponse == null) {
+        periodeResponse = await _supabase
+            .from('periode_ukm')
+            .select('id_periode, nama_periode, semester, tahun, status')
+            .eq('status', 'Aktif')
+            .limit(1)
+            .maybeSingle();
+      }
+
+      // If still not found, try to get any periode ordered by created date
+      if (periodeResponse == null) {
+        final allPeriodes = await _supabase
+            .from('periode_ukm')
+            .select('id_periode, nama_periode, semester, tahun, status')
+            .order('tanggal_awal', ascending: false)
+            .limit(5);
+
+        print('All available periodes: $allPeriodes');
+
+        // Try to find one with status containing 'aktif' (case insensitive)
+        if (allPeriodes.isNotEmpty) {
+          periodeResponse = (allPeriodes as List).firstWhere(
+            (p) =>
+                p['status']?.toString().toLowerCase().contains('aktif') ??
+                false,
+            orElse: () => allPeriodes.first,
+          );
+        }
+      }
+
+      print('Periode response: $periodeResponse');
 
       // Load user growth data for the last 6 months
       final now = DateTime.now();
@@ -243,8 +277,10 @@ class _PenggunaPageState extends State<PenggunaPage> {
           child: _buildStatCard(
             title: 'Periode',
             value: _activePeriode != null
-                ? '${_activePeriode!['semester']} ${_activePeriode!['tahun']}'
-                : '-',
+                ? (_activePeriode!['nama_periode']?.toString() ??
+                          '${_activePeriode!['semester'] ?? ''} ${_activePeriode!['tahun'] ?? ''}')
+                      .trim()
+                : 'Tidak Ada Periode Aktif',
             icon: Icons.calendar_today_outlined,
             gradient: const LinearGradient(
               colors: [Color(0xFFF59E0B), Color(0xFFFBBF24)],

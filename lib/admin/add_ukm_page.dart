@@ -302,63 +302,69 @@ class _AddUkmPageState extends State<AddUkmPage> {
     final isDesktop = MediaQuery.of(context).size.width >= 900;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          onPressed: () => Navigator.pop(context),
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
-        ),
         title: Text(
           'Tambah UKM',
-          style: GoogleFonts.inter(
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-            color: Colors.black87,
-          ),
+          style: GoogleFonts.inter(fontWeight: FontWeight.w700),
         ),
+        backgroundColor: const Color(0xFF4169E1),
+        foregroundColor: Colors.white,
+        elevation: 0,
       ),
       body: SingleChildScrollView(
-        child: Center(
-          child: Container(
-            constraints: BoxConstraints(
-              maxWidth: isDesktop ? 600 : double.infinity,
-            ),
-            padding: const EdgeInsets.all(24),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        padding: EdgeInsets.symmetric(
+          horizontal: isDesktop ? 48 : 24,
+          vertical: 24,
+        ),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Info Banner
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.blue[200]!),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.blue[700]),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Lengkapi form di bawah untuk menambahkan UKM baru',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          color: Colors.blue[900],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Logo UKM Section
+              _buildSectionCard(
+                title: 'Logo UKM',
+                icon: Icons.image_outlined,
+                children: [_buildImageUpload()],
+              ),
+              const SizedBox(height: 20),
+
+              // Informasi Dasar Section
+              _buildSectionCard(
+                title: 'Informasi Dasar',
+                icon: Icons.info_outline,
                 children: [
-                  // Header
-                  Text(
-                    'Informasi UKM',
-                    style: GoogleFonts.inter(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Isi formulir di bawah untuk menambahkan UKM baru',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Logo Upload
-                  _buildImageUpload(),
-                  const SizedBox(height: 16),
-
-                  // Nama UKM Field
                   _buildTextField(
                     label: 'Nama UKM',
                     controller: _nameController,
-                    hint: 'Masukkan nama UKM',
+                    hint: 'Contoh: BEM Fakultas Teknik',
                     icon: Icons.groups_outlined,
                     required: true,
                     validator: (value) {
@@ -368,13 +374,28 @@ class _AddUkmPageState extends State<AddUkmPage> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
+                  _buildTextField(
+                    label: 'Deskripsi',
+                    controller: _descriptionController,
+                    hint: 'Jelaskan tentang UKM ini (opsional)',
+                    icon: Icons.description_outlined,
+                    required: false,
+                    maxLines: 4,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
 
-                  // Email Field
+              // Informasi Akun Section
+              _buildSectionCard(
+                title: 'Informasi Akun',
+                icon: Icons.account_circle_outlined,
+                children: [
                   _buildTextField(
                     label: 'Email',
                     controller: _emailController,
-                    hint: 'Masukkan email UKM',
+                    hint: 'email@example.com',
                     icon: Icons.email_outlined,
                     required: true,
                     keyboardType: TextInputType.emailAddress,
@@ -389,9 +410,7 @@ class _AddUkmPageState extends State<AddUkmPage> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 16),
-
-                  // Password Field
+                  const SizedBox(height: 20),
                   _buildTextField(
                     label: 'Password',
                     controller: _passwordController,
@@ -413,6 +432,7 @@ class _AddUkmPageState extends State<AddUkmPage> {
                             ? Icons.visibility_outlined
                             : Icons.visibility_off_outlined,
                         color: Colors.grey[600],
+                        size: 20,
                       ),
                       onPressed: () {
                         setState(() => _obscurePassword = !_obscurePassword);
@@ -428,101 +448,50 @@ class _AddUkmPageState extends State<AddUkmPage> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 12),
-
-                  // Password Requirements
-                  Text(
-                    'Password harus mengandung:',
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  _buildPasswordRequirement(
-                    'Minimal 8 karakter',
-                    _hasMinLength,
-                  ),
-                  _buildPasswordRequirement('1 huruf kapital', _hasUppercase),
-                  _buildPasswordRequirement('1 angka', _hasNumber),
-                  _buildPasswordRequirement('1 simbol (!@#\$%^&*)', _hasSymbol),
                   const SizedBox(height: 16),
 
-                  // Description Field
-                  _buildTextField(
-                    label: 'Deskripsi',
-                    controller: _descriptionController,
-                    hint: 'Masukkan deskripsi UKM (opsional)',
-                    icon: Icons.description_outlined,
-                    required: false,
-                    maxLines: 4,
-                  ),
-                  const SizedBox(height: 32),
-
-                  // Buttons
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: _isLoading
-                              ? null
-                              : () => Navigator.pop(context),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            side: BorderSide(color: Colors.grey[300]!),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                          child: Text(
-                            'Batal',
-                            style: GoogleFonts.inter(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey[700],
-                            ),
+                  // Password Requirements
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Password harus mengandung:',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[700],
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: _isLoading ? null : _addUkm,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF4169E1),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            elevation: 0,
-                          ),
-                          child: _isLoading
-                              ? const SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                      Colors.white,
-                                    ),
-                                  ),
-                                )
-                              : Text(
-                                  'Simpan',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.white,
-                                  ),
-                                ),
+                        const SizedBox(height: 8),
+                        _buildPasswordRequirement(
+                          'Minimal 8 karakter',
+                          _hasMinLength,
                         ),
-                      ),
-                    ],
+                        _buildPasswordRequirement(
+                          '1 huruf kapital',
+                          _hasUppercase,
+                        ),
+                        _buildPasswordRequirement('1 angka', _hasNumber),
+                        _buildPasswordRequirement(
+                          '1 simbol (!@#\$%^&*)',
+                          _hasSymbol,
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
-            ),
+              const SizedBox(height: 32),
+
+              // Action Buttons
+              _buildActionButtons(),
+            ],
           ),
         ),
       ),
@@ -530,73 +499,221 @@ class _AddUkmPageState extends State<AddUkmPage> {
   }
 
   Widget _buildImageUpload() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Text(
-              'Logo UKM',
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey[700],
+    return Center(
+      child: GestureDetector(
+        onTap: _isUploading
+            ? null
+            : () async {
+                final url = await _uploadImage();
+                if (url != null) {
+                  setState(() => _selectedImageUrl = url);
+                }
+              },
+        child: Container(
+          width: 200,
+          height: 200,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border.all(
+              color: _selectedImageUrl != null
+                  ? const Color(0xFF4169E1)
+                  : Colors.grey[300]!,
+              width: 2,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
               ),
-            ),
-            Text(
-              ' (Opsional)',
-              style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[500]),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        InkWell(
-          onTap: _isUploading
-              ? null
-              : () async {
-                  final url = await _uploadImage();
-                  if (url != null) {
-                    setState(() => _selectedImageUrl = url);
-                  }
-                },
-          child: Container(
-            width: double.infinity,
-            height: 150,
-            decoration: BoxDecoration(
-              color: Colors.grey[50],
-              border: Border.all(color: Colors.grey[300]!),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: _isUploading
-                ? const Center(child: CircularProgressIndicator())
-                : _selectedImageUrl != null
-                ? ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.network(
-                      _selectedImageUrl!,
-                      fit: BoxFit.contain,
-                      width: double.infinity,
-                      height: 150,
-                    ),
-                  )
-                : Column(
+            ],
+          ),
+          child: _isUploading
+              ? const Center(
+                  child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
-                        Icons.cloud_upload_outlined,
-                        size: 48,
-                        color: Colors.grey[400],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Klik untuk upload logo',
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          color: Colors.grey[600],
-                        ),
-                      ),
+                      CircularProgressIndicator(),
+                      SizedBox(height: 12),
+                      Text('Uploading...'),
                     ],
                   ),
+                )
+              : _selectedImageUrl != null
+              ? Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: Image.network(
+                        _selectedImageUrl!,
+                        width: 200,
+                        height: 200,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 8,
+                      right: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF4169E1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.edit,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                      ),
+                    ),
+                  ],
+                )
+              : Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.blue[50],
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.cloud_upload_outlined,
+                        size: 48,
+                        color: Colors.blue[700],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Upload Logo',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey[700],
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'JPG, PNG (Max 5MB)',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: Colors.grey[500],
+                      ),
+                    ),
+                  ],
+                ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionCard({
+    required String title,
+    required IconData icon,
+    required List<Widget> children,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: Colors.blue[700], size: 20),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                title,
+                style: GoogleFonts.inter(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.grey[800],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButtons() {
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: _isLoading ? null : () => Navigator.pop(context),
+            icon: const Icon(Icons.close, size: 18),
+            label: Text(
+              'Batal',
+              style: GoogleFonts.inter(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              side: BorderSide(color: Colors.grey[300]!),
+              foregroundColor: Colors.grey[700],
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          flex: 2,
+          child: ElevatedButton.icon(
+            onPressed: _isLoading ? null : _addUkm,
+            icon: _isLoading
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : const Icon(Icons.check, size: 18),
+            label: Text(
+              _isLoading ? 'Menyimpan...' : 'Simpan UKM',
+              style: GoogleFonts.inter(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF4169E1),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              elevation: 0,
+              shadowColor: Colors.transparent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
           ),
         ),
       ],
@@ -624,16 +741,16 @@ class _AddUkmPageState extends State<AddUkmPage> {
             Text(
               label,
               style: GoogleFonts.inter(
-                fontSize: 14,
+                fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: Colors.grey[700],
+                color: Colors.grey[800],
               ),
             ),
             if (required)
               Text(
                 ' *',
                 style: GoogleFonts.inter(
-                  fontSize: 14,
+                  fontSize: 13,
                   fontWeight: FontWeight.w600,
                   color: Colors.red,
                 ),
@@ -648,36 +765,44 @@ class _AddUkmPageState extends State<AddUkmPage> {
           maxLines: maxLines,
           validator: validator,
           onChanged: onChanged,
+          style: GoogleFonts.inter(fontSize: 14, color: Colors.black87),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: GoogleFonts.inter(fontSize: 14, color: Colors.grey[400]),
-            prefixIcon: Icon(icon, color: Colors.grey[600], size: 20),
+            hintStyle: GoogleFonts.inter(fontSize: 13, color: Colors.grey[400]),
+            prefixIcon: Padding(
+              padding: const EdgeInsets.only(left: 12, right: 8),
+              child: Icon(icon, color: Colors.grey[600], size: 20),
+            ),
+            prefixIconConstraints: const BoxConstraints(
+              minWidth: 0,
+              minHeight: 0,
+            ),
             suffixIcon: suffixIcon,
             filled: true,
-            fillColor: Colors.grey[50],
+            fillColor: Colors.white,
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(10),
               borderSide: BorderSide(color: Colors.grey[300]!),
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(10),
               borderSide: BorderSide(color: Colors.grey[300]!),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(10),
               borderSide: const BorderSide(color: Color(0xFF4169E1), width: 2),
             ),
             errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(10),
               borderSide: const BorderSide(color: Colors.red),
             ),
             focusedErrorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(10),
               borderSide: const BorderSide(color: Colors.red, width: 2),
             ),
-            contentPadding: const EdgeInsets.symmetric(
+            contentPadding: EdgeInsets.symmetric(
               horizontal: 16,
-              vertical: 12,
+              vertical: maxLines > 1 ? 16 : 14,
             ),
           ),
         ),
@@ -687,20 +812,33 @@ class _AddUkmPageState extends State<AddUkmPage> {
 
   Widget _buildPasswordRequirement(String text, bool isMet) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         children: [
-          Icon(
-            Icons.check_circle_outline,
-            size: 16,
-            color: isMet ? Colors.green : Colors.grey[600],
+          Container(
+            width: 18,
+            height: 18,
+            decoration: BoxDecoration(
+              color: isMet ? Colors.green.withOpacity(0.1) : Colors.transparent,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: isMet ? Colors.green : Colors.grey[400]!,
+                width: 1.5,
+              ),
+            ),
+            child: isMet
+                ? const Icon(Icons.check, size: 12, color: Colors.green)
+                : null,
           ),
-          const SizedBox(width: 8),
-          Text(
-            text,
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              color: isMet ? Colors.green : Colors.grey[600],
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: isMet ? Colors.green[700] : Colors.grey[600],
+                fontWeight: isMet ? FontWeight.w500 : FontWeight.w400,
+              ),
             ),
           ),
         ],
