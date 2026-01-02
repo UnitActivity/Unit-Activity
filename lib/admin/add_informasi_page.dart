@@ -150,10 +150,8 @@ class _AddInformasiPageState extends State<AddInformasiPage> {
         'deskripsi': _deskripsiController.text.trim(),
         'gambar': _uploadedImagePath,
         'status': _selectedStatus,
-        'id_ukm': _selectedUkmId,
-        'id_periode': _selectedPeriodeId,
-        'create_at': DateTime.now().toIso8601String(),
-        'update_at': DateTime.now().toIso8601String(),
+        'id_ukm': _selectedUkmId != null ? _selectedUkmId : null,
+        'id_periode': _selectedPeriodeId != null ? _selectedPeriodeId : null,
         'status_aktif': true,
       });
 

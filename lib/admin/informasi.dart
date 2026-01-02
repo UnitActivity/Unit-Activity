@@ -15,12 +15,12 @@ class InformasiPage extends StatefulWidget {
 class _InformasiPageState extends State<InformasiPage> {
   final _supabase = Supabase.instance.client;
 
-  String _sortBy = 'Urutkan';
+  String _filterStatus = 'Semua';
   String _searchQuery = '';
   int _currentPage = 1;
-  final int _totalPages = 1;
-  final int _itemsPerPage = 5;
+  final int _itemsPerPage = 6;
   bool _isLoading = true;
+  String _viewMode = 'grid'; // 'grid' or 'list'
 
   List<Map<String, dynamic>> _allInformasi = [];
   List<Map<String, dynamic>> _allUkm = [];
@@ -102,13 +102,24 @@ class _InformasiPageState extends State<InformasiPage> {
 
   List<Map<String, dynamic>> get _filteredInformasi {
     var informasi = _allInformasi.where((item) {
-      if (_searchQuery.isEmpty) return true;
-      return item['judul'].toString().toLowerCase().contains(
-            _searchQuery.toLowerCase(),
-          ) ||
-          item['kategori'].toString().toLowerCase().contains(
-            _searchQuery.toLowerCase(),
-          );
+      // Filter pencarian
+      if (_searchQuery.isNotEmpty) {
+        final matchSearch =
+            item['judul'].toString().toLowerCase().contains(
+              _searchQuery.toLowerCase(),
+            ) ||
+            (item['deskripsi'] ?? '').toString().toLowerCase().contains(
+              _searchQuery.toLowerCase(),
+            );
+        if (!matchSearch) return false;
+      }
+
+      // Filter status
+      if (_filterStatus != 'Semua') {
+        if (item['status'] != _filterStatus) return false;
+      }
+
+      return true;
     }).toList();
 
     return informasi;
@@ -125,6 +136,10 @@ class _InformasiPageState extends State<InformasiPage> {
     );
   }
 
+  int get _totalPages {
+    return (_filteredInformasi.length / _itemsPerPage).ceil();
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDesktop = MediaQuery.of(context).size.width >= 768;
@@ -132,68 +147,239 @@ class _InformasiPageState extends State<InformasiPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Header
-        Text(
-          'Daftar Informasi',
-          style: GoogleFonts.inter(
-            fontSize: isDesktop ? 24 : 20,
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
-          ),
-        ),
+        // Header with Stats
+        _buildHeader(isDesktop),
         const SizedBox(height: 24),
 
-        // Search and Filter Bar
-        _buildSearchAndFilterBar(isDesktop),
+        // Filter Chips
+        _buildFilterChips(),
+        const SizedBox(height: 16),
+
+        // Search and Actions Bar
+        _buildSearchAndActionsBar(isDesktop),
         const SizedBox(height: 24),
 
-        // Table
-        if (isDesktop) _buildDesktopTable() else _buildMobileList(),
+        // Content
+        _isLoading
+            ? _buildLoadingState()
+            : _filteredInformasi.isEmpty
+            ? _buildEmptyState()
+            : _viewMode == 'grid'
+            ? _buildGridView(isDesktop)
+            : _buildListView(),
 
         const SizedBox(height: 24),
 
         // Pagination
-        _buildPagination(),
+        if (_filteredInformasi.isNotEmpty) _buildPagination(),
       ],
     );
   }
 
-  Widget _buildSearchAndFilterBar(bool isDesktop) {
-    return Wrap(
-      spacing: 12,
-      runSpacing: 12,
-      alignment: WrapAlignment.spaceBetween,
+  Widget _buildHeader(bool isDesktop) {
+    final totalInfo = _allInformasi.length;
+    final activeInfo = _allInformasi
+        .where((i) => i['status'] == 'Aktif')
+        .length;
+    final draftInfo = _allInformasi.where((i) => i['status'] == 'Draft').length;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 20),
+        // Stats Cards
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            _buildStatCard(
+              'Total Informasi',
+              totalInfo.toString(),
+              Icons.article_outlined,
+              const Color(0xFF4169E1),
+            ),
+            _buildStatCard(
+              'Aktif',
+              activeInfo.toString(),
+              Icons.check_circle_outline,
+              Colors.green,
+            ),
+            _buildStatCard(
+              'Draft',
+              draftInfo.toString(),
+              Icons.edit_note_outlined,
+              Colors.orange,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatCard(
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                value,
+                style: GoogleFonts.inter(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              Text(
+                label,
+                style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600]),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterChips() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          // Status Filter
+          _buildFilterChip(
+            'Status',
+            _filterStatus,
+            ['Semua', 'Aktif', 'Draft', 'Arsip'],
+            (value) => setState(() {
+              _filterStatus = value;
+              _currentPage = 1;
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterChip(
+    String label,
+    String currentValue,
+    List<String> options,
+    Function(String) onChanged,
+  ) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '$label: ',
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey[700],
+            ),
+          ),
+          DropdownButton<String>(
+            value: currentValue,
+            underline: const SizedBox(),
+            isDense: true,
+            icon: Icon(Icons.arrow_drop_down, color: Colors.grey[700]),
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFF4169E1),
+            ),
+            items: options.map((String value) {
+              return DropdownMenuItem<String>(value: value, child: Text(value));
+            }).toList(),
+            onChanged: (String? newValue) {
+              if (newValue != null) onChanged(newValue);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchAndActionsBar(bool isDesktop) {
+    return Row(
       children: [
         // Search Bar
-        SizedBox(
-          width: isDesktop ? 400 : double.infinity,
+        Expanded(
           child: TextField(
             onChanged: (value) {
               setState(() {
                 _searchQuery = value;
-                _currentPage = 1; // Reset to first page on search
+                _currentPage = 1;
               });
             },
             decoration: InputDecoration(
-              hintText: 'Cari Data',
+              hintText: 'Cari informasi...',
               hintStyle: GoogleFonts.inter(
                 fontSize: 14,
                 color: Colors.grey[500],
               ),
               prefixIcon: Icon(Icons.search, color: Colors.grey[600]),
+              suffixIcon: _searchQuery.isNotEmpty
+                  ? IconButton(
+                      icon: Icon(Icons.clear, color: Colors.grey[600]),
+                      onPressed: () => setState(() {
+                        _searchQuery = '';
+                        _currentPage = 1;
+                      }),
+                    )
+                  : null,
               filled: true,
               fillColor: Colors.white,
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(color: Colors.grey[300]!),
               ),
               enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(color: Colors.grey[300]!),
               ),
               focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: Color(0xFF4169E1)),
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(
+                  color: Color(0xFF4169E1),
+                  width: 2,
+                ),
               ),
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 16,
@@ -202,772 +388,522 @@ class _InformasiPageState extends State<InformasiPage> {
             ),
           ),
         ),
+        const SizedBox(width: 12),
 
-        // Filter and Add Button
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Sort Dropdown
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                border: Border.all(color: Colors.grey[300]!),
-                borderRadius: BorderRadius.circular(8),
+        // View Mode Toggle
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey[300]!),
+          ),
+          child: Row(
+            children: [
+              IconButton(
+                icon: Icon(
+                  Icons.grid_view_rounded,
+                  color: _viewMode == 'grid'
+                      ? const Color(0xFF4169E1)
+                      : Colors.grey[600],
+                ),
+                onPressed: () => setState(() => _viewMode = 'grid'),
+                tooltip: 'Grid View',
               ),
-              child: DropdownButton<String>(
-                value: _sortBy,
-                underline: const SizedBox(),
-                icon: Icon(Icons.keyboard_arrow_down, color: Colors.grey[700]),
-                style: GoogleFonts.inter(fontSize: 14, color: Colors.black87),
-                items: ['Urutkan', 'Judul', 'Kategori', 'Tanggal', 'Status']
-                    .map((String value) {
-                      return DropdownMenuItem<String>(
-                        value: value,
-                        child: Text(value),
-                      );
-                    })
-                    .toList(),
-                onChanged: (String? newValue) {
-                  setState(() {
-                    _sortBy = newValue!;
-                  });
-                },
+              IconButton(
+                icon: Icon(
+                  Icons.view_list_rounded,
+                  color: _viewMode == 'list'
+                      ? const Color(0xFF4169E1)
+                      : Colors.grey[600],
+                ),
+                onPressed: () => setState(() => _viewMode = 'list'),
+                tooltip: 'List View',
               ),
-            ),
-            const SizedBox(width: 12),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
 
-            // Add Button
-            ElevatedButton.icon(
-              onPressed: () {
-                // TODO: Implement add informasi
-                _showAddInformasiDialog();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4169E1),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 22,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                elevation: 0,
-              ),
-              icon: const Icon(Icons.add, size: 20),
-              label: Text(
-                'Tambah',
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+        // Add Button
+        ElevatedButton.icon(
+          onPressed: _showAddInformasiDialog,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF4169E1),
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
             ),
-          ],
+            elevation: 0,
+          ),
+          icon: const Icon(Icons.add, size: 20),
+          label: Text(
+            'Tambah',
+            style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600),
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildDesktopTable() {
+  Widget _buildLoadingState() {
     return Container(
+      height: 400,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(16),
       ),
-      child: Column(
-        children: [
-          // Table Header
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            decoration: BoxDecoration(
-              color: Colors.grey[50],
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(12),
-                topRight: Radius.circular(12),
-              ),
+      child: const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4169E1)),
             ),
-            child: Row(
-              children: [
-                // Gambar
-                SizedBox(
-                  width: 80,
-                  child: Text(
-                    'Gambar',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                // Judul
-                Expanded(
-                  flex: 3,
-                  child: Text(
-                    'Judul',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                ),
-                // UKM
-                Expanded(
-                  flex: 2,
-                  child: Text(
-                    'UKM',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                ),
-                // Periode
-                Expanded(
-                  flex: 2,
-                  child: Text(
-                    'Periode',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                ),
-                // Tanggal
-                Expanded(
-                  flex: 2,
-                  child: Text(
-                    'Tanggal',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                ),
-                // Status
-                Expanded(
-                  flex: 1,
-                  child: Text(
-                    'Status',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                ),
-                // Aksi
-                SizedBox(
-                  width: 100,
-                  child: Text(
-                    'Aksi',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey[700],
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Table Rows
-          _isLoading
-              ? const Padding(
-                  padding: EdgeInsets.all(48.0),
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              : _paginatedInformasi.isEmpty
-              ? Padding(
-                  padding: const EdgeInsets.all(48.0),
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.info_outline,
-                          size: 64,
-                          color: Colors.grey[400],
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Belum ada informasi',
-                          style: GoogleFonts.inter(
-                            fontSize: 16,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              : ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: _paginatedInformasi.length,
-                  itemBuilder: (context, index) {
-                    final info = _paginatedInformasi[index];
-                    final isEven = index % 2 == 0;
-                    final ukmName =
-                        (info['ukm'] as Map<String, dynamic>?)?['nama_ukm'] ??
-                        '-';
-                    final periodeName =
-                        (info['periode_ukm']
-                            as Map<String, dynamic>?)?['nama_periode'] ??
-                        '-';
-                    final status = info['status'] ?? 'Draft';
-
-                    return InkWell(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                DetailInformasiPage(informasi: info),
-                          ),
-                        );
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isEven ? Colors.white : Colors.grey[50],
-                        ),
-                        child: Row(
-                          children: [
-                            // Gambar
-                            SizedBox(
-                              width: 80,
-                              height: 60,
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: info['gambar'] != null
-                                    ? Image.network(
-                                        _supabase.storage
-                                            .from('informasi-images')
-                                            .getPublicUrl(info['gambar']),
-                                        fit: BoxFit.cover,
-                                        errorBuilder:
-                                            (context, error, stackTrace) =>
-                                                Container(
-                                                  color: Colors.grey[200],
-                                                  child: Icon(
-                                                    Icons.image_not_supported,
-                                                    color: Colors.grey[400],
-                                                  ),
-                                                ),
-                                        loadingBuilder:
-                                            (
-                                              context,
-                                              child,
-                                              loadingProgress,
-                                            ) => loadingProgress == null
-                                            ? child
-                                            : Container(
-                                                color: Colors.grey[200],
-                                                child: Center(
-                                                  child: CircularProgressIndicator(
-                                                    strokeWidth: 2,
-                                                    value:
-                                                        loadingProgress
-                                                                .expectedTotalBytes !=
-                                                            null
-                                                        ? loadingProgress
-                                                                  .cumulativeBytesLoaded /
-                                                              loadingProgress
-                                                                  .expectedTotalBytes!
-                                                        : null,
-                                                  ),
-                                                ),
-                                              ),
-                                      )
-                                    : Container(
-                                        color: Colors.grey[200],
-                                        child: Icon(
-                                          Icons.image,
-                                          color: Colors.grey[400],
-                                        ),
-                                      ),
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            // Judul
-                            Expanded(
-                              flex: 3,
-                              child: Text(
-                                info['judul'] ?? '-',
-                                style: GoogleFonts.inter(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.black87,
-                                ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            // UKM
-                            Expanded(
-                              flex: 2,
-                              child: Text(
-                                ukmName,
-                                style: GoogleFonts.inter(
-                                  fontSize: 14,
-                                  color: Colors.black87,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            // Periode
-                            Expanded(
-                              flex: 2,
-                              child: Text(
-                                periodeName,
-                                style: GoogleFonts.inter(
-                                  fontSize: 14,
-                                  color: Colors.black87,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            // Tanggal
-                            Expanded(
-                              flex: 2,
-                              child: Text(
-                                _formatDate(info['create_at']),
-                                style: GoogleFonts.inter(
-                                  fontSize: 14,
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                            ),
-                            // Status
-                            Expanded(
-                              flex: 1,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: _getStatusColor(
-                                    status,
-                                  ).withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  status,
-                                  style: GoogleFonts.inter(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: _getStatusColor(status),
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ),
-                            ),
-                            // Aksi
-                            SizedBox(
-                              width: 100,
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  IconButton(
-                                    onPressed: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) =>
-                                              DetailInformasiPage(
-                                                informasi: info,
-                                              ),
-                                        ),
-                                      );
-                                    },
-                                    icon: const Icon(Icons.visibility),
-                                    color: const Color(0xFF4169E1),
-                                    iconSize: 20,
-                                    tooltip: 'Lihat Detail',
-                                  ),
-                                  IconButton(
-                                    onPressed: () {
-                                      // TODO: Implement edit
-                                    },
-                                    icon: const Icon(Icons.edit),
-                                    color: Colors.orange,
-                                    iconSize: 20,
-                                    tooltip: 'Edit',
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-        ],
+            SizedBox(height: 16),
+            Text('Memuat data...'),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildMobileList() {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isSmallScreen = screenWidth < 360;
-
-    if (_isLoading) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(48.0),
-          child: CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4169E1)),
-          ),
-        ),
-      );
-    }
-
-    if (_allInformasi.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(48.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.info_outline, size: 80, color: Colors.grey[300]),
-              const SizedBox(height: 16),
-              Text(
-                'Belum ada informasi',
-                style: GoogleFonts.inter(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.grey[600],
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Klik tombol Tambah untuk membuat informasi baru',
-                style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[500]),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return ListView.builder(
-      padding: EdgeInsets.symmetric(
-        horizontal: isSmallScreen ? 12 : 16,
-        vertical: 8,
+  Widget _buildEmptyState() {
+    return Container(
+      height: 400,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
       ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.info_outline,
+                size: 64,
+                color: Colors.grey[400],
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Belum Ada Informasi',
+              style: GoogleFonts.inter(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[800],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _searchQuery.isNotEmpty
+                  ? 'Tidak ada hasil untuk pencarian "$_searchQuery"'
+                  : 'Klik tombol Tambah untuk membuat informasi baru',
+              style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGridView(bool isDesktop) {
+    final crossAxisCount = isDesktop ? 3 : 2;
+
+    return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: crossAxisCount,
+        childAspectRatio: 0.75,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+      ),
       itemCount: _paginatedInformasi.length,
       itemBuilder: (context, index) {
         final info = _paginatedInformasi[index];
-        final ukmName =
-            (info['ukm'] as Map<String, dynamic>?)?['nama_ukm'] ?? 'UKM';
-        final periodeName =
-            (info['periode_ukm'] as Map<String, dynamic>?)?['nama_periode'];
+        return _buildGridCard(info);
+      },
+    );
+  }
 
-        return GestureDetector(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => DetailInformasiPage(informasi: info),
-              ),
-            );
-          },
-          child: Container(
-            margin: EdgeInsets.only(bottom: isSmallScreen ? 8 : 12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(isSmallScreen ? 12 : 16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
+  Widget _buildGridCard(Map<String, dynamic> info) {
+    final ukmName =
+        (info['ukm'] as Map<String, dynamic>?)?['nama_ukm'] ?? 'UKM';
+    final status = info['status'] ?? 'Draft';
+
+    return GestureDetector(
+      onTap: () async {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => DetailInformasiPage(informasi: info),
+          ),
+        );
+        _fetchInformasi(); // Refresh after returning
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Image with Status Badge
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(16),
+                  ),
+                  child: AspectRatio(
+                    aspectRatio: 1.5,
+                    child: info['gambar'] != null
+                        ? Image.network(
+                            _supabase.storage
+                                .from('informasi-images')
+                                .getPublicUrl(info['gambar']),
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) =>
+                                Container(
+                                  color: Colors.grey[200],
+                                  child: Icon(
+                                    Icons.image_not_supported,
+                                    size: 40,
+                                    color: Colors.grey[400],
+                                  ),
+                                ),
+                          )
+                        : Container(
+                            color: Colors.grey[200],
+                            child: Icon(
+                              Icons.image_outlined,
+                              size: 40,
+                              color: Colors.grey[400],
+                            ),
+                          ),
+                  ),
+                ),
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _getStatusColor(status),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      status,
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header (UKM info)
-                Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    isSmallScreen ? 10 : 12,
-                    isSmallScreen ? 10 : 12,
-                    isSmallScreen ? 10 : 12,
-                    isSmallScreen ? 6 : 8,
-                  ),
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                        radius: isSmallScreen ? 16 : 20,
-                        backgroundColor: const Color.fromRGBO(65, 105, 225, 1),
-                        child: Text(
-                          ukmName.substring(0, 1).toUpperCase(),
-                          style: GoogleFonts.inter(
-                            fontSize: isSmallScreen ? 14 : 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
+            // Content
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // UKM Badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF4169E1).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        ukmName,
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF4169E1),
                         ),
-                      ),
-                      SizedBox(width: isSmallScreen ? 8 : 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              ukmName,
-                              style: GoogleFonts.inter(
-                                fontSize: isSmallScreen ? 13 : 15,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.black87,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            SizedBox(height: isSmallScreen ? 1 : 2),
-                            Text(
-                              _formatDate(info['create_at']),
-                              style: GoogleFonts.inter(
-                                fontSize: isSmallScreen ? 11 : 12,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Image
-                if (info['gambar'] != null)
-                  ClipRRect(
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(0),
-                      topRight: Radius.circular(0),
-                    ),
-                    child: AspectRatio(
-                      aspectRatio: isSmallScreen ? 4 / 3 : 16 / 9,
-                      child: Image.network(
-                        _supabase.storage
-                            .from('informasi-images')
-                            .getPublicUrl(info['gambar']),
-                        fit: BoxFit.cover,
-                        loadingBuilder: (context, child, loadingProgress) {
-                          if (loadingProgress == null) return child;
-                          return Container(
-                            color: Colors.grey[100],
-                            child: Center(
-                              child: CircularProgressIndicator(
-                                value:
-                                    loadingProgress.expectedTotalBytes != null
-                                    ? loadingProgress.cumulativeBytesLoaded /
-                                          loadingProgress.expectedTotalBytes!
-                                    : null,
-                                strokeWidth: 3,
-                                valueColor: const AlwaysStoppedAnimation<Color>(
-                                  Color(0xFF4169E1),
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                        errorBuilder: (context, error, stackTrace) {
-                          return Container(
-                            color: Colors.grey[100],
-                            child: Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.broken_image_rounded,
-                                    size: 48,
-                                    color: Colors.grey[400],
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Gambar tidak dapat dimuat',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 12,
-                                      color: Colors.grey[500],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                  )
-                else
-                  Container(
-                    height: isSmallScreen ? 150 : 180,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[100],
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(0),
-                        topRight: Radius.circular(0),
-                      ),
-                    ),
-                    child: Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.image_outlined,
-                            size: isSmallScreen ? 36 : 48,
-                            color: Colors.grey[400],
-                          ),
-                          SizedBox(height: isSmallScreen ? 6 : 8),
-                          Text(
-                            'Tidak ada gambar',
-                            style: GoogleFonts.inter(
-                              fontSize: isSmallScreen ? 12 : 13,
-                              color: Colors.grey[500],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                // Content
-                Padding(
-                  padding: EdgeInsets.all(isSmallScreen ? 10 : 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Title
-                      Text(
+                    const SizedBox(height: 8),
+                    // Title
+                    Expanded(
+                      child: Text(
                         info['judul'] ?? 'Tanpa Judul',
                         style: GoogleFonts.inter(
-                          fontSize: isSmallScreen ? 14 : 16,
-                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
                           color: Colors.black87,
                           height: 1.3,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-
-                      // Description (if exists)
-                      if (info['deskripsi'] != null &&
-                          info['deskripsi'].toString().trim().isNotEmpty) ...[
-                        SizedBox(height: isSmallScreen ? 4 : 6),
-                        Text(
-                          info['deskripsi'],
-                          style: GoogleFonts.inter(
-                            fontSize: isSmallScreen ? 12 : 13,
-                            color: Colors.grey[700],
-                            height: 1.4,
+                    ),
+                    const SizedBox(height: 8),
+                    // Date
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.access_time,
+                          size: 14,
+                          color: Colors.grey[600],
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            _formatDate(info['create_at']),
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
                           ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
-
-                      SizedBox(height: isSmallScreen ? 8 : 10),
-
-                      // Additional info row
-                      Row(
-                        children: [
-                          // Periode info
-                          if (periodeName != null) ...[
-                            Flexible(
-                              child: Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: isSmallScreen ? 6 : 8,
-                                  vertical: isSmallScreen ? 3 : 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.grey[100],
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.calendar_today_outlined,
-                                      size: isSmallScreen ? 12 : 13,
-                                      color: Colors.grey[600],
-                                    ),
-                                    SizedBox(width: isSmallScreen ? 4 : 5),
-                                    Flexible(
-                                      child: Text(
-                                        periodeName,
-                                        style: GoogleFonts.inter(
-                                          fontSize: isSmallScreen ? 10 : 11,
-                                          fontWeight: FontWeight.w500,
-                                          color: Colors.grey[700],
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                          const Spacer(),
-                          // View detail hint
-                          Row(
-                            children: [
-                              Text(
-                                'Lihat detail',
-                                style: GoogleFonts.inter(
-                                  fontSize: isSmallScreen ? 11 : 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: const Color(0xFF4169E1),
-                                ),
-                              ),
-                              SizedBox(width: isSmallScreen ? 3 : 4),
-                              Icon(
-                                Icons.arrow_forward_ios,
-                                size: isSmallScreen ? 11 : 12,
-                                color: const Color(0xFF4169E1),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildListView() {
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: _paginatedInformasi.length,
+      itemBuilder: (context, index) {
+        final info = _paginatedInformasi[index];
+        return _buildListCard(info);
+      },
+    );
+  }
+
+  Widget _buildListCard(Map<String, dynamic> info) {
+    final ukmName =
+        (info['ukm'] as Map<String, dynamic>?)?['nama_ukm'] ?? 'UKM';
+    final periodeName =
+        (info['periode_ukm'] as Map<String, dynamic>?)?['nama_periode'];
+    final status = info['status'] ?? 'Draft';
+
+    return GestureDetector(
+      onTap: () async {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => DetailInformasiPage(informasi: info),
           ),
         );
+        _fetchInformasi(); // Refresh after returning
       },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            // Image
+            ClipRRect(
+              borderRadius: const BorderRadius.horizontal(
+                left: Radius.circular(16),
+              ),
+              child: SizedBox(
+                width: 120,
+                height: 120,
+                child: info['gambar'] != null
+                    ? Image.network(
+                        _supabase.storage
+                            .from('informasi-images')
+                            .getPublicUrl(info['gambar']),
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          color: Colors.grey[200],
+                          child: Icon(
+                            Icons.image_not_supported,
+                            size: 32,
+                            color: Colors.grey[400],
+                          ),
+                        ),
+                      )
+                    : Container(
+                        color: Colors.grey[200],
+                        child: Icon(
+                          Icons.image_outlined,
+                          size: 32,
+                          color: Colors.grey[400],
+                        ),
+                      ),
+              ),
+            ),
+            // Content
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        // UKM Badge
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF4169E1).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            ukmName,
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF4169E1),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        // Status Badge
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _getStatusColor(status),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            status,
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    // Title
+                    Text(
+                      info['judul'] ?? 'Tanpa Judul',
+                      style: GoogleFonts.inter(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 8),
+                    // Description
+                    if (info['deskripsi'] != null)
+                      Text(
+                        info['deskripsi'],
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: Colors.grey[600],
+                          height: 1.4,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    const SizedBox(height: 8),
+                    // Meta Info
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.access_time,
+                          size: 14,
+                          color: Colors.grey[600],
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _formatDate(info['create_at']),
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        if (periodeName != null) ...[
+                          const SizedBox(width: 12),
+                          Icon(
+                            Icons.calendar_today,
+                            size: 14,
+                            color: Colors.grey[600],
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              periodeName,
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // Arrow Icon
+            Padding(
+              padding: const EdgeInsets.only(right: 16),
+              child: Icon(
+                Icons.arrow_forward_ios,
+                size: 16,
+                color: Colors.grey[400],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -985,51 +921,78 @@ class _InformasiPageState extends State<InformasiPage> {
   }
 
   Widget _buildPagination() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        // Previous Button
-        IconButton(
-          onPressed: _currentPage > 1
-              ? () {
-                  setState(() {
-                    _currentPage--;
-                  });
-                }
-              : null,
-          icon: const Icon(Icons.chevron_left),
-          color: const Color(0xFF4169E1),
-          disabledColor: Colors.grey[400],
-        ),
+    if (_totalPages <= 1) return const SizedBox.shrink();
 
-        const SizedBox(width: 16),
-
-        // Page Indicator
-        Text(
-          '$_currentPage Dari $_totalPages',
-          style: GoogleFonts.inter(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: Colors.black87,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // Info Text
+          Text(
+            'Menampilkan ${(_currentPage - 1) * _itemsPerPage + 1}-${(_currentPage * _itemsPerPage) > _filteredInformasi.length ? _filteredInformasi.length : _currentPage * _itemsPerPage} dari ${_filteredInformasi.length}',
+            style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[700]),
           ),
-        ),
 
-        const SizedBox(width: 16),
+          // Navigation Buttons
+          Row(
+            children: [
+              // Previous Button
+              IconButton(
+                onPressed: _currentPage > 1
+                    ? () {
+                        setState(() {
+                          _currentPage--;
+                        });
+                      }
+                    : null,
+                icon: const Icon(Icons.chevron_left),
+                color: const Color(0xFF4169E1),
+                disabledColor: Colors.grey[400],
+              ),
 
-        // Next Button
-        IconButton(
-          onPressed: _currentPage < _totalPages
-              ? () {
-                  setState(() {
-                    _currentPage++;
-                  });
-                }
-              : null,
-          icon: const Icon(Icons.chevron_right),
-          color: const Color(0xFF4169E1),
-          disabledColor: Colors.grey[400],
-        ),
-      ],
+              // Page Numbers
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4169E1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '$_currentPage / $_totalPages',
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+
+              // Next Button
+              IconButton(
+                onPressed: _currentPage < _totalPages
+                    ? () {
+                        setState(() {
+                          _currentPage++;
+                        });
+                      }
+                    : null,
+                icon: const Icon(Icons.chevron_right),
+                color: const Color(0xFF4169E1),
+                disabledColor: Colors.grey[400],
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -1042,10 +1005,8 @@ class _InformasiPageState extends State<InformasiPage> {
       ),
     );
 
-    // Refresh data jika berhasil tambah
     if (result == true) {
-      // Reload informasi list if needed
-      setState(() {});
+      _fetchInformasi();
     }
   }
 }
