@@ -246,7 +246,30 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
 
   Widget _buildDashboardContent() {
     if (_isLoadingStats) {
-      return const Center(child: CircularProgressIndicator());
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const SizedBox(
+              width: 50,
+              height: 50,
+              child: CircularProgressIndicator(
+                strokeWidth: 3,
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4169E1)),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Memuat dashboard...',
+              style: GoogleFonts.inter(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[700],
+              ),
+            ),
+          ],
+        ),
+      );
     }
 
     if (_dashboardStats == null) {
@@ -254,42 +277,68 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.error_outline, size: 48, color: Colors.red),
-            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.red[50],
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.error_outline,
+                size: 60,
+                color: Colors.red[400],
+              ),
+            ),
+            const SizedBox(height: 24),
             Text(
               'Gagal memuat data dashboard',
               style: GoogleFonts.inter(
                 color: Colors.grey[800],
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
               ),
             ),
-            if (_errorMessage != null) const SizedBox(height: 8),
+            if (_errorMessage != null) const SizedBox(height: 12),
             if (_errorMessage != null)
               Container(
-                padding: const EdgeInsets.all(12),
-                margin: const EdgeInsets.symmetric(horizontal: 24),
+                padding: const EdgeInsets.all(16),
+                margin: const EdgeInsets.symmetric(horizontal: 32),
                 decoration: BoxDecoration(
                   color: Colors.red[50],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.red[200]!),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.red[200]!, width: 1.5),
                 ),
                 child: Text(
                   _errorMessage!,
                   style: GoogleFonts.inter(
                     color: Colors.red[700],
-                    fontSize: 12,
+                    fontSize: 13,
                   ),
                   textAlign: TextAlign.center,
                 ),
               ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed: _loadDashboardStats,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Coba Lagi'),
+              icon: const Icon(Icons.refresh, size: 20),
+              label: Text(
+                'Coba Lagi',
+                style: GoogleFonts.inter(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF4169E1),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 14,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                elevation: 0,
               ),
             ),
           ],
@@ -313,63 +362,77 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // All Stats Cards in ONE Grid (6 cards)
+            SizedBox(height: isMobile ? 16 : 24),
+
+            // Stats Cards in Modern Grid
             GridView.count(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               crossAxisCount: isLargeScreen ? 3 : (isMediumScreen ? 2 : 1),
-              crossAxisSpacing: isMobile ? 8 : 12,
-              mainAxisSpacing: isMobile ? 8 : 12,
+              crossAxisSpacing: isMobile ? 12 : 16,
+              mainAxisSpacing: isMobile ? 12 : 16,
               childAspectRatio: isLargeScreen
-                  ? 3
-                  : (isMediumScreen ? 2.2 : 2.9),
+                  ? 2.2
+                  : (isMediumScreen ? 2.5 : 3.2),
               children: [
-                _buildStatCard(
+                _buildModernStatCard(
                   title: 'Total UKM',
                   value: '$totalUkm',
-                  icon: Icons.groups,
-                  color: const Color(0xFF4169E1),
+                  icon: Icons.groups_rounded,
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF4169E1), Color(0xFF5B7FE8)],
+                  ),
                   isMobile: isMobile,
                 ),
-                _buildStatCard(
+                _buildModernStatCard(
                   title: 'Total Mahasiswa',
                   value: '$totalUsers',
-                  icon: Icons.people,
-                  color: const Color(0xFF10B981),
+                  icon: Icons.people_rounded,
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF10B981), Color(0xFF34D399)],
+                  ),
                   isMobile: isMobile,
                 ),
-                _buildStatCard(
+                _buildModernStatCard(
                   title: 'Total Event',
                   value: '$totalEvent',
-                  icon: Icons.event,
-                  color: const Color(0xFFF59E0B),
+                  icon: Icons.event_rounded,
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFF59E0B), Color(0xFFFBBF24)],
+                  ),
                   isMobile: isMobile,
                 ),
-                _buildStatCard(
+                _buildModernStatCard(
                   title: 'Event Aktif',
                   value: '$activeEvents',
-                  icon: Icons.check_circle,
-                  color: const Color(0xFF8B5CF6),
+                  icon: Icons.check_circle_rounded,
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF8B5CF6), Color(0xFFA78BFA)],
+                  ),
                   isMobile: isMobile,
                 ),
-                _buildStatCard(
+                _buildModernStatCard(
                   title: 'Registrasi Terbuka',
                   value: '$openRegistrations',
-                  icon: Icons.how_to_reg,
-                  color: const Color(0xFFEC4899),
+                  icon: Icons.how_to_reg_rounded,
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFEC4899), Color(0xFFF472B6)],
+                  ),
                   isMobile: isMobile,
                 ),
-                _buildStatCard(
+                _buildModernStatCard(
                   title: 'Total Anggota UKM',
                   value: '$totalFollowers',
-                  icon: Icons.person_add,
-                  color: const Color(0xFF06B6D4),
+                  icon: Icons.person_add_rounded,
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF06B6D4), Color(0xFF22D3EE)],
+                  ),
                   isMobile: isMobile,
                 ),
               ],
             ),
 
-            SizedBox(height: isMobile ? 12 : 20),
+            SizedBox(height: isMobile ? 16 : 24),
 
             // Alerts Section
             if (_alerts != null && _alerts!.isNotEmpty) ...[
@@ -517,6 +580,96 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
           ],
         );
       },
+    );
+  }
+
+  Widget _buildModernStatCard({
+    required String title,
+    required String value,
+    required IconData icon,
+    required Gradient gradient,
+    required bool isMobile,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: gradient,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          // Background Pattern
+          Positioned(
+            right: -20,
+            top: -20,
+            child: Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.1),
+              ),
+            ),
+          ),
+          // Content
+          Padding(
+            padding: EdgeInsets.all(isMobile ? 16 : 20),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.25),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        icon,
+                        color: Colors.white,
+                        size: isMobile ? 24 : 28,
+                      ),
+                    ),
+                    Icon(
+                      Icons.trending_up_rounded,
+                      color: Colors.white.withOpacity(0.7),
+                      size: 20,
+                    ),
+                  ],
+                ),
+                const Spacer(),
+                Text(
+                  value,
+                  style: GoogleFonts.inter(
+                    fontSize: isMobile ? 28 : 36,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    height: 1,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  title,
+                  style: GoogleFonts.inter(
+                    fontSize: isMobile ? 13 : 14,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.white.withOpacity(0.95),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
