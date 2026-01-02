@@ -337,248 +337,294 @@ class _UkmPageState extends State<UkmPage> {
         MediaQuery.of(context).size.width >= 600 &&
         MediaQuery.of(context).size.width < 900;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              '',
-              style: GoogleFonts.inter(
-                fontSize: isDesktop ? 24 : 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 24),
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Section
+          _buildModernHeader(isDesktop),
+          const SizedBox(height: 24),
 
-        _buildSearchAndFilterBar(isDesktop),
-        const SizedBox(height: 20),
+          // Stats Cards
+          _buildStatsCards(isDesktop),
+          const SizedBox(height: 24),
 
-        if (_isLoading)
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.all(60),
-              child: CircularProgressIndicator(color: Color(0xFF4169E1)),
-            ),
-          )
-        else if (_allUkm.isEmpty)
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.all(60),
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.groups_outlined,
-                    size: 64,
-                    color: Colors.grey[400],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    _searchQuery.isEmpty
-                        ? 'Belum ada UKM'
-                        : 'Tidak ada hasil pencarian',
-                    style: GoogleFonts.inter(
-                      fontSize: 16,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          )
-        else if (isDesktop || isTablet)
-          _buildDesktopTable(isDesktop)
-        else
-          _buildMobileList(),
-
-        if (!_isLoading && _allUkm.isNotEmpty) ...[
+          // Search and Actions Bar
+          _buildSearchAndFilterBar(isDesktop),
           const SizedBox(height: 20),
-          _buildPagination(),
+
+          // Content
+          if (_isLoading)
+            _buildLoadingState()
+          else if (_allUkm.isEmpty)
+            _buildEmptyState()
+          else if (isDesktop || isTablet)
+            _buildDesktopTable(isDesktop)
+          else
+            _buildMobileList(),
+
+          if (!_isLoading && _allUkm.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            _buildPagination(),
+          ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildModernHeader(bool isDesktop) {
+    return Container(child: Row(children: [
+         
+        ],
+      ));
+  }
+
+  Widget _buildStatsCards(bool isDesktop) {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildStatCard(
+            title: 'Total UKM',
+            value: '$_totalUkm',
+            icon: Icons.groups_outlined,
+            gradient: const LinearGradient(
+              colors: [Color(0xFF4169E1), Color(0xFF5B7FE8)],
+            ),
+            isDesktop: isDesktop,
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: _buildStatCard(
+            title: 'UKM Aktif',
+            value: '$_totalUkm',
+            icon: Icons.check_circle_outline,
+            gradient: const LinearGradient(
+              colors: [Color(0xFF10B981), Color(0xFF34D399)],
+            ),
+            isDesktop: isDesktop,
+          ),
+        ),
       ],
     );
   }
 
-  Widget _buildSearchAndFilterBar(bool isDesktop) {
-    return Row(
-      children: [
-        Expanded(
-          child: Container(
-            constraints: BoxConstraints(
-              maxWidth: isDesktop ? 400 : double.infinity,
-            ),
-            child: TextField(
-              onChanged: (value) {
-                _searchQuery = value;
-                _currentPage = 1;
-                _loadUkm();
-              },
-              decoration: InputDecoration(
-                hintText: 'Cari Nama UKM, Email atau Deskripsi...',
-                hintStyle: GoogleFonts.inter(
-                  fontSize: 14,
-                  color: Colors.grey[500],
-                ),
-                prefixIcon: Icon(
-                  Icons.search,
-                  color: Colors.grey[600],
-                  size: 20,
-                ),
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.grey[300]!),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.grey[300]!),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(
-                    color: Color(0xFF4169E1),
-                    width: 2,
-                  ),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-              ),
-            ),
+  Widget _buildStatCard({
+    required String title,
+    required String value,
+    required IconData icon,
+    required Gradient gradient,
+    required bool isDesktop,
+  }) {
+    return Container(
+      padding: EdgeInsets.all(isDesktop ? 20 : 16),
+      decoration: BoxDecoration(
+        gradient: gradient,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
           ),
-        ),
-
-        // Column Visibility Dropdown - only show on desktop
-        if (isDesktop) ...[
-          const SizedBox(width: 12),
+        ],
+      ),
+      child: Row(
+        children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border.all(color: Colors.grey[300]!),
-              borderRadius: BorderRadius.circular(8),
+              color: Colors.white.withOpacity(0.25),
+              borderRadius: BorderRadius.circular(10),
             ),
-            child: PopupMenuButton<String>(
-              icon: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.view_column, color: Colors.grey[700], size: 20),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Kolom',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                  Icon(Icons.arrow_drop_down, color: Colors.grey[700]),
-                ],
-              ),
-              tooltip: 'Pilih kolom yang ditampilkan',
-              itemBuilder: (context) => [
-                PopupMenuItem<String>(
-                  enabled: false,
-                  child: Text(
-                    'Tampilkan Kolom',
-                    style: GoogleFonts.inter(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                      color: Colors.grey[700],
-                    ),
+            child: Icon(icon, color: Colors.white, size: 24),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.white.withOpacity(0.9),
                   ),
                 ),
-                PopupMenuItem<String>(
-                  value: 'picture',
-                  child: Row(
-                    children: [
-                      Checkbox(
-                        value: _columnVisibility['picture'],
-                        onChanged: null,
-                        activeColor: const Color(0xFF4169E1),
-                      ),
-                      const SizedBox(width: 8),
-                      Text('Nama UKM', style: GoogleFonts.inter(fontSize: 14)),
-                    ],
-                  ),
-                ),
-                PopupMenuItem<String>(
-                  value: 'email',
-                  child: Row(
-                    children: [
-                      Checkbox(
-                        value: _columnVisibility['email'],
-                        onChanged: null,
-                        activeColor: const Color(0xFF4169E1),
-                      ),
-                      const SizedBox(width: 8),
-                      Text('Email', style: GoogleFonts.inter(fontSize: 14)),
-                    ],
-                  ),
-                ),
-                PopupMenuItem<String>(
-                  value: 'description',
-                  child: Row(
-                    children: [
-                      Checkbox(
-                        value: _columnVisibility['description'],
-                        onChanged: null,
-                        activeColor: const Color(0xFF4169E1),
-                      ),
-                      const SizedBox(width: 8),
-                      Text('Deskripsi', style: GoogleFonts.inter(fontSize: 14)),
-                    ],
-                  ),
-                ),
-                PopupMenuItem<String>(
-                  value: 'createAt',
-                  child: Row(
-                    children: [
-                      Checkbox(
-                        value: _columnVisibility['createAt'],
-                        onChanged: null,
-                        activeColor: const Color(0xFF4169E1),
-                      ),
-                      const SizedBox(width: 8),
-                      Text('Create At', style: GoogleFonts.inter(fontSize: 14)),
-                    ],
-                  ),
-                ),
-                PopupMenuItem<String>(
-                  value: 'actions',
-                  child: Row(
-                    children: [
-                      Checkbox(
-                        value: _columnVisibility['actions'],
-                        onChanged: null,
-                        activeColor: const Color(0xFF4169E1),
-                      ),
-                      const SizedBox(width: 8),
-                      Text('Actions', style: GoogleFonts.inter(fontSize: 14)),
-                    ],
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: GoogleFonts.inter(
+                    fontSize: isDesktop ? 24 : 20,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
                   ),
                 ),
               ],
-              onSelected: (value) {
-                setState(() {
-                  _columnVisibility[value] = !_columnVisibility[value]!;
-                });
-              },
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoadingState() {
+    return Container(
+      height: 400,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: const Center(
+        child: CircularProgressIndicator(color: Color(0xFF4169E1)),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Container(
+      height: 400,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: const Color(0xFF4169E1).withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.groups_outlined,
+                size: 64,
+                color: const Color(0xFF4169E1).withOpacity(0.5),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              _searchQuery.isEmpty
+                  ? 'Belum ada UKM'
+                  : 'Tidak ada hasil pencarian',
+              style: GoogleFonts.inter(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[700],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _searchQuery.isEmpty
+                  ? 'Tambahkan UKM baru untuk memulai'
+                  : 'Coba kata kunci lain',
+              style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[500]),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchAndFilterBar(bool isDesktop) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Search Bar
+          Expanded(
+            flex: 3,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey[200]!),
+              ),
+              child: TextField(
+                onChanged: (value) {
+                  _searchQuery = value;
+                  _currentPage = 1;
+                  _loadUkm();
+                },
+                decoration: InputDecoration(
+                  hintText: 'Cari nama UKM, email atau deskripsi...',
+                  hintStyle: GoogleFonts.inter(
+                    fontSize: 14,
+                    color: Colors.grey[500],
+                  ),
+                  prefixIcon: Icon(
+                    Icons.search_rounded,
+                    color: Colors.grey[600],
+                    size: 22,
+                  ),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? IconButton(
+                          icon: Icon(Icons.clear, color: Colors.grey[600]),
+                          onPressed: () {
+                            setState(() {
+                              _searchQuery = '';
+                              _currentPage = 1;
+                            });
+                            _loadUkm();
+                          },
+                        )
+                      : null,
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                ),
+              ),
+            ),
+          ),
+
           const SizedBox(width: 12),
+
+          // Refresh Button
+          _buildIconButton(
+            icon: Icons.refresh_rounded,
+            tooltip: 'Refresh Data',
+            onPressed: _loadUkm,
+          ),
+
+          const SizedBox(width: 8),
+
+          // Add Button
           ElevatedButton.icon(
             onPressed: () async {
               final result = await Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const AddUkmPage()),
               );
-              // Refresh list if UKM was added
               if (result == true) {
                 _loadUkm();
               }
@@ -586,15 +632,18 @@ class _UkmPageState extends State<UkmPage> {
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF4169E1),
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: EdgeInsets.symmetric(
+                horizontal: isDesktop ? 20 : 16,
+                vertical: isDesktop ? 16 : 14,
+              ),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(12),
               ),
               elevation: 0,
             ),
-            icon: const Icon(Icons.add, size: 20),
+            icon: const Icon(Icons.add_rounded, size: 20),
             label: Text(
-              'Tambah UKM',
+              isDesktop ? 'Tambah UKM' : 'Tambah',
               style: GoogleFonts.inter(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
@@ -602,7 +651,28 @@ class _UkmPageState extends State<UkmPage> {
             ),
           ),
         ],
-      ],
+      ),
+    );
+  }
+
+  Widget _buildIconButton({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onPressed,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: IconButton(
+        icon: Icon(icon, size: 20),
+        color: Colors.grey[700],
+        tooltip: tooltip,
+        onPressed: onPressed,
+        padding: const EdgeInsets.all(12),
+      ),
     );
   }
 
@@ -610,114 +680,129 @@ class _UkmPageState extends State<UkmPage> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[300]!),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         children: [
+          // Table Header
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
             decoration: BoxDecoration(
-              color: Colors.grey[50],
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(12),
-                topRight: Radius.circular(12),
+              gradient: LinearGradient(
+                colors: [
+                  const Color(0xFF4169E1).withOpacity(0.05),
+                  Colors.transparent,
+                ],
               ),
-              border: Border(
-                bottom: BorderSide(color: Colors.grey[200]!, width: 1),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
               ),
             ),
             child: Row(
               children: [
-                if (_columnVisibility['picture']!)
-                  Expanded(
-                    flex: 3,
+                Expanded(
+                  flex: 3,
+                  child: Text(
+                    'NAMA UKM',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF4169E1),
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 3,
+                  child: Text(
+                    'EMAIL',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF4169E1),
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 4,
+                  child: Text(
+                    'DESKRIPSI',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF4169E1),
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: 120,
+                  child: Center(
                     child: Text(
-                      'NAMA UKM',
+                      'AKSI',
                       style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey[700],
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF4169E1),
+                        letterSpacing: 0.5,
                       ),
                     ),
                   ),
-                if (_columnVisibility['email']!)
-                  Expanded(
-                    flex: 3,
-                    child: Text(
-                      'EMAIL',
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey[700],
-                      ),
-                    ),
-                  ),
-                if (_columnVisibility['description']!)
-                  Expanded(
-                    flex: 3,
-                    child: Text(
-                      'DESKRIPSI',
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey[700],
-                      ),
-                    ),
-                  ),
-                if (_columnVisibility['createAt']!)
-                  Expanded(
-                    flex: 2,
-                    child: Text(
-                      'CREATE AT',
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey[700],
-                      ),
-                    ),
-                  ),
-                if (_columnVisibility['actions']!)
-                  SizedBox(
-                    width: 120,
-                    child: Text(
-                      'ACTIONS',
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey[700],
-                      ),
-                    ),
-                  ),
+                ),
               ],
             ),
           ),
 
-          ListView.separated(
+          // Table Body
+          ListView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: _allUkm.length,
-            separatorBuilder: (context, index) =>
-                Divider(height: 1, color: Colors.grey[200]),
             itemBuilder: (context, index) {
               final ukm = _allUkm[index];
               final ukmId = ukm['id_ukm'].toString();
 
               return Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 16,
+                  horizontal: 24,
+                  vertical: 20,
+                ),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: index == _allUkm.length - 1
+                          ? Colors.transparent
+                          : Colors.grey[100]!,
+                      width: 1,
+                    ),
+                  ),
                 ),
                 child: Row(
                   children: [
                     // Name & Picture Column
-                    if (_columnVisibility['picture']!)
-                      Expanded(
-                        flex: 3,
-                        child: Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 20,
+                    Expanded(
+                      flex: 3,
+                      child: Row(
+                        children: [
+                          Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: const Color(0xFF4169E1).withOpacity(0.2),
+                                width: 2,
+                              ),
+                            ),
+                            child: CircleAvatar(
+                              radius: 22,
                               backgroundColor: const Color(
                                 0xFF4169E1,
                               ).withOpacity(0.1),
@@ -729,92 +814,95 @@ class _UkmPageState extends State<UkmPage> {
                               child:
                                   ukm['logo'] == null ||
                                       ukm['logo'].toString().isEmpty
-                                  ? Icon(
-                                      Icons.groups,
-                                      color: const Color(0xFF4169E1),
+                                  ? const Icon(
+                                      Icons.groups_rounded,
+                                      color: Color(0xFF4169E1),
                                       size: 24,
                                     )
                                   : null,
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                ukm['nama_ukm'] ?? '-',
-                                style: GoogleFonts.inter(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.black87,
-                                ),
-                                overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Text(
+                              ukm['nama_ukm'] ?? '-',
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
                               ),
+                              overflow: TextOverflow.ellipsis,
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
+                    ),
                     // Email Column
-                    if (_columnVisibility['email']!)
-                      Expanded(
-                        flex: 3,
-                        child: Text(
-                          ukm['email'] ?? '-',
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            color: Colors.grey[600],
-                          ),
-                          overflow: TextOverflow.ellipsis,
+                    Expanded(
+                      flex: 3,
+                      child: Text(
+                        ukm['email'] ?? '-',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: Colors.grey[700],
                         ),
+                        overflow: TextOverflow.ellipsis,
                       ),
+                    ),
                     // Description Column
-                    if (_columnVisibility['description']!)
-                      Expanded(
-                        flex: 3,
-                        child: Text(
-                          ukm['description'] ?? '-',
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            color: Colors.black87,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 2,
+                    Expanded(
+                      flex: 4,
+                      child: Text(
+                        ukm['description'] ?? '-',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: Colors.grey[600],
                         ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 2,
                       ),
-                    // Create At Column
-                    if (_columnVisibility['createAt']!)
-                      Expanded(
-                        flex: 2,
-                        child: Text(
-                          _formatDate(ukm['create_at']),
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                      ),
+                    ),
                     // Actions Column
-                    if (_columnVisibility['actions']!)
-                      SizedBox(
-                        width: 120,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
+                    SizedBox(
+                      width: 120,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF4169E1).withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: IconButton(
                               onPressed: () => _viewUkmDetail(ukm),
                               icon: const Icon(
                                 Icons.visibility_outlined,
-                                size: 20,
+                                size: 18,
                               ),
-                              color: Colors.grey[700],
-                              tooltip: 'View',
+                              color: const Color(0xFF4169E1),
+                              tooltip: 'Lihat Detail',
+                              padding: const EdgeInsets.all(8),
+                              constraints: const BoxConstraints(),
                             ),
-                            IconButton(
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.red.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: IconButton(
                               onPressed: () => _deleteUkm(ukmId),
-                              icon: const Icon(Icons.delete_outline, size: 20),
+                              icon: const Icon(Icons.delete_outline, size: 18),
                               color: Colors.red[700],
-                              tooltip: 'Delete',
+                              tooltip: 'Hapus',
+                              padding: const EdgeInsets.all(8),
+                              constraints: const BoxConstraints(),
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
+                    ),
                   ],
                 ),
               );
@@ -837,32 +925,25 @@ class _UkmPageState extends State<UkmPage> {
         return Container(
           margin: const EdgeInsets.only(bottom: 16),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Colors.white, Colors.grey[50]!],
-            ),
+            color: Colors.white,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.grey[200]!, width: 1),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.04),
-                blurRadius: 8,
+                color: Colors.black.withOpacity(0.06),
+                blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
             ],
           ),
           child: Column(
             children: [
-              // Header Section with Gradient
+              // Header
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
                     colors: [
-                      const Color(0xFF4169E1).withOpacity(0.03),
+                      const Color(0xFF4169E1).withOpacity(0.05),
                       Colors.transparent,
                     ],
                   ),
@@ -873,7 +954,6 @@ class _UkmPageState extends State<UkmPage> {
                 ),
                 child: Row(
                   children: [
-                    // Avatar with border
                     Container(
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
@@ -881,16 +961,9 @@ class _UkmPageState extends State<UkmPage> {
                           color: const Color(0xFF4169E1).withOpacity(0.3),
                           width: 2,
                         ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF4169E1).withOpacity(0.2),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
                       ),
                       child: CircleAvatar(
-                        radius: 30,
+                        radius: 28,
                         backgroundColor: const Color(
                           0xFF4169E1,
                         ).withOpacity(0.1),
@@ -902,10 +975,10 @@ class _UkmPageState extends State<UkmPage> {
                         child:
                             ukm['logo'] == null ||
                                 ukm['logo'].toString().isEmpty
-                            ? Icon(
-                                Icons.groups,
-                                color: const Color(0xFF4169E1),
-                                size: 32,
+                            ? const Icon(
+                                Icons.groups_rounded,
+                                color: Color(0xFF4169E1),
+                                size: 28,
                               )
                             : null,
                       ),
@@ -918,99 +991,115 @@ class _UkmPageState extends State<UkmPage> {
                           Text(
                             ukm['nama_ukm'] ?? '-',
                             style: GoogleFonts.inter(
-                              fontSize: 17,
-                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
                               color: Colors.black87,
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
-                          const SizedBox(height: 6),
-                          if (ukm['description'] != null &&
-                              ukm['description'].toString().isNotEmpty)
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.description_outlined,
-                                  size: 14,
-                                  color: Colors.grey[600],
-                                ),
-                                const SizedBox(width: 4),
-                                Expanded(
-                                  child: Text(
-                                    ukm['description'],
-                                    style: GoogleFonts.inter(
-                                      fontSize: 13,
-                                      color: Colors.grey[600],
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.email_outlined,
+                                size: 14,
+                                color: Colors.grey[600],
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  ukm['email'] ?? '-',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
                                   ),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
+                          ),
                         ],
                       ),
                     ),
                   ],
                 ),
               ),
-              // Divider with gradient
-              Container(
-                height: 1,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.transparent,
-                      Colors.grey[300]!,
-                      Colors.transparent,
-                    ],
+
+              // Description
+              if (ukm['description'] != null &&
+                  ukm['description'].toString().isNotEmpty)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 16,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[50],
+                    border: Border(
+                      top: BorderSide(color: Colors.grey[200]!),
+                      bottom: BorderSide(color: Colors.grey[200]!),
+                    ),
+                  ),
+                  child: Text(
+                    ukm['description'],
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      color: Colors.grey[700],
+                      height: 1.5,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-              ),
-              // Info Section
+
+              // Actions
               Padding(
                 padding: const EdgeInsets.all(16),
-                child: Column(
+                child: Row(
                   children: [
-                    _buildMobileInfoRow(
-                      Icons.email_rounded,
-                      ukm['email'] ?? '-',
-                    ),
-                    const SizedBox(height: 12),
-                    _buildMobileInfoRow(
-                      Icons.access_time_rounded,
-                      'Dibuat: ${_formatDate(ukm['create_at'])}',
-                    ),
-                    const SizedBox(height: 16),
-                    // Action Buttons with modern design
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[50],
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey[200]!),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _viewUkmDetail(ukm),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF4169E1),
+                          side: const BorderSide(color: Color(0xFF4169E1)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        icon: const Icon(Icons.visibility_outlined, size: 18),
+                        label: Text(
+                          'Lihat',
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          _buildActionButton(
-                            icon: Icons.visibility_rounded,
-                            label: 'View',
-                            color: const Color(0xFF6B7280),
-                            onPressed: () => _viewUkmDetail(ukm),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => _deleteUkm(ukmId),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
                           ),
-                          Container(
-                            width: 1,
-                            height: 30,
-                            color: Colors.grey[300],
+                          elevation: 0,
+                        ),
+                        icon: const Icon(Icons.delete_outline, size: 18),
+                        label: Text(
+                          'Hapus',
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
                           ),
-                          _buildActionButton(
-                            icon: Icons.delete_rounded,
-                            label: 'Hapus',
-                            color: const Color(0xFFEF4444),
-                            onPressed: () => _deleteUkm(ukmId),
-                          ),
-                        ],
+                        ),
                       ),
                     ),
                   ],
@@ -1023,114 +1112,121 @@ class _UkmPageState extends State<UkmPage> {
     );
   }
 
-  Widget _buildMobileInfoRow(IconData icon, String text) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(6),
-          decoration: BoxDecoration(
-            color: const Color(0xFF4169E1).withOpacity(0.08),
-            borderRadius: BorderRadius.circular(8),
+  Widget _buildPagination() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
-          child: Icon(icon, size: 16, color: const Color(0xFF4169E1)),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            text,
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // Results Info
+          Text(
+            'Menampilkan ${(_currentPage - 1) * _itemsPerPage + 1} - ${(_currentPage * _itemsPerPage) > _totalUkm ? _totalUkm : (_currentPage * _itemsPerPage)} dari $_totalUkm UKM',
             style: GoogleFonts.inter(
               fontSize: 13,
-              color: Colors.black87,
               fontWeight: FontWeight.w500,
+              color: Colors.grey[700],
             ),
           ),
-        ),
-      ],
-    );
-  }
 
-  Widget _buildActionButton({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onPressed,
-  }) {
-    return InkWell(
-      onTap: onPressed,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 20, color: color),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: color,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPagination() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        IconButton(
-          onPressed: _currentPage > 1
-              ? () {
+          // Page Navigation
+          Row(
+            children: [
+              // Previous Button
+              _buildPageButton(
+                icon: Icons.chevron_left_rounded,
+                enabled: _currentPage > 1,
+                onPressed: () {
                   setState(() {
                     _currentPage--;
                   });
                   _loadUkm();
-                }
-              : null,
-          icon: const Icon(Icons.chevron_left),
-          color: const Color(0xFF4169E1),
-          disabledColor: Colors.grey[400],
-        ),
+                },
+              ),
 
-        const SizedBox(width: 16),
+              const SizedBox(width: 12),
 
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.grey[100],
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            'Halaman $_currentPage dari $_totalPages',
-            style: GoogleFonts.inter(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: Colors.black87,
-            ),
-          ),
-        ),
+              // Page Numbers
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      const Color(0xFF4169E1).withOpacity(0.1),
+                      const Color(0xFF4169E1).withOpacity(0.05),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: const Color(0xFF4169E1).withOpacity(0.3),
+                  ),
+                ),
+                child: Text(
+                  '$_currentPage / $_totalPages',
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF4169E1),
+                  ),
+                ),
+              ),
 
-        const SizedBox(width: 16),
+              const SizedBox(width: 12),
 
-        IconButton(
-          onPressed: _currentPage < _totalPages
-              ? () {
+              // Next Button
+              _buildPageButton(
+                icon: Icons.chevron_right_rounded,
+                enabled: _currentPage < _totalPages,
+                onPressed: () {
                   setState(() {
                     _currentPage++;
                   });
                   _loadUkm();
-                }
-              : null,
-          icon: const Icon(Icons.chevron_right),
-          color: const Color(0xFF4169E1),
-          disabledColor: Colors.grey[400],
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPageButton({
+    required IconData icon,
+    required bool enabled,
+    required VoidCallback onPressed,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: enabled
+            ? const Color(0xFF4169E1).withOpacity(0.1)
+            : Colors.grey[100],
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: enabled
+              ? const Color(0xFF4169E1).withOpacity(0.3)
+              : Colors.grey[300]!,
         ),
-      ],
+      ),
+      child: IconButton(
+        onPressed: enabled ? onPressed : null,
+        icon: Icon(icon, size: 20),
+        color: enabled ? const Color(0xFF4169E1) : Colors.grey[400],
+        padding: const EdgeInsets.all(8),
+      ),
     );
   }
 
@@ -1139,7 +1235,6 @@ class _UkmPageState extends State<UkmPage> {
       context,
       MaterialPageRoute(builder: (context) => DetailUkmPage(ukm: ukm)),
     );
-    // Refresh list if UKM was updated
     if (result == true) {
       _loadUkm();
     }
@@ -1149,23 +1244,49 @@ class _UkmPageState extends State<UkmPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(
-          'Konfirmasi Hapus',
-          style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.bold),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.warning_rounded,
+                color: Colors.red,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Konfirmasi Hapus',
+              style: GoogleFonts.inter(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
         ),
         content: Text(
-          'Apakah Anda yakin ingin menghapus UKM ini?',
-          style: GoogleFonts.inter(fontSize: 14),
+          'Apakah Anda yakin ingin menghapus UKM ini? Tindakan ini tidak dapat dibatalkan.',
+          style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[700]),
         ),
         actions: [
-          TextButton(
+          OutlinedButton(
             onPressed: () => Navigator.pop(context),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.grey[700],
+              side: BorderSide(color: Colors.grey[300]!),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
             child: Text(
               'Batal',
-              style: GoogleFonts.inter(
-                color: Colors.grey[600],
-                fontWeight: FontWeight.w600,
-              ),
+              style: GoogleFonts.inter(fontWeight: FontWeight.w600),
             ),
           ),
           ElevatedButton(
@@ -1176,6 +1297,11 @@ class _UkmPageState extends State<UkmPage> {
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              elevation: 0,
             ),
             child: Text(
               'Hapus',
