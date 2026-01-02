@@ -80,160 +80,599 @@ class _PeriodePageState extends State<PeriodePage> {
     final isDesktop = MediaQuery.of(context).size.width >= 768;
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Header
-        Text(
-          'Daftar Periode',
-          style: GoogleFonts.inter(
-            fontSize: isDesktop ? 24 : 20,
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
+        // Modern Header with Gradient
+        const SizedBox(height: 24),
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Colors.white, const Color(0xFF4169E1).withOpacity(0.05)],
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFF4169E1).withOpacity(0.1)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF4169E1), Color(0xFF5B7FE8)],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.calendar_today_rounded,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Periode UKM',
+                      style: GoogleFonts.inter(
+                        fontSize: isDesktop ? 24 : 20,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Kelola periode akademik UKM',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Stats Badge
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4169E1).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: const Color(0xFF4169E1).withOpacity(0.3),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.article_outlined,
+                      color: const Color(0xFF4169E1),
+                      size: 18,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '$_totalPeriode Periode',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF4169E1),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 24),
 
-        // Search and Filter Bar
-        _buildSearchAndFilterBar(isDesktop),
+        // Search and Actions Bar
+        _buildModernSearchBar(isDesktop),
         const SizedBox(height: 24),
 
-        // Loading or Table
+        // Loading or Content
         if (_isLoading)
-          const Center(
+          Center(
             child: Padding(
-              padding: EdgeInsets.all(40),
-              child: CircularProgressIndicator(),
+              padding: const EdgeInsets.all(60),
+              child: Column(
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Memuat data periode...',
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
             ),
           )
+        else if (_filteredPeriode.isEmpty)
+          _buildEmptyState()
         else if (isDesktop)
-          _buildDesktopTable()
+          _buildModernDesktopCards()
         else
-          _buildMobileList(),
+          _buildModernMobileCards(),
 
         const SizedBox(height: 24),
 
-        // Pagination
-        _buildPagination(),
+        // Modern Pagination
+        if (!_isLoading && _filteredPeriode.isNotEmpty)
+          _buildModernPagination(),
       ],
     );
   }
 
-  Widget _buildSearchAndFilterBar(bool isDesktop) {
-    return Wrap(
-      spacing: 12,
-      runSpacing: 12,
-      alignment: WrapAlignment.spaceBetween,
-      children: [
-        // Search Bar
-        SizedBox(
-          width: isDesktop ? 400 : double.infinity,
-          child: TextField(
-            onChanged: (value) {
-              setState(() {
-                _searchQuery = value;
-                _currentPage = 1; // Reset to first page on search
-              });
-            },
-            decoration: InputDecoration(
-              hintText: 'Cari Data',
-              hintStyle: GoogleFonts.inter(
-                fontSize: 14,
-                color: Colors.grey[500],
-              ),
-              prefixIcon: Icon(Icons.search, color: Colors.grey[600]),
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: Colors.grey[300]!),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: Colors.grey[300]!),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: Color(0xFF4169E1)),
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 12,
-              ),
-            ),
+  Widget _buildModernSearchBar(bool isDesktop) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
           ),
-        ),
-
-        // Filter and Add Button
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Sort Dropdown
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                border: Border.all(color: Colors.grey[300]!),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: DropdownButton<String>(
-                value: _sortBy,
-                underline: const SizedBox(),
-                icon: Icon(Icons.keyboard_arrow_down, color: Colors.grey[700]),
-                style: GoogleFonts.inter(fontSize: 14, color: Colors.black87),
-                items: ['Urutkan', 'Periode', 'Tanggal Awal', 'Tanggal Akhir']
-                    .map((String value) {
-                      return DropdownMenuItem<String>(
-                        value: value,
-                        child: Text(value),
+        ],
+      ),
+      child: isDesktop
+          ? Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    onChanged: (value) {
+                      setState(() {
+                        _searchQuery = value;
+                        _currentPage = 1;
+                      });
+                    },
+                    decoration: InputDecoration(
+                      hintText: 'Cari periode...',
+                      hintStyle: GoogleFonts.inter(
+                        fontSize: 14,
+                        color: Colors.grey[400],
+                      ),
+                      prefixIcon: Icon(
+                        Icons.search_rounded,
+                        color: Colors.grey[400],
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey[50],
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // Add Button
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const AddPeriodePage(),
+                      ),
+                    );
+                    if (result == true) {
+                      _loadPeriode();
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4169E1),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 16,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 0,
+                  ),
+                  icon: const Icon(Icons.add_rounded, size: 20),
+                  label: Text(
+                    'Tambah Periode',
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            )
+          : Column(
+              children: [
+                TextField(
+                  onChanged: (value) {
+                    setState(() {
+                      _searchQuery = value;
+                      _currentPage = 1;
+                    });
+                  },
+                  decoration: InputDecoration(
+                    hintText: 'Cari periode...',
+                    hintStyle: GoogleFonts.inter(
+                      fontSize: 14,
+                      color: Colors.grey[400],
+                    ),
+                    prefixIcon: Icon(
+                      Icons.search_rounded,
+                      color: Colors.grey[400],
+                    ),
+                    filled: true,
+                    fillColor: Colors.grey[50],
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const AddPeriodePage(),
+                        ),
                       );
-                    })
-                    .toList(),
-                onChanged: (String? newValue) {
-                  setState(() {
-                    _sortBy = newValue!;
-                  });
-                },
+                      if (result == true) {
+                        _loadPeriode();
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF4169E1),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 0,
+                    ),
+                    icon: const Icon(Icons.add_rounded, size: 20),
+                    label: Text(
+                      'Tambah Periode',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(60),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.calendar_today_outlined,
+                size: 64,
+                color: Colors.grey[400],
               ),
             ),
-            const SizedBox(width: 12),
-
-            // Add Button
-            ElevatedButton.icon(
-              onPressed: () async {
-                final result = await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const AddPeriodePage(),
-                  ),
-                );
-                if (result == true) {
-                  _loadPeriode();
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4169E1),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                elevation: 0,
+            const SizedBox(height: 24),
+            Text(
+              _searchQuery.isEmpty
+                  ? 'Belum Ada Periode'
+                  : 'Periode Tidak Ditemukan',
+              style: GoogleFonts.inter(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[700],
               ),
-              icon: const Icon(Icons.add, size: 20),
-              label: Text(
-                'Tambah',
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _searchQuery.isEmpty
+                  ? 'Silakan tambah periode UKM baru'
+                  : 'Coba kata kunci lain',
+              style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
             ),
           ],
         ),
-      ],
+      ),
+    );
+  }
+
+  Widget _buildModernDesktopCards() {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+        childAspectRatio: 2.2,
+      ),
+      itemCount: _paginatedPeriode.length,
+      itemBuilder: (context, index) {
+        final periode = _paginatedPeriode[index];
+        return _buildPeriodeCard(periode, true);
+      },
+    );
+  }
+
+  Widget _buildModernMobileCards() {
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: _paginatedPeriode.length,
+      itemBuilder: (context, index) {
+        final periode = _paginatedPeriode[index];
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: _buildPeriodeCard(periode, false),
+        );
+      },
+    );
+  }
+
+  Widget _buildPeriodeCard(Map<String, dynamic> periode, bool isDesktop) {
+    final isActive = periode['status'] == 'Active';
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white,
+            isActive
+                ? const Color(0xFF4169E1).withOpacity(0.03)
+                : Colors.grey.withOpacity(0.03),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isActive
+              ? const Color(0xFF4169E1).withOpacity(0.2)
+              : Colors.grey.withOpacity(0.2),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: (isActive ? const Color(0xFF4169E1) : Colors.grey)
+                .withOpacity(0.08),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Header with Status
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            gradient: isActive
+                                ? const LinearGradient(
+                                    colors: [
+                                      Color(0xFF4169E1),
+                                      Color(0xFF5B7FE8),
+                                    ],
+                                  )
+                                : LinearGradient(
+                                    colors: [
+                                      Colors.grey[400]!,
+                                      Colors.grey[500]!,
+                                    ],
+                                  ),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(
+                            Icons.calendar_month_rounded,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            periode['nama_periode'] ?? '-',
+                            style: GoogleFonts.inter(
+                              fontSize: isDesktop ? 16 : 15,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.black87,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: isActive
+                            ? LinearGradient(
+                                colors: [
+                                  Colors.green[400]!,
+                                  Colors.green[500]!,
+                                ],
+                              )
+                            : LinearGradient(
+                                colors: [Colors.grey[400]!, Colors.grey[500]!],
+                              ),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: (isActive ? Colors.green : Colors.grey)
+                                .withOpacity(0.3),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            isActive
+                                ? Icons.check_circle
+                                : Icons.check_circle_outline,
+                            color: Colors.white,
+                            size: 12,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            isActive ? 'Aktif' : 'Selesai',
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Delete Button
+              IconButton(
+                onPressed: () => _deletePeriode(periode),
+                icon: const Icon(Icons.delete_outline_rounded),
+                color: Colors.red[400],
+                tooltip: 'Hapus Periode',
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.red[50],
+                  padding: const EdgeInsets.all(8),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Divider(color: Colors.grey[200], height: 1),
+          const SizedBox(height: 12),
+
+          // Period Details
+          _buildInfoChip(
+            icon: Icons.event_outlined,
+            label: 'Semester',
+            value: '${periode['semester'] ?? '-'} ${periode['tahun'] ?? '-'}',
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _buildInfoChip(
+                  icon: Icons.play_arrow_rounded,
+                  label: 'Mulai',
+                  value: _formatDate(periode['tanggal_awal']),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _buildInfoChip(
+                  icon: Icons.stop_rounded,
+                  label: 'Selesai',
+                  value: _formatDate(periode['tanggal_akhir']),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoChip({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: const Color(0xFF4169E1)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -602,52 +1041,121 @@ class _PeriodePageState extends State<PeriodePage> {
     );
   }
 
-  Widget _buildPagination() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        // Previous Button
-        IconButton(
-          onPressed: _currentPage > 1
-              ? () {
+  Widget _buildModernPagination() {
+    if (_totalPages <= 1) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // Results Info
+          Text(
+            'Menampilkan ${(_currentPage - 1) * _itemsPerPage + 1} - ${(_currentPage * _itemsPerPage) > _filteredPeriode.length ? _filteredPeriode.length : (_currentPage * _itemsPerPage)} dari ${_filteredPeriode.length} Periode',
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey[700],
+            ),
+          ),
+
+          // Page Navigation
+          Row(
+            children: [
+              // Previous Button
+              _buildPageButton(
+                icon: Icons.chevron_left_rounded,
+                enabled: _currentPage > 1,
+                onPressed: () {
                   setState(() {
                     _currentPage--;
                   });
-                }
-              : null,
-          icon: const Icon(Icons.chevron_left),
-          color: const Color(0xFF4169E1),
-          disabledColor: Colors.grey[400],
-        ),
+                },
+              ),
 
-        const SizedBox(width: 16),
+              const SizedBox(width: 12),
 
-        // Page Indicator
-        Text(
-          '$_currentPage Dari $_totalPages',
-          style: GoogleFonts.inter(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: Colors.black87,
-          ),
-        ),
+              // Page Numbers
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      const Color(0xFF4169E1).withOpacity(0.1),
+                      const Color(0xFF4169E1).withOpacity(0.05),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: const Color(0xFF4169E1).withOpacity(0.3),
+                  ),
+                ),
+                child: Text(
+                  '$_currentPage / $_totalPages',
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF4169E1),
+                  ),
+                ),
+              ),
 
-        const SizedBox(width: 16),
+              const SizedBox(width: 12),
 
-        // Next Button
-        IconButton(
-          onPressed: _currentPage < _totalPages
-              ? () {
+              // Next Button
+              _buildPageButton(
+                icon: Icons.chevron_right_rounded,
+                enabled: _currentPage < _totalPages,
+                onPressed: () {
                   setState(() {
                     _currentPage++;
                   });
-                }
-              : null,
-          icon: const Icon(Icons.chevron_right),
-          color: const Color(0xFF4169E1),
-          disabledColor: Colors.grey[400],
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPageButton({
+    required IconData icon,
+    required bool enabled,
+    required VoidCallback onPressed,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: enabled
+            ? const Color(0xFF4169E1).withOpacity(0.1)
+            : Colors.grey[100],
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: enabled
+              ? const Color(0xFF4169E1).withOpacity(0.3)
+              : Colors.grey[300]!,
         ),
-      ],
+      ),
+      child: IconButton(
+        onPressed: enabled ? onPressed : null,
+        icon: Icon(icon, size: 20),
+        color: enabled ? const Color(0xFF4169E1) : Colors.grey[400],
+        padding: const EdgeInsets.all(8),
+      ),
     );
   }
 
