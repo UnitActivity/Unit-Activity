@@ -38,6 +38,16 @@ class _DetailUkmPageState extends State<DetailUkmPage>
   bool _hasNumber = false;
   bool _hasSymbol = false;
 
+  // Data states from database
+  List<Map<String, dynamic>> _periodeList = [];
+  List<Map<String, dynamic>> _anggotaList = [];
+  List<Map<String, dynamic>> _pertemuanList = [];
+  List<Map<String, dynamic>> _eventList = [];
+  List<Map<String, dynamic>> _dokumenProposalList = [];
+  List<Map<String, dynamic>> _dokumenLpjList = [];
+  bool _isLoadingData = false;
+  Map<String, dynamic>? _currentPeriode;
+
   @override
   void initState() {
     super.initState();
@@ -48,6 +58,7 @@ class _DetailUkmPageState extends State<DetailUkmPage>
     );
     _passwordController = TextEditingController();
     _tabController = TabController(length: 5, vsync: this);
+    _loadUkmData();
   }
 
   @override
@@ -301,6 +312,91 @@ class _DetailUkmPageState extends State<DetailUkmPage>
           backgroundColor: Colors.red,
         ),
       );
+    }
+  }
+
+  Future<void> _loadUkmData() async {
+    if (!mounted) return;
+    setState(() => _isLoadingData = true);
+
+    try {
+      final idUkm = widget.ukm['id_ukm'];
+
+      // Load current periode
+      final currentPeriodeId = widget.ukm['id_current_periode'];
+      if (currentPeriodeId != null) {
+        final periodeData = await _supabase
+            .from('periode_ukm')
+            .select()
+            .eq('id_periode', currentPeriodeId)
+            .maybeSingle();
+        if (periodeData != null) {
+          _currentPeriode = periodeData;
+        }
+      }
+
+      // Load all periode
+      final periodeData = await _supabase
+          .from('periode_ukm')
+          .select()
+          .eq('id_ukm', idUkm)
+          .order('create_at', ascending: false);
+      _periodeList = List<Map<String, dynamic>>.from(periodeData);
+
+      // Load anggota (followers) with user details
+      final anggotaData = await _supabase
+          .from('user_halaman_ukm')
+          .select('*, users(*)')
+          .eq('id_ukm', idUkm)
+          .eq('status', 'active')
+          .order('follow', ascending: false);
+      _anggotaList = List<Map<String, dynamic>>.from(anggotaData);
+
+      // Load pertemuan
+      final pertemuanData = await _supabase
+          .from('pertemuan')
+          .select('*, periode_ukm(nama_periode)')
+          .eq('id_ukm', idUkm)
+          .order('tanggal_pertemuan', ascending: false);
+      _pertemuanList = List<Map<String, dynamic>>.from(pertemuanData);
+
+      // Load events
+      final eventData = await _supabase
+          .from('events')
+          .select('*, periode_ukm(nama_periode), users(username)')
+          .eq('id_ukm', idUkm)
+          .order('tanggal_mulai', ascending: false);
+      _eventList = List<Map<String, dynamic>>.from(eventData);
+
+      // Load dokumen proposal
+      final proposalData = await _supabase
+          .from('event_proposal')
+          .select('*, events(nama_event), users(username)')
+          .eq('id_ukm', idUkm)
+          .order('tanggal_pengajuan', ascending: false);
+      _dokumenProposalList = List<Map<String, dynamic>>.from(proposalData);
+
+      // Load dokumen LPJ
+      final lpjData = await _supabase
+          .from('event_lpj')
+          .select('*, events(nama_event), users(username)')
+          .eq('id_ukm', idUkm)
+          .order('tanggal_pengajuan', ascending: false);
+      _dokumenLpjList = List<Map<String, dynamic>>.from(lpjData);
+
+      if (mounted) {
+        setState(() => _isLoadingData = false);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingData = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal memuat data UKM: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -1433,118 +1529,603 @@ class _DetailUkmPageState extends State<DetailUkmPage>
 
   // Tab Content Methods
   Widget _buildPesertaTab() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.people, size: 64, color: Colors.grey[400]),
-            const SizedBox(height: 16),
-            Text(
-              'Daftar Peserta UKM',
+    if (_isLoadingData) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_anggotaList.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.people, size: 64, color: Colors.grey[400]),
+              const SizedBox(height: 16),
+              Text(
+                'Belum Ada Anggota',
+                style: GoogleFonts.inter(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[700],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Belum ada mahasiswa yang bergabung dengan UKM ini',
+                style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: _anggotaList.length,
+      itemBuilder: (context, index) {
+        final anggota = _anggotaList[index];
+        final user = anggota['users'] as Map<String, dynamic>?;
+        final followDate = anggota['follow'] != null
+            ? DateFormat(
+                'dd MMM yyyy',
+              ).format(DateTime.parse(anggota['follow']))
+            : '-';
+
+        return Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: ListTile(
+            leading: CircleAvatar(
+              radius: 24,
+              backgroundColor: const Color(0xFF4169E1),
+              backgroundImage: user?['picture'] != null
+                  ? NetworkImage(user!['picture'])
+                  : null,
+              child: user?['picture'] == null
+                  ? Text(
+                      (user?['username'] ?? 'U')[0].toUpperCase(),
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    )
+                  : null,
+            ),
+            title: Text(
+              user?['username'] ?? 'Unknown',
               style: GoogleFonts.inter(
-                fontSize: 18,
                 fontWeight: FontWeight.w600,
-                color: Colors.grey[700],
+                fontSize: 15,
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Fitur ini menampilkan daftar anggota UKM (view-only)',
-              style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
-              textAlign: TextAlign.center,
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 4),
+                Text(
+                  'NIM: ${user?['nim'] ?? '-'}',
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    color: Colors.grey[600],
+                  ),
+                ),
+                Text(
+                  'Bergabung: $followDate',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: Colors.grey[500],
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+            trailing: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.green[50],
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.green[200]!),
+              ),
+              child: Text(
+                'Aktif',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.green[700],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
   Widget _buildPertemuanTab() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.event_note, size: 64, color: Colors.grey[400]),
-            const SizedBox(height: 16),
-            Text(
-              'Daftar Pertemuan',
-              style: GoogleFonts.inter(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey[700],
+    if (_isLoadingData) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_pertemuanList.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.event_note, size: 64, color: Colors.grey[400]),
+              const SizedBox(height: 16),
+              Text(
+                'Belum Ada Pertemuan',
+                style: GoogleFonts.inter(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[700],
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Fitur ini menampilkan daftar pertemuan UKM (view-only)',
-              style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
-              textAlign: TextAlign.center,
-            ),
-          ],
+              const SizedBox(height: 8),
+              Text(
+                'Belum ada jadwal pertemuan untuk UKM ini',
+                style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
         ),
-      ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: _pertemuanList.length,
+      itemBuilder: (context, index) {
+        final pertemuan = _pertemuanList[index];
+        final tanggal = pertemuan['tanggal_pertemuan'] != null
+            ? DateFormat(
+                'EEEE, dd MMM yyyy',
+                'id_ID',
+              ).format(DateTime.parse(pertemuan['tanggal_pertemuan']))
+            : '-';
+        final waktu =
+            pertemuan['jam_mulai'] != null && pertemuan['jam_akhir'] != null
+            ? '${pertemuan['jam_mulai']} - ${pertemuan['jam_akhir']}'
+            : '-';
+        final periode = pertemuan['periode_ukm'] as Map<String, dynamic>?;
+
+        return Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF4169E1).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.event_note_rounded,
+                        color: Color(0xFF4169E1),
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            pertemuan['topik'] ?? 'Pertemuan',
+                            style: GoogleFonts.inter(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          if (periode != null) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              periode['nama_periode'],
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _buildSimpleInfoRow(Icons.calendar_today, tanggal),
+                const SizedBox(height: 6),
+                _buildSimpleInfoRow(Icons.access_time, waktu),
+                const SizedBox(height: 6),
+                _buildSimpleInfoRow(
+                  Icons.location_on,
+                  pertemuan['lokasi'] ?? '-',
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
   Widget _buildEventTab() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.celebration, size: 64, color: Colors.grey[400]),
-            const SizedBox(height: 16),
-            Text(
-              'Daftar Event',
-              style: GoogleFonts.inter(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey[700],
+    if (_isLoadingData) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_eventList.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.celebration, size: 64, color: Colors.grey[400]),
+              const SizedBox(height: 16),
+              Text(
+                'Belum Ada Event',
+                style: GoogleFonts.inter(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[700],
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Fitur ini menampilkan daftar event UKM (view-only)',
-              style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
-              textAlign: TextAlign.center,
-            ),
-          ],
+              const SizedBox(height: 8),
+              Text(
+                'Belum ada event yang dibuat oleh UKM ini',
+                style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
         ),
-      ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: _eventList.length,
+      itemBuilder: (context, index) {
+        final event = _eventList[index];
+        final tanggalMulai = event['tanggal_mulai'] != null
+            ? DateFormat(
+                'dd MMM yyyy',
+              ).format(DateTime.parse(event['tanggal_mulai']))
+            : '-';
+        final periode = event['periode_ukm'] as Map<String, dynamic>?;
+        final status = event['status'] == true ? 'Aktif' : 'Selesai';
+
+        return Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFFBBF24), Color(0xFFF59E0B)],
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.celebration_rounded,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            event['nama_event'] ?? 'Event',
+                            style: GoogleFonts.inter(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          if (periode != null) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              periode['nama_periode'],
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: event['status'] == true
+                            ? Colors.green[50]
+                            : Colors.grey[100],
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: event['status'] == true
+                              ? Colors.green[200]!
+                              : Colors.grey[300]!,
+                        ),
+                      ),
+                      child: Text(
+                        status,
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: event['status'] == true
+                              ? Colors.green[700]
+                              : Colors.grey[600],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _buildSimpleInfoRow(Icons.calendar_today, tanggalMulai),
+                const SizedBox(height: 6),
+                _buildSimpleInfoRow(Icons.location_on, event['lokasi'] ?? '-'),
+                if (event['max_participant'] != null) ...[
+                  const SizedBox(height: 6),
+                  _buildSimpleInfoRow(
+                    Icons.people,
+                    'Maks ${event['max_participant']} peserta',
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
   Widget _buildDokumenTab() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.folder, size: 64, color: Colors.grey[400]),
-            const SizedBox(height: 16),
-            Text(
-              'Dokumen UKM',
-              style: GoogleFonts.inter(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey[700],
+    if (_isLoadingData) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final allDokumen = [
+      ..._dokumenProposalList.map((d) => {...d, 'type': 'proposal'}),
+      ..._dokumenLpjList.map((d) => {...d, 'type': 'lpj'}),
+    ];
+
+    if (allDokumen.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.folder, size: 64, color: Colors.grey[400]),
+              const SizedBox(height: 16),
+              Text(
+                'Belum Ada Dokumen',
+                style: GoogleFonts.inter(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[700],
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Fitur ini menampilkan dokumen UKM dengan preview dan komentar',
-              style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
-              textAlign: TextAlign.center,
-            ),
-          ],
+              const SizedBox(height: 8),
+              Text(
+                'Belum ada proposal atau LPJ yang diajukan',
+                style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
         ),
-      ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: allDokumen.length,
+      itemBuilder: (context, index) {
+        final dokumen = allDokumen[index];
+        final isProposal = dokumen['type'] == 'proposal';
+        final eventName =
+            (dokumen['events'] as Map<String, dynamic>?)?['nama_event'] ??
+            'Event';
+        final tanggal = dokumen['tanggal_pengajuan'] != null
+            ? DateFormat(
+                'dd MMM yyyy HH:mm',
+              ).format(DateTime.parse(dokumen['tanggal_pengajuan']))
+            : '-';
+        final status = dokumen['status'] ?? 'menunggu';
+
+        Color statusColor;
+        String statusLabel;
+        switch (status) {
+          case 'disetujui':
+            statusColor = Colors.green;
+            statusLabel = 'Disetujui';
+            break;
+          case 'ditolak':
+            statusColor = Colors.red;
+            statusLabel = 'Ditolak';
+            break;
+          case 'revisi':
+            statusColor = Colors.orange;
+            statusLabel = 'Revisi';
+            break;
+          default:
+            statusColor = Colors.blue;
+            statusLabel = 'Menunggu';
+        }
+
+        return Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: isProposal
+                              ? [
+                                  const Color(0xFF4169E1),
+                                  const Color(0xFF5B7FE8),
+                                ]
+                              : [
+                                  const Color(0xFF10B981),
+                                  const Color(0xFF059669),
+                                ],
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        isProposal
+                            ? Icons.description_rounded
+                            : Icons.assignment_turned_in_rounded,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            isProposal ? 'Proposal' : 'LPJ',
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            eventName,
+                            style: GoogleFonts.inter(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: statusColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: statusColor.withOpacity(0.3)),
+                      ),
+                      child: Text(
+                        statusLabel,
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: statusColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _buildSimpleInfoRow(Icons.calendar_today, 'Diajukan: $tanggal'),
+                if (dokumen['catatan_admin'] != null) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.orange[200]!),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.info_outline,
+                          size: 18,
+                          color: Colors.orange[700],
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            dokumen['catatan_admin'],
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: Colors.orange[900],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSimpleInfoRow(IconData icon, String text) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: Colors.grey[600]),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[700]),
+          ),
+        ),
+      ],
     );
   }
 }

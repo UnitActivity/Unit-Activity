@@ -1095,11 +1095,11 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
                       ),
                     ),
                     Text(
-                      '+$count anggota',
+                      '$count anggota',
                       style: GoogleFonts.inter(
                         fontSize: isMobile ? 12 : 13,
                         fontWeight: FontWeight.w600,
-                        color: Colors.green[700],
+                        color: Colors.black87,
                       ),
                     ),
                   ],
@@ -1111,7 +1111,7 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
                     value: percentage,
                     backgroundColor: Colors.grey[200],
                     valueColor: const AlwaysStoppedAnimation<Color>(
-                      Color(0xFF10B981),
+                      Color(0xFF4169E1),
                     ),
                     minHeight: 8,
                   ),
