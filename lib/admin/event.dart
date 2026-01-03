@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'detail_event_page.dart';
 
 class EventPage extends StatefulWidget {
@@ -10,82 +12,68 @@ class EventPage extends StatefulWidget {
 }
 
 class _EventPageState extends State<EventPage> {
+  final SupabaseClient _supabase = Supabase.instance.client;
   String _sortBy = 'Urutkan';
   String _searchQuery = '';
   int _currentPage = 1;
   final int _itemsPerPage = 10;
+  bool _isLoading = false;
 
-  // Dummy data
-  final List<Map<String, dynamic>> _allEvents = [
-    {
-      'namaEvent': 'Sparing Basket w/ UWIKA',
-      'ukm': 'UKM Basket',
-      'tipeEvent': 'Sparing',
-      'lokasi': 'Lapangan Basket Kampus',
-      'tanggal': '22-12-2025',
-      'jam': '17:00',
-      'dibuat': '20-12-2025',
-      'deskripsi':
-          'Pertandingan persahabatan basket antara tim UKM Basket dengan UWIKA. Event ini bertujuan untuk meningkatkan kemampuan dan kerjasama tim.',
-    },
-    {
-      'namaEvent': 'Friendly Match Futsal',
-      'ukm': 'UKM Futsal',
-      'tipeEvent': 'Sparing',
-      'lokasi': 'Lapangan Futsal Indoor',
-      'tanggal': '01-12-2025',
-      'jam': '15:00',
-      'dibuat': '28-11-2025',
-      'deskripsi':
-          'Pertandingan futsal antar kampus untuk mempererat tali silaturahmi dan meningkatkan sportivitas.',
-    },
-    {
-      'namaEvent': 'Mini Tournament Badminton',
-      'ukm': 'UKM Badminton',
-      'tipeEvent': 'Turnamen Internal',
-      'lokasi': 'Merr Badminton Court',
-      'tanggal': '05-12-2025',
-      'jam': '10:00',
-      'dibuat': '04-12-2025',
-      'deskripsi':
-          'Turnamen badminton internal untuk seluruh anggota UKM. Hadiah menarik untuk juara 1, 2, dan 3.',
-    },
-    {
-      'namaEvent': 'Pentas Musik Akustik',
-      'ukm': 'UKM Musik',
-      'tipeEvent': 'Penampilan',
-      'lokasi': 'Vidya Loka Lt.2',
-      'tanggal': '14-12-2025',
-      'jam': '18:00',
-      'dibuat': '10-12-2025',
-      'deskripsi':
-          'Penampilan musik akustik dari anggota UKM Musik. Menampilkan berbagai genre musik dari pop, jazz, hingga indie.',
-    },
-    {
-      'namaEvent': 'E-Sport Scrim Mobile Legends',
-      'ukm': 'UKM E-Sport',
-      'tipeEvent': 'Sparing',
-      'lokasi': 'Ruangan 5A',
-      'tanggal': '26-12-2025',
-      'jam': '17:00',
-      'dibuat': '23-12-2025',
-      'deskripsi':
-          'Latihan bersama (scrim) Mobile Legends untuk persiapan turnamen regional. Terbuka untuk semua anggota UKM E-Sport.',
-    },
-  ];
+  // Data from database
+  List<Map<String, dynamic>> _allEvents = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadEvents();
+  }
+
+  Future<void> _loadEvents() async {
+    if (!mounted) return;
+    setState(() => _isLoading = true);
+
+    try {
+      final eventData = await _supabase
+          .from('events')
+          .select(
+            '*, ukm(nama_ukm), periode_ukm(nama_periode), users(username)',
+          )
+          .order('tanggal_mulai', ascending: false);
+
+      if (mounted) {
+        setState(() {
+          _allEvents = List<Map<String, dynamic>>.from(eventData);
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal memuat data event: \$e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
 
   List<Map<String, dynamic>> get _filteredEvents {
     var events = _allEvents.where((event) {
       if (_searchQuery.isEmpty) return true;
-      return event['namaEvent'].toString().toLowerCase().contains(
-            _searchQuery.toLowerCase(),
-          ) ||
-          event['ukm'].toString().toLowerCase().contains(
-            _searchQuery.toLowerCase(),
-          ) ||
-          event['lokasi'].toString().toLowerCase().contains(
-            _searchQuery.toLowerCase(),
-          );
+      final namaEvent = event['nama_event']?.toString().toLowerCase() ?? '';
+      final ukmName =
+          (event['ukm'] as Map<String, dynamic>?)?['nama_ukm']
+              ?.toString()
+              .toLowerCase() ??
+          '';
+      final lokasi = event['lokasi']?.toString().toLowerCase() ?? '';
+      final search = _searchQuery.toLowerCase();
+
+      return namaEvent.contains(search) ||
+          ukmName.contains(search) ||
+          lokasi.contains(search);
     }).toList();
 
     return events;
@@ -107,6 +95,10 @@ class _EventPageState extends State<EventPage> {
   @override
   Widget build(BuildContext context) {
     final isDesktop = MediaQuery.of(context).size.width >= 768;
+
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
     return SingleChildScrollView(
       child: Column(
@@ -358,7 +350,7 @@ class _EventPageState extends State<EventPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      event['namaEvent'] ?? '-',
+                      event['nama_event'] ?? '-',
                       style: GoogleFonts.inter(
                         fontSize: isDesktop ? 14 : 13,
                         fontWeight: FontWeight.w700,
@@ -378,7 +370,7 @@ class _EventPageState extends State<EventPage> {
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
-                        event['tipeEvent'] ?? '-',
+                        event['tipe_event'] ?? '-',
                         style: GoogleFonts.inter(
                           fontSize: 10,
                           fontWeight: FontWeight.w600,
@@ -420,7 +412,9 @@ class _EventPageState extends State<EventPage> {
                 child: _buildInfoChip(
                   icon: Icons.groups_rounded,
                   label: 'UKM',
-                  value: event['ukm'] ?? '-',
+                  value:
+                      (event['ukm'] as Map<String, dynamic>?)?['nama_ukm'] ??
+                      '-',
                 ),
               ),
               const SizedBox(width: 8),
@@ -440,7 +434,7 @@ class _EventPageState extends State<EventPage> {
                 child: _buildInfoChip(
                   icon: Icons.calendar_today_outlined,
                   label: 'Tanggal',
-                  value: event['tanggal'] ?? '-',
+                  value: _formatDate(event['tanggal_mulai']),
                 ),
               ),
               const SizedBox(width: 8),
@@ -448,7 +442,7 @@ class _EventPageState extends State<EventPage> {
                 child: _buildInfoChip(
                   icon: Icons.access_time_rounded,
                   label: 'Jam',
-                  value: event['jam'] ?? '-',
+                  value: _formatTime(event['tanggal_mulai']),
                 ),
               ),
             ],
@@ -619,5 +613,25 @@ class _EventPageState extends State<EventPage> {
         padding: const EdgeInsets.all(8),
       ),
     );
+  }
+
+  String _formatDate(String? dateStr) {
+    if (dateStr == null) return '-';
+    try {
+      final date = DateTime.parse(dateStr);
+      return DateFormat('dd MMM yyyy', 'id_ID').format(date);
+    } catch (e) {
+      return '-';
+    }
+  }
+
+  String _formatTime(String? dateStr) {
+    if (dateStr == null) return '-';
+    try {
+      final date = DateTime.parse(dateStr);
+      return DateFormat('HH:mm', 'id_ID').format(date);
+    } catch (e) {
+      return '-';
+    }
   }
 }

@@ -1,12 +1,75 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'detail_document_page.dart';
 
-class DetailEventPage extends StatelessWidget {
+class DetailEventPage extends StatefulWidget {
   final Map<String, dynamic> event;
 
   const DetailEventPage({super.key, required this.event});
+
+  @override
+  State<DetailEventPage> createState() => _DetailEventPageState();
+}
+
+class _DetailEventPageState extends State<DetailEventPage> {
+  final SupabaseClient _supabase = Supabase.instance.client;
+  bool _isLoading = false;
+  List<Map<String, dynamic>> _dokumenProposal = [];
+  List<Map<String, dynamic>> _dokumenLpj = [];
+  int _jumlahPeserta = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadEventDetails();
+  }
+
+  Future<void> _loadEventDetails() async {
+    if (!mounted) return;
+    setState(() => _isLoading = true);
+
+    try {
+      final idEvent = widget.event['id_event'];
+
+      // Load dokumen proposal
+      final proposalData = await _supabase
+          .from('event_proposal')
+          .select('*, users(username)')
+          .eq('id_event', idEvent);
+      _dokumenProposal = List<Map<String, dynamic>>.from(proposalData);
+
+      // Load dokumen LPJ
+      final lpjData = await _supabase
+          .from('event_lpj')
+          .select('*, users(username)')
+          .eq('id_event', idEvent);
+      _dokumenLpj = List<Map<String, dynamic>>.from(lpjData);
+
+      // Load jumlah peserta dari absen_event
+      final pesertaCount = await _supabase
+          .from('absen_event')
+          .select('id_user')
+          .eq('id_event', idEvent)
+          .count();
+      _jumlahPeserta = pesertaCount.count;
+
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal memuat detail event: \$e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
 
   String _formatDate(String? dateStr) {
     if (dateStr == null) return '-';
@@ -14,7 +77,17 @@ class DetailEventPage extends StatelessWidget {
       final date = DateTime.parse(dateStr);
       return DateFormat('dd MMM yyyy', 'id_ID').format(date);
     } catch (e) {
-      return dateStr;
+      return '-';
+    }
+  }
+
+  String _formatTime(String? dateStr) {
+    if (dateStr == null) return '-';
+    try {
+      final date = DateTime.parse(dateStr);
+      return DateFormat('HH:mm', 'id_ID').format(date);
+    } catch (e) {
+      return '-';
     }
   }
 
@@ -65,7 +138,7 @@ class DetailEventPage extends StatelessWidget {
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            event['nama_event'] ?? 'Detail Event',
+                            widget.event['nama_event'] ?? 'Detail Event',
                             style: GoogleFonts.inter(
                               fontSize: 15,
                               fontWeight: FontWeight.w600,
@@ -229,7 +302,7 @@ class DetailEventPage extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      event['namaEvent'] ?? '-',
+                      widget.event['nama_event'] ?? '-',
                       style: GoogleFonts.inter(
                         fontSize: isDesktop ? 24 : 20,
                         fontWeight: FontWeight.w800,
@@ -256,7 +329,7 @@ class DetailEventPage extends StatelessWidget {
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            event['tipeEvent'] ?? '-',
+                            widget.event['tipe_event'] ?? '-',
                             style: GoogleFonts.inter(
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
@@ -278,13 +351,16 @@ class DetailEventPage extends StatelessWidget {
   }
 
   Widget _buildStatsCards(bool isDesktop) {
+    final status = widget.event['status_event'] ?? 'Aktif';
+    final totalDokumen = _dokumenProposal.length + _dokumenLpj.length;
+
     return Row(
       children: [
         Expanded(
           child: _buildStatCard(
             icon: Icons.people_outline,
             label: 'Peserta',
-            value: event['jumlahPeserta']?.toString() ?? '0',
+            value: _jumlahPeserta.toString(),
             gradient: const LinearGradient(
               colors: [Color(0xFF4169E1), Color(0xFF5B7FE8)],
             ),
@@ -296,9 +372,11 @@ class DetailEventPage extends StatelessWidget {
           child: _buildStatCard(
             icon: Icons.calendar_today_rounded,
             label: 'Status',
-            value: event['status'] ?? 'Aktif',
-            gradient: const LinearGradient(
-              colors: [Color(0xFF10B981), Color(0xFF34D399)],
+            value: status,
+            gradient: LinearGradient(
+              colors: status == 'Selesai'
+                  ? [const Color(0xFF6B7280), const Color(0xFF9CA3AF)]
+                  : [const Color(0xFF10B981), const Color(0xFF34D399)],
             ),
             isDesktop: isDesktop,
           ),
@@ -308,7 +386,7 @@ class DetailEventPage extends StatelessWidget {
           child: _buildStatCard(
             icon: Icons.bookmark_outline,
             label: 'Dokumen',
-            value: '4',
+            value: totalDokumen.toString(),
             gradient: const LinearGradient(
               colors: [Color(0xFFF59E0B), Color(0xFFFBBF24)],
             ),
@@ -417,24 +495,48 @@ class DetailEventPage extends StatelessWidget {
           const SizedBox(height: 20),
 
           // Info Grid
-          _buildInfoRow(Icons.business_rounded, 'UKM', event['ukm'] ?? '-'),
+          _buildInfoRow(
+            Icons.business_rounded,
+            'UKM',
+            (widget.event['ukm'] as Map<String, dynamic>?)?['nama_ukm'] ?? '-',
+          ),
+          const SizedBox(height: 16),
+          _buildInfoRow(
+            Icons.people_rounded,
+            'Periode',
+            (widget.event['periode_ukm']
+                    as Map<String, dynamic>?)?['nama_periode'] ??
+                '-',
+          ),
           const SizedBox(height: 16),
           _buildInfoRow(
             Icons.location_on_rounded,
             'Lokasi',
-            event['lokasi'] ?? '-',
+            widget.event['lokasi'] ?? '-',
           ),
           const SizedBox(height: 16),
           _buildInfoRow(
             Icons.calendar_today_rounded,
-            'Tanggal',
-            _formatDate(event['tanggal']),
+            'Tanggal Mulai',
+            _formatDate(widget.event['tanggal_mulai']),
+          ),
+          const SizedBox(height: 16),
+          _buildInfoRow(
+            Icons.calendar_month_rounded,
+            'Tanggal Selesai',
+            _formatDate(widget.event['tanggal_selesai']),
           ),
           const SizedBox(height: 16),
           _buildInfoRow(
             Icons.access_time_rounded,
             'Waktu',
-            event['jam'] ?? '-',
+            _formatTime(widget.event['tanggal_mulai']),
+          ),
+          const SizedBox(height: 16),
+          _buildInfoRow(
+            Icons.people_outline_rounded,
+            'Max Peserta',
+            widget.event['max_participant']?.toString() ?? '-',
           ),
 
           const SizedBox(height: 24),
@@ -460,7 +562,7 @@ class DetailEventPage extends StatelessWidget {
               border: Border.all(color: Colors.grey[200]!),
             ),
             child: Text(
-              event['deskripsi'] ?? 'Tidak ada deskripsi',
+              widget.event['deskripsi_event'] ?? 'Tidak ada deskripsi',
               style: GoogleFonts.inter(
                 fontSize: 14,
                 color: Colors.black87,
@@ -514,40 +616,36 @@ class DetailEventPage extends StatelessWidget {
   }
 
   Widget _buildDocumentsCard(BuildContext context, bool isDesktop) {
-    // Dummy documents data
+    // Combine proposal and LPJ documents
     final documents = [
-      {
-        'name': 'Proposal Event',
-        'type': 'PDF',
-        'size': '2.4 MB',
-        'uploadedAt': '15-12-2025',
-        'icon': Icons.description_rounded,
-        'color': Colors.red,
-      },
-      {
-        'name': 'Laporan Pertanggungjawaban',
-        'type': 'PDF',
-        'size': '1.8 MB',
-        'uploadedAt': '20-12-2025',
-        'icon': Icons.assignment_rounded,
-        'color': Colors.blue,
-      },
-      {
-        'name': 'Rencana Anggaran Biaya',
-        'type': 'XLSX',
-        'size': '856 KB',
-        'uploadedAt': '14-12-2025',
-        'icon': Icons.table_chart_rounded,
-        'color': Colors.green,
-      },
-      {
-        'name': 'Logbook Kegiatan',
-        'type': 'PDF',
-        'size': '1.2 MB',
-        'uploadedAt': '18-12-2025',
-        'icon': Icons.book_rounded,
-        'color': Colors.orange,
-      },
+      ..._dokumenProposal.map(
+        (doc) => {
+          'id': doc['id_proposal'],
+          'name': 'Proposal - ${widget.event['nama_event']}',
+          'type': 'Proposal',
+          'status': doc['status_approval'] ?? 'Menunggu',
+          'uploadedAt': doc['tanggal_pengajuan'],
+          'uploadedBy':
+              (doc['users'] as Map<String, dynamic>?)?['username'] ?? 'Unknown',
+          'icon': Icons.description_rounded,
+          'color': Colors.red,
+          'catatan_admin': doc['catatan_admin'],
+        },
+      ),
+      ..._dokumenLpj.map(
+        (doc) => {
+          'id': doc['id_lpj'],
+          'name': 'LPJ - ${widget.event['nama_event']}',
+          'type': 'LPJ',
+          'status': doc['status_approval'] ?? 'Menunggu',
+          'uploadedAt': doc['tanggal_pengajuan'],
+          'uploadedBy':
+              (doc['users'] as Map<String, dynamic>?)?['username'] ?? 'Unknown',
+          'icon': Icons.assignment_rounded,
+          'color': Colors.blue,
+          'catatan_admin': doc['catatan_admin'],
+        },
+      ),
     ];
 
     return Container(
@@ -618,140 +716,205 @@ class DetailEventPage extends StatelessWidget {
   }
 
   Widget _buildDocumentItem(BuildContext context, Map<String, dynamic> doc) {
-    return InkWell(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => DetailDocumentPage(document: doc),
-          ),
-        );
-      },
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.grey[50]!, Colors.white],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey[200]!),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.02),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            // Icon
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    (doc['color'] as Color).withOpacity(0.2),
-                    (doc['color'] as Color).withOpacity(0.1),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                doc['icon'] as IconData,
-                color: doc['color'] as Color,
-                size: 28,
-              ),
-            ),
-            const SizedBox(width: 16),
+    final status = doc['status'] as String;
+    Color statusColor;
+    switch (status) {
+      case 'Disetujui':
+        statusColor = Colors.green;
+        break;
+      case 'Ditolak':
+        statusColor = Colors.red;
+        break;
+      case 'Revisi':
+        statusColor = Colors.orange;
+        break;
+      default:
+        statusColor = Colors.blue;
+    }
 
-            // Info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    doc['name'],
-                    style: GoogleFonts.inter(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.black87,
-                    ),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.grey[50]!, Colors.white],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              // Icon
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      (doc['color'] as Color).withOpacity(0.2),
+                      (doc['color'] as Color).withOpacity(0.1),
+                    ],
                   ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: (doc['color'] as Color).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          doc['type'],
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: doc['color'] as Color,
-                            letterSpacing: 0.5,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  doc['icon'] as IconData,
+                  color: doc['color'] as Color,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(width: 16),
+
+              // Info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      doc['name'],
+                      style: GoogleFonts.inter(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: (doc['color'] as Color).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            doc['type'],
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: doc['color'] as Color,
+                              letterSpacing: 0.5,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Icon(Icons.circle, size: 4, color: Colors.grey[400]),
-                      const SizedBox(width: 8),
-                      Text(
-                        doc['size'],
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          color: Colors.grey[600],
-                          fontWeight: FontWeight.w500,
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: statusColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            status,
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: statusColor,
+                            ),
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Icon(Icons.circle, size: 4, color: Colors.grey[400]),
-                      const SizedBox(width: 8),
-                      Icon(
-                        Icons.access_time_rounded,
-                        size: 14,
-                        color: Colors.grey[500],
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        doc['uploadedAt'],
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          color: Colors.grey[600],
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.person_outline,
+                          size: 14,
+                          color: Colors.grey[500],
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 4),
+                        Text(
+                          doc['uploadedBy'],
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Icon(Icons.circle, size: 4, color: Colors.grey[400]),
+                        const SizedBox(width: 8),
+                        Icon(
+                          Icons.access_time_rounded,
+                          size: 14,
+                          color: Colors.grey[500],
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _formatDate(doc['uploadedAt']),
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (doc['catatan_admin'] != null &&
+              doc['catatan_admin'].toString().isNotEmpty)
+            const SizedBox(height: 12),
+          if (doc['catatan_admin'] != null &&
+              doc['catatan_admin'].toString().isNotEmpty)
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.amber[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.amber[200]!),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.info_outline, size: 16, color: Colors.amber[700]),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Catatan Admin:',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.amber[900],
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          doc['catatan_admin'],
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: Colors.amber[800],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
-
-            // Arrow
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(
-                Icons.arrow_forward_rounded,
-                color: Colors.grey[600],
-                size: 20,
-              ),
-            ),
-          ],
-        ),
+        ],
       ),
     );
   }

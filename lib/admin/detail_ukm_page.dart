@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'dart:typed_data';
+import 'detail_event_page.dart';
 
 class DetailUkmPage extends StatefulWidget {
   final Map<String, dynamic> ukm;
@@ -1820,94 +1821,108 @@ class _DetailUkmPageState extends State<DetailUkmPage>
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFFFBBF24), Color(0xFFF59E0B)],
-                        ),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(
-                        Icons.celebration_rounded,
-                        color: Colors.white,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            event['nama_event'] ?? 'Event',
-                            style: GoogleFonts.inter(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.black87,
-                            ),
+          child: InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => DetailEventPage(event: event),
+                ),
+              );
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFFBBF24), Color(0xFFF59E0B)],
                           ),
-                          if (periode != null) ...[
-                            const SizedBox(height: 4),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.celebration_rounded,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                             Text(
-                              periode['nama_periode'],
+                              event['nama_event'] ?? 'Event',
                               style: GoogleFonts.inter(
-                                fontSize: 12,
-                                color: Colors.grey[600],
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.black87,
                               ),
                             ),
+                            if (periode != null) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                periode['nama_periode'],
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            ],
                           ],
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: event['status'] == true
-                            ? Colors.green[50]
-                            : Colors.grey[100],
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: event['status'] == true
-                              ? Colors.green[200]!
-                              : Colors.grey[300]!,
                         ),
                       ),
-                      child: Text(
-                        status,
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
                           color: event['status'] == true
-                              ? Colors.green[700]
-                              : Colors.grey[600],
+                              ? Colors.green[50]
+                              : Colors.grey[100],
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: event['status'] == true
+                                ? Colors.green[200]!
+                                : Colors.grey[300]!,
+                          ),
+                        ),
+                        child: Text(
+                          status,
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: event['status'] == true
+                                ? Colors.green[700]
+                                : Colors.grey[600],
+                          ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                _buildSimpleInfoRow(Icons.calendar_today, tanggalMulai),
-                const SizedBox(height: 6),
-                _buildSimpleInfoRow(Icons.location_on, event['lokasi'] ?? '-'),
-                if (event['max_participant'] != null) ...[
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _buildSimpleInfoRow(Icons.calendar_today, tanggalMulai),
                   const SizedBox(height: 6),
                   _buildSimpleInfoRow(
-                    Icons.people,
-                    'Maks ${event['max_participant']} peserta',
+                    Icons.location_on,
+                    event['lokasi'] ?? '-',
                   ),
+                  if (event['max_participant'] != null) ...[
+                    const SizedBox(height: 6),
+                    _buildSimpleInfoRow(
+                      Icons.people,
+                      'Maks ${event['max_participant']} peserta',
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         );
