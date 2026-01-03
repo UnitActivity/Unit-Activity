@@ -111,115 +111,242 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
         .where((n) => n['is_read'] == false)
         .length;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Header
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Notifikasi',
-                  style: GoogleFonts.inter(
-                    fontSize: isDesktop ? 24 : 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '$unreadCount notifikasi belum dibaca',
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    color: Colors.grey[600],
-                  ),
-                ),
-              ],
-            ),
-            Row(
-              children: [
-                if (unreadCount > 0)
-                  TextButton.icon(
-                    onPressed: _markAllAsRead,
-                    icon: const Icon(Icons.done_all, size: 18),
-                    label: Text(
-                      'Tandai Semua Dibaca',
-                      style: GoogleFonts.inter(fontSize: 14),
-                    ),
-                    style: TextButton.styleFrom(
-                      foregroundColor: const Color(0xFF4169E1),
-                    ),
-                  ),
-                const SizedBox(width: 8),
-                ElevatedButton.icon(
-                  onPressed: () => _showSendNotificationDialog(context),
-                  icon: const Icon(Icons.send, size: 18),
-                  label: Text(
-                    'Kirim Notifikasi',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4169E1),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    elevation: 0,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-        const SizedBox(height: 24),
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 24),
 
-        // Filter Tabs
-        _buildFilterTabs(),
-        const SizedBox(height: 24),
+          // Modern Header with Gradient
+          _buildModernHeader(isDesktop, unreadCount),
+          const SizedBox(height: 24),
 
-        // Notifications List
-        if (_isLoading)
-          const Center(
-            child: Padding(
-              padding: EdgeInsets.all(40),
-              child: CircularProgressIndicator(),
-            ),
-          )
-        else if (_allNotifications.isEmpty)
-          _buildEmptyState()
-        else
-          Expanded(
-            child: ListView.builder(
+          // Filter Tabs
+          _buildFilterTabs(),
+          const SizedBox(height: 24),
+
+          // Notifications List
+          if (_isLoading)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(40),
+                child: CircularProgressIndicator(),
+              ),
+            )
+          else if (_allNotifications.isEmpty)
+            _buildEmptyState()
+          else
+            ListView.builder(
               shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
               itemCount: _allNotifications.length,
               itemBuilder: (context, index) {
                 final notification = _allNotifications[index];
                 return _buildNotificationCard(notification);
               },
             ),
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModernHeader(bool isDesktop, int unreadCount) {
+    return Container(
+      padding: EdgeInsets.all(isDesktop ? 32 : 24),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF4169E1), Color(0xFF5B7FE8)],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF4169E1).withOpacity(0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
           ),
-      ],
+        ],
+      ),
+      child: Stack(
+        children: [
+          // Decorative circles
+          Positioned(
+            top: -20,
+            right: -20,
+            child: Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.1),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: -30,
+            left: -30,
+            child: Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.1),
+              ),
+            ),
+          ),
+
+          // Content
+          Column(
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.notifications_rounded,
+                      color: Colors.white,
+                      size: isDesktop ? 32 : 28,
+                    ),
+                  ),
+                  const SizedBox(width: 20),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Notifikasi',
+                          style: GoogleFonts.inter(
+                            fontSize: isDesktop ? 28 : 24,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            if (unreadCount > 0) ...[
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.red,
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  '$unreadCount',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                            ],
+                            Text(
+                              unreadCount > 0
+                                  ? 'Notifikasi belum dibaca'
+                                  : 'Semua notifikasi sudah dibaca',
+                              style: GoogleFonts.inter(
+                                fontSize: isDesktop ? 16 : 14,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.white.withOpacity(0.9),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  if (unreadCount > 0)
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _markAllAsRead,
+                        icon: const Icon(Icons.done_all, size: 18),
+                        label: Text(
+                          'Tandai Semua Dibaca',
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: const Color(0xFF4169E1),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (unreadCount > 0) const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => _showSendNotificationDialog(context),
+                      icon: const Icon(Icons.send, size: 18),
+                      label: Text(
+                        'Kirim Notifikasi',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: const Color(0xFF4169E1),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildFilterTabs() {
     return Container(
+      padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey[300]!),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(
         children: [
           _buildFilterTab('Semua'),
+          const SizedBox(width: 6),
           _buildFilterTab('Belum Dibaca'),
+          const SizedBox(width: 6),
           _buildFilterTab('Sudah Dibaca'),
         ],
       ),
@@ -235,20 +362,50 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
           setState(() => _filterStatus = label);
           _loadNotifications();
         },
+        borderRadius: BorderRadius.circular(10),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          padding: const EdgeInsets.symmetric(vertical: 14),
           decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFF4169E1) : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
+            gradient: isSelected
+                ? const LinearGradient(
+                    colors: [Color(0xFF4169E1), Color(0xFF5B7FE8)],
+                  )
+                : null,
+            color: isSelected ? null : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: const Color(0xFF4169E1).withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ]
+                : null,
           ),
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            style: GoogleFonts.inter(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: isSelected ? Colors.white : Colors.grey[700],
-            ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                label == 'Semua'
+                    ? Icons.notifications_rounded
+                    : label == 'Belum Dibaca'
+                    ? Icons.mark_email_unread_rounded
+                    : Icons.mark_email_read_rounded,
+                size: 18,
+                color: isSelected ? Colors.white : Colors.grey[600],
+              ),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: isSelected ? Colors.white : Colors.grey[700],
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -264,34 +421,87 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
       direction: DismissDirection.endToStart,
       background: Container(
         alignment: Alignment.centerRight,
+        margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.only(right: 20),
         decoration: BoxDecoration(
-          color: Colors.red,
+          gradient: const LinearGradient(
+            colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
+          ),
           borderRadius: BorderRadius.circular(12),
         ),
-        child: const Icon(Icons.delete, color: Colors.white),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.delete_rounded, color: Colors.white, size: 28),
+            const SizedBox(height: 4),
+            Text(
+              'Hapus',
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
       ),
       confirmDismiss: (direction) async {
         return await showDialog(
           context: context,
           builder: (context) => AlertDialog(
-            title: Text(
-              'Hapus Notifikasi',
-              style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.delete_rounded,
+                    color: Colors.red,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Hapus Notifikasi',
+                  style: GoogleFonts.inter(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 18,
+                  ),
+                ),
+              ],
             ),
             content: Text(
               'Apakah Anda yakin ingin menghapus notifikasi ini?',
-              style: GoogleFonts.inter(),
+              style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[700]),
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                child: Text('Batal', style: GoogleFonts.inter()),
+                child: Text(
+                  'Batal',
+                  style: GoogleFonts.inter(color: Colors.grey[700]),
+                ),
               ),
-              TextButton(
+              ElevatedButton(
                 onPressed: () => Navigator.pop(context, true),
-                style: TextButton.styleFrom(foregroundColor: Colors.red),
-                child: Text('Hapus', style: GoogleFonts.inter()),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: Text(
+                  'Hapus',
+                  style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                ),
               ),
             ],
           ),
@@ -303,21 +513,34 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
-          color: isRead
-              ? Colors.white
-              : const Color(0xFF4169E1).withOpacity(0.05),
+          gradient: isRead
+              ? LinearGradient(
+                  colors: [Colors.white, Colors.grey[50]!],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+              : LinearGradient(
+                  colors: [
+                    const Color(0xFF4169E1).withOpacity(0.08),
+                    const Color(0xFF4169E1).withOpacity(0.03),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isRead
                 ? Colors.grey[200]!
-                : const Color(0xFF4169E1).withOpacity(0.2),
+                : const Color(0xFF4169E1).withOpacity(0.3),
             width: isRead ? 1 : 2,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.03),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+              color: isRead
+                  ? Colors.black.withOpacity(0.03)
+                  : const Color(0xFF4169E1).withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -329,21 +552,33 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
           },
           borderRadius: BorderRadius.circular(12),
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(18),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Icon
+                // Icon with gradient background
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: _getNotificationColor(type).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(10),
+                    gradient: LinearGradient(
+                      colors: [
+                        _getNotificationColor(type),
+                        _getNotificationColor(type).withOpacity(0.7),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: _getNotificationColor(type).withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
                   child: Icon(
                     _getNotificationIcon(type),
-                    color: _getNotificationColor(type),
-                    size: 24,
+                    color: Colors.white,
+                    size: 26,
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -359,49 +594,94 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
                             child: Text(
                               notification['title'] ?? 'Notifikasi',
                               style: GoogleFonts.inter(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
                                 color: Colors.black87,
                               ),
                             ),
                           ),
                           if (!isRead)
                             Container(
-                              width: 8,
-                              height: 8,
-                              decoration: const BoxDecoration(
-                                color: Color(0xFF4169E1),
-                                shape: BoxShape.circle,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [
+                                    Color(0xFF4169E1),
+                                    Color(0xFF5B7FE8),
+                                  ],
+                                ),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                'BARU',
+                                style: GoogleFonts.inter(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                  letterSpacing: 0.5,
+                                ),
                               ),
                             ),
                         ],
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _getNotificationColor(type).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          _getNotificationTypeName(type),
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: _getNotificationColor(type),
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
                       Text(
                         notification['message'] ?? '',
                         style: GoogleFonts.inter(
                           fontSize: 14,
                           color: Colors.grey[700],
-                          height: 1.5,
+                          height: 1.6,
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.access_time,
-                            size: 14,
-                            color: Colors.grey[500],
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            _formatDateTime(notification['created_at']),
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[100],
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.access_time_rounded,
+                              size: 14,
                               color: Colors.grey[600],
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 6),
+                            Text(
+                              _formatDateTime(notification['created_at']),
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.grey[700],
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -414,27 +694,78 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
     );
   }
 
+  String _getNotificationTypeName(String type) {
+    switch (type) {
+      case 'event':
+        return 'EVENT';
+      case 'document':
+        return 'DOKUMEN';
+      case 'approval':
+        return 'PERSETUJUAN';
+      case 'warning':
+        return 'PERINGATAN';
+      case 'user':
+        return 'USER';
+      default:
+        return 'INFO';
+    }
+  }
+
   Widget _buildEmptyState() {
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(40),
+      child: Container(
+        width: double.infinity,
+        margin: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.symmetric(vertical: 60, horizontal: 48),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey[200]!),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Icon(Icons.notifications_none, size: 80, color: Colors.grey[300]),
-            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.grey[100]!, Colors.grey[50]!],
+                ),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.notifications_none_rounded,
+                size: 80,
+                color: Colors.grey[400],
+              ),
+            ),
+            const SizedBox(height: 24),
             Text(
               'Tidak ada notifikasi',
               style: GoogleFonts.inter(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey[600],
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: Colors.grey[700],
               ),
+              textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
             Text(
-              'Notifikasi akan muncul di sini',
+              _filterStatus == 'Semua'
+                  ? 'Notifikasi akan muncul di sini'
+                  : _filterStatus == 'Belum Dibaca'
+                  ? 'Semua notifikasi sudah dibaca'
+                  : 'Belum ada notifikasi yang dibaca',
               style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[500]),
+              textAlign: TextAlign.center,
             ),
           ],
         ),
