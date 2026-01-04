@@ -1,120 +1,183 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:unit_activity/config/routes.dart';
-import 'package:unit_activity/widgets/user_sidebar.dart';
-import 'package:unit_activity/widgets/user_header.dart';
 
 class UserUKMPage extends StatefulWidget {
-  const UserUKMPage({super.key});
+  const UserUKMPage({Key? key}) : super(key: key);
 
   @override
   State<UserUKMPage> createState() => _UserUKMPageState();
 }
 
 class _UserUKMPageState extends State<UserUKMPage> {
+  final SupabaseClient _supabase = Supabase.instance.client;
+
+  String _selectedMenu = 'UKM';
   Map<String, dynamic>? _selectedUKM;
   String _selectedFilter = 'Semua';
+  String _searchQuery = '';
+  bool _showQRScanner = false;
+  bool _isLoading = true;
 
-  final List<Map<String, dynamic>> _allUKMs = [
-    {
-      'id': 1,
-      'name': 'UKM Badminton',
-      'image':
-          'https://via.placeholder.com/300x300/FF9800/FFFFFF?text=UKM+Badminton',
-      'logo': '🏸',
-      'jadwal': 'Setiap Sabtu',
-      'time': '10:00 - 13:00 WIB',
-      'location': 'Merr Badminton Court',
-      'kontak': [
-        {'icon': Icons.phone, 'text': '081-234-789-101'},
-        {'icon': Icons.person, 'text': '@ukmBadminton'},
-      ],
-      'isRegistered': true,
-      'status': 'Sudah Terdaftar',
-    },
-    {
-      'id': 2,
-      'name': 'UKM Basketball',
-      'image':
-          'https://via.placeholder.com/300x300/2196F3/FFFFFF?text=UKM+Basketball',
-      'logo': '🏀',
-      'jadwal': 'Setiap Minggu',
-      'time': '14:00 - 16:00 WIB',
-      'location': 'Lapangan Basket UKDC',
-      'kontak': [
-        {'icon': Icons.phone, 'text': '081-234-789-102'},
-        {'icon': Icons.person, 'text': '@ukmBasketball'},
-      ],
-      'isRegistered': false,
-      'status': 'Belum Terdaftar',
-    },
-    {
-      'id': 3,
-      'name': 'UKM Dance',
-      'image':
-          'https://via.placeholder.com/300x300/9C27B0/FFFFFF?text=UKM+Dance',
-      'logo': '💃',
-      'jadwal': 'Setiap Rabu',
-      'time': '16:00 - 18:00 WIB',
-      'location': 'Studio Dance UKDC',
-      'kontak': [
-        {'icon': Icons.phone, 'text': '081-234-789-103'},
-        {'icon': Icons.person, 'text': '@ukmDance'},
-      ],
-      'isRegistered': false,
-      'status': 'Belum Terdaftar',
-    },
-    {
-      'id': 4,
-      'name': 'UKM E-Sports',
-      'image':
-          'https://via.placeholder.com/300x300/F44336/FFFFFF?text=UKM+E-Sports',
-      'logo': '🎮',
-      'jadwal': 'Setiap Jumat',
-      'time': '16:00 - 18:00 WIB',
-      'location': 'Ruang Gaming UKDC',
-      'kontak': [
-        {'icon': Icons.phone, 'text': '081-234-789-104'},
-        {'icon': Icons.person, 'text': '@ukmEsports'},
-      ],
-      'isRegistered': false,
-      'status': 'Belum Terdaftar',
-    },
-    {
-      'id': 5,
-      'name': 'UKM Music',
-      'image':
-          'https://via.placeholder.com/300x300/FF5722/FFFFFF?text=UKM+Music',
-      'logo': '🎵',
-      'jadwal': 'Setiap Kamis',
-      'time': '15:00 - 17:00 WIB',
-      'location': 'Ruang Musik UKDC',
-      'kontak': [
-        {'icon': Icons.phone, 'text': '081-234-789-105'},
-        {'icon': Icons.person, 'text': '@ukmMusic'},
-      ],
-      'isRegistered': false,
-      'status': 'Belum Terdaftar',
-    },
-    {
-      'id': 6,
-      'name': 'UKM Jurnalistik',
-      'image':
-          'https://via.placeholder.com/300x300/4CAF50/FFFFFF?text=UKM+Jurnalistik',
-      'logo': '📰',
-      'jadwal': 'Setiap Selasa',
-      'time': '14:00 - 16:00 WIB',
-      'location': 'Ruang Media UKDC',
-      'kontak': [
-        {'icon': Icons.phone, 'text': '081-234-789-106'},
-        {'icon': Icons.person, 'text': '@ukmJurnalistik'},
-      ],
-      'isRegistered': false,
-      'status': 'Belum Terdaftar',
-    },
-  ];
+  List<Map<String, dynamic>> _allUKMs = [];
+  Map<String, int> _userUKMAttendance = {}; // Store attendance for each UKM
 
-  List<Map<String, dynamic>> get _registeredUKMs {
-    return _allUKMs.where((ukm) => ukm['isRegistered'] == true).toList();
+  @override
+  void initState() {
+    super.initState();
+    _loadUKMs();
+    // Add lifecycle observer
+    WidgetsBinding.instance.addObserver(_LifecycleObserver(_onResume));
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(_LifecycleObserver(_onResume));
+    super.dispose();
+  }
+
+  void _onResume() {
+    print('DEBUG: App resumed, reloading UKM data');
+    _loadUKMs();
+  }
+
+  Future<void> _loadUKMs() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final user = _supabase.auth.currentUser;
+      print('DEBUG: Current user: ${user?.email}');
+
+      // Try minimal query first
+      final response = await _supabase
+          .from('ukm')
+          .select('id_ukm, nama_ukm, email, logo');
+
+      print('DEBUG: Response: $response');
+      print(
+        'DEBUG: Response length: ${response is List ? response.length : 'N/A'}',
+      );
+
+      // Load user's registered UKMs (baik login maupun anonymous)
+      final registeredUKMIds = Set<String>();
+      final Map<String, int> attendanceMap = {};
+
+      try {
+        // Get all registered UKMs from database
+        final userUKMResponse = await _supabase
+            .from('user_halaman_ukm')
+            .select('id_ukm')
+            .order('created_at', ascending: false);
+
+        print('DEBUG: userUKMResponse: $userUKMResponse');
+
+        if (userUKMResponse is List) {
+          for (var item in userUKMResponse) {
+            registeredUKMIds.add(item['id_ukm']?.toString() ?? '');
+            // Set default attendance, will be updated later from database
+            attendanceMap[item['id_ukm']?.toString() ?? ''] = 0;
+          }
+        }
+      } catch (e) {
+        print('DEBUG: Error loading user UKMs: $e');
+      }
+
+      final List<dynamic> data = response as List;
+
+      print('DEBUG: Loaded ${data.length} UKMs from database');
+
+      setState(() {
+        _allUKMs = data.map((ukm) {
+          final isReg = registeredUKMIds.contains(ukm['id_ukm']?.toString());
+          return {
+            'id': ukm['id_ukm'],
+            'name': ukm['nama_ukm'] ?? 'UKM',
+            'logo': ukm['logo'],
+            'email': ukm['email'] ?? '',
+            'description': 'Tidak ada deskripsi',
+            'jadwal': '-',
+            'time': '-',
+            'location': '-',
+            'kontak': [
+              {'icon': Icons.email, 'text': ukm['email'] ?? '-'},
+            ],
+            'isRegistered': isReg,
+            'status': isReg ? 'Sudah Terdaftar' : 'Belum Terdaftar',
+            'attendance': attendanceMap[ukm['id_ukm']?.toString()] ?? 0,
+          };
+        }).toList();
+        _userUKMAttendance = attendanceMap;
+        print('DEBUG: _allUKMs size: ${_allUKMs.length}');
+        print('DEBUG: _filteredUKMs size: ${_filteredUKMs.length}');
+        _isLoading = false;
+      });
+    } catch (e, stackTrace) {
+      print('Error loading UKMs: $e');
+      print('Stack trace: $stackTrace');
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  List<Map<String, dynamic>> get _filteredUKMs {
+    // Start with filtered by category
+    List<Map<String, dynamic>> filtered;
+    switch (_selectedFilter) {
+      case 'Bergabung':
+        filtered = _allUKMs
+            .where((ukm) => ukm['isRegistered'] == true)
+            .toList();
+        break;
+      case 'Belum':
+        filtered = _allUKMs
+            .where((ukm) => ukm['isRegistered'] == false)
+            .toList();
+        break;
+      case 'Aktif':
+        filtered = _allUKMs
+            .where(
+              (ukm) =>
+                  ukm['isRegistered'] == true && ukm['attendance'] ?? 0 > 0,
+            )
+            .toList();
+        break;
+      case 'Populer':
+        // Sort by attendance
+        filtered = _allUKMs.toList()
+          ..sort(
+            (a, b) => (b['attendance'] ?? 0).compareTo(a['attendance'] ?? 0),
+          );
+        break;
+      case 'Baru':
+        // New UKMs
+        filtered = _allUKMs.toList();
+        break;
+      case 'Semua':
+        // All UKMs
+        filtered = _allUKMs.toList();
+        break;
+      default:
+        filtered = _allUKMs;
+    }
+
+    // Filter by search query
+    if (_searchQuery.isEmpty) {
+      return filtered;
+    }
+
+    final query = _searchQuery.toLowerCase();
+    return filtered
+        .where(
+          (ukm) =>
+              (ukm['name'] as String).toLowerCase().contains(query) ||
+              (ukm['description'] as String).toLowerCase().contains(query) ||
+              (ukm['email'] as String).toLowerCase().contains(query),
+        )
+        .toList();
   }
 
   void _viewUKMDetail(Map<String, dynamic> ukm) {
@@ -127,37 +190,163 @@ class _UserUKMPageState extends State<UserUKMPage> {
     setState(() {
       _selectedUKM = null;
     });
+    // Reload UKM data to reflect any changes
+    _loadUKMs();
   }
 
   void _showRegisterDialog(Map<String, dynamic> ukm) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Bergabung dengan UKM'),
-        content: Text('Apakah ingin mendaftar event ${ukm['name']}?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Tidak'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              setState(() {
-                _selectedUKM!['isRegistered'] = true;
-                _selectedUKM!['status'] = 'Sudah Terdaftar';
-              });
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Berhasil mendaftar ${ukm['name']}'),
-                  duration: const Duration(seconds: 2),
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 12),
+                const Text(
+                  'Anda yakin mendaftar UKM ini ?',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-              );
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue[700]),
-            child: const Text('Ya'),
+                const SizedBox(height: 32),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: Colors.grey[300]!),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: const Text(
+                          'Tidak',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black54,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          try {
+                            final user = _supabase.auth.currentUser;
+
+                            // Generate anonymous user ID jika tidak login
+                            final userId =
+                                user?.id ??
+                                'anonymous_${DateTime.now().millisecondsSinceEpoch}';
+
+                            // Save to Supabase
+                            await _supabase.from('user_halaman_ukm').insert({
+                              'id_ukm': ukm['id'],
+                            });
+
+                            print(
+                              'DEBUG: Berhasil insert user_halaman_ukm untuk ${ukm['name']}',
+                            );
+
+                            // Update local state
+                            setState(() {
+                              final index = _allUKMs.indexWhere(
+                                (element) => element['id'] == ukm['id'],
+                              );
+                              if (index != -1) {
+                                _allUKMs[index]['isRegistered'] = true;
+                                _allUKMs[index]['status'] = 'Sudah Terdaftar';
+                                _allUKMs[index]['attendance'] = 0;
+                                _selectedUKM = _allUKMs[index];
+                              }
+                            });
+
+                            if (!mounted) return;
+                            Navigator.pop(context);
+
+                            // Reload data to ensure consistency
+                            await _loadUKMs();
+
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Berhasil mendaftar ${ukm['name']}!',
+                                  style: const TextStyle(color: Colors.white),
+                                ),
+                                backgroundColor: Colors.green[600],
+                                duration: const Duration(seconds: 2),
+                                behavior: SnackBarBehavior.floating,
+                                margin: const EdgeInsets.all(12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                            );
+                          } catch (e) {
+                            print('Error registering UKM: $e');
+                            if (!mounted) return;
+
+                            // Check if it's duplicate entry error
+                            if (e.toString().contains('duplicate') ||
+                                e.toString().contains('unique')) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: const Text(
+                                    'Anda sudah terdaftar di UKM ini',
+                                  ),
+                                  backgroundColor: Colors.orange[600],
+                                ),
+                              );
+                              Navigator.pop(context);
+                              await _loadUKMs();
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Gagal mendaftar UKM: ${e.toString()}',
+                                    style: const TextStyle(color: Colors.white),
+                                  ),
+                                  backgroundColor: Colors.red[600],
+                                ),
+                              );
+                            }
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue[600],
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: const Text(
+                          'Ya',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -180,39 +369,28 @@ class _UserUKMPageState extends State<UserUKMPage> {
   Widget _buildMobileLayout() {
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      body: Column(
+      drawer: Drawer(child: _buildSidebarVerticalModern()),
+      body: Stack(
         children: [
-          UserHeader(
-            userName: 'Adam',
-            onMenuPressed: () {
-              Scaffold.of(context).openDrawer();
-            },
-            onLogout: () => AppRoutes.logout(context),
-          ),
-          Expanded(
+          SingleChildScrollView(
+            padding: const EdgeInsets.only(
+              top: 70,
+              left: 12,
+              right: 12,
+              bottom: 12,
+            ),
             child: _selectedUKM == null
                 ? _buildUKMListMobile()
                 : _buildUKMDetailMobile(),
           ),
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: _buildFloatingTopBar(isMobile: true),
+          ),
+          if (_showQRScanner) _buildQRScannerOverlay(),
         ],
-      ),
-      drawer: Drawer(
-        child: UserSidebar(
-          selectedMenu: 'ukm',
-          onMenuSelected: (menu) {
-            Navigator.pop(context);
-            if (menu == 'dashboard') {
-              AppRoutes.navigateToUserDashboard(context);
-            } else if (menu == 'event') {
-              AppRoutes.navigateToUserEvent(context);
-            } else if (menu == 'histori') {
-              AppRoutes.navigateToUserHistory(context);
-            } else if (menu == 'profile') {
-              AppRoutes.navigateToUserProfile(context);
-            }
-          },
-          onLogout: () => AppRoutes.logout(context),
-        ),
       ),
     );
   }
@@ -221,38 +399,38 @@ class _UserUKMPageState extends State<UserUKMPage> {
   Widget _buildTabletLayout() {
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      body: Column(
+      body: Stack(
         children: [
-          UserHeader(
-            userName: 'Adam',
-            onLogout: () => AppRoutes.logout(context),
-          ),
-          Expanded(
-            child: Row(
-              children: [
-                UserSidebar(
-                  selectedMenu: 'ukm',
-                  onMenuSelected: (menu) {
-                    if (menu == 'dashboard') {
-                      AppRoutes.navigateToUserDashboard(context);
-                    } else if (menu == 'event') {
-                      AppRoutes.navigateToUserEvent(context);
-                    } else if (menu == 'histori') {
-                      AppRoutes.navigateToUserHistory(context);
-                    } else if (menu == 'profile') {
-                      AppRoutes.navigateToUserProfile(context);
-                    }
-                  },
-                  onLogout: () => AppRoutes.logout(context),
+          Column(
+            children: [
+              SizedBox(height: 70), // Space for floating top bar
+              Expanded(
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 200,
+                      child: Container(
+                        color: Colors.white,
+                        child: _buildSidebarVerticalModern(),
+                      ),
+                    ),
+                    Expanded(
+                      child: _selectedUKM == null
+                          ? _buildUKMListTablet()
+                          : _buildUKMDetailTablet(),
+                    ),
+                  ],
                 ),
-                Expanded(
-                  child: _selectedUKM == null
-                      ? _buildUKMListTablet()
-                      : _buildUKMDetailTablet(),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: _buildFloatingTopBar(isMobile: false),
+          ),
+          if (_showQRScanner) _buildQRScannerOverlay(),
         ],
       ),
     );
@@ -262,34 +440,82 @@ class _UserUKMPageState extends State<UserUKMPage> {
   Widget _buildDesktopLayout() {
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      body: Row(
+      body: Stack(
         children: [
-          UserSidebar(
-            selectedMenu: 'ukm',
-            onMenuSelected: (menu) {
-              if (menu == 'dashboard') {
-                AppRoutes.navigateToUserDashboard(context);
-              } else if (menu == 'event') {
-                AppRoutes.navigateToUserEvent(context);
-              } else if (menu == 'histori') {
-                AppRoutes.navigateToUserHistory(context);
-              } else if (menu == 'profile') {
-                AppRoutes.navigateToUserProfile(context);
-              }
-            },
-            onLogout: () => AppRoutes.logout(context),
-          ),
-          Expanded(
-            child: Column(
-              children: [
-                UserHeader(
-                  userName: 'Adam',
-                  onLogout: () => AppRoutes.logout(context),
+          Row(
+            children: [
+              _buildSidebarModern(),
+              Expanded(
+                child: Column(
+                  children: [
+                    SizedBox(height: 70), // Space for floating top bar
+                    Expanded(
+                      child: _selectedUKM == null
+                          ? _buildUKMListDesktop()
+                          : _buildUKMDetailDesktop(),
+                    ),
+                  ],
                 ),
-                Expanded(
-                  child: _selectedUKM == null
-                      ? _buildUKMListDesktop()
-                      : _buildUKMDetailDesktop(),
+              ),
+            ],
+          ),
+          Positioned(
+            top: 0,
+            left: 250,
+            right: 0,
+            child: _buildFloatingTopBar(isMobile: false),
+          ),
+          if (_showQRScanner) _buildQRScannerOverlay(),
+        ],
+      ),
+    );
+  }
+
+  // ==================== SIDEBAR ====================
+  Widget _buildSidebarModern() {
+    return Container(
+      width: 250,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 10,
+            offset: const Offset(2, 0),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              'UNIT ACTIVITY',
+              style: GoogleFonts.orbitron(
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+                color: const Color(0xFF4169E1),
+                letterSpacing: 1.2,
+              ),
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              children: [
+                _buildModernMenuItem(
+                  Icons.dashboard,
+                  'Dashboard',
+                  AppRoutes.userDashboard,
+                ),
+                _buildModernMenuItem(Icons.event, 'Event', AppRoutes.userEvent),
+                _buildModernMenuItem(Icons.groups, 'UKM', AppRoutes.userUKM),
+                _buildModernMenuItem(
+                  Icons.history,
+                  'Histori',
+                  AppRoutes.userHistory,
                 ),
               ],
             ),
@@ -299,8 +525,461 @@ class _UserUKMPageState extends State<UserUKMPage> {
     );
   }
 
+  Widget _buildModernMenuItem(IconData icon, String title, String route) {
+    final isSelected = _selectedMenu == title;
+
+    return InkWell(
+      onTap: () {
+        setState(() => _selectedMenu = title);
+        if (route == AppRoutes.userDashboard) {
+          AppRoutes.navigateToUserDashboard(context);
+        } else if (route == AppRoutes.userEvent) {
+          AppRoutes.navigateToUserEvent(context);
+        } else if (route == AppRoutes.userUKM) {
+          AppRoutes.navigateToUserUKM(context);
+        } else if (route == AppRoutes.userHistory) {
+          AppRoutes.navigateToUserHistory(context);
+        } else if (route == AppRoutes.userProfile) {
+          AppRoutes.navigateToUserProfile(context);
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.blue[50] : Colors.transparent,
+          border: Border(
+            left: BorderSide(
+              color: isSelected ? Colors.blue[700]! : Colors.transparent,
+              width: 3,
+            ),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              size: 20,
+              color: isSelected ? Colors.blue[700] : Colors.grey[600],
+            ),
+            const SizedBox(width: 12),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                color: isSelected ? Colors.blue[700] : Colors.grey[700],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ==================== MODERN VERTICAL SIDEBAR (MOBILE/TABLET) ====================
+  Widget _buildSidebarVerticalModern() {
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[100],
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Icon(Icons.school, color: Colors.blue[700], size: 20),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'UNIT ACTIVITY',
+                  style: GoogleFonts.orbitron(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8,
+                    color: Colors.blue[700],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          _buildMenuItemCompactModern(
+            Icons.dashboard_rounded,
+            'Dashboard',
+            AppRoutes.userDashboard,
+          ),
+          _buildMenuItemCompactModern(
+            Icons.event_rounded,
+            'Event',
+            AppRoutes.userEvent,
+          ),
+          _buildMenuItemCompactModern(
+            Icons.groups_rounded,
+            'UKM',
+            AppRoutes.userUKM,
+          ),
+          _buildMenuItemCompactModern(
+            Icons.history_rounded,
+            'Histori',
+            AppRoutes.userHistory,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMenuItemCompactModern(
+    IconData icon,
+    String title,
+    String route,
+  ) {
+    final isSelected = _selectedMenu == title;
+
+    return ListTile(
+      dense: true,
+      leading: Icon(
+        icon,
+        size: 18,
+        color: isSelected ? Colors.blue[700] : Colors.grey[600],
+      ),
+      title: Text(
+        title,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+          color: isSelected ? Colors.blue[700] : Colors.grey[700],
+        ),
+      ),
+      selected: isSelected,
+      selectedTileColor: Colors.blue[50],
+      onTap: () {
+        setState(() => _selectedMenu = title);
+        Navigator.pop(context);
+        Future.delayed(const Duration(milliseconds: 200), () {
+          if (route == AppRoutes.userDashboard) {
+            AppRoutes.navigateToUserDashboard(context);
+          } else if (route == AppRoutes.userEvent) {
+            AppRoutes.navigateToUserEvent(context);
+          } else if (route == AppRoutes.userUKM) {
+            AppRoutes.navigateToUserUKM(context);
+          } else if (route == AppRoutes.userHistory) {
+            AppRoutes.navigateToUserHistory(context);
+          } else if (route == AppRoutes.userProfile) {
+            AppRoutes.navigateToUserProfile(context);
+          }
+        });
+      },
+    );
+  }
+
+  // ==================== FLOATING TOP BAR ====================
+  Widget _buildFloatingTopBar({required bool isMobile}) {
+    return Container(
+      margin: EdgeInsets.only(left: isMobile ? 0 : 8, right: 8, top: 8),
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 12 : 20,
+        vertical: 12,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // Hamburger menu for mobile
+          if (isMobile)
+            Builder(
+              builder: (context) => IconButton(
+                onPressed: () => Scaffold.of(context).openDrawer(),
+                icon: const Icon(Icons.menu),
+                tooltip: 'Menu',
+              ),
+            ),
+          const Spacer(),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              if (!isMobile)
+                IconButton(
+                  onPressed: () => Navigator.pushNamed(context, AppRoutes.home),
+                  icon: const Icon(Icons.home_outlined),
+                  tooltip: 'Home',
+                ),
+              if (!isMobile) const SizedBox(width: 8),
+              IconButton(
+                onPressed: () {
+                  setState(() {
+                    _showQRScanner = !_showQRScanner;
+                  });
+                },
+                icon: const Icon(Icons.qr_code_2),
+                tooltip: 'Scan QR Code',
+                color: _showQRScanner ? Colors.blue[700] : Colors.grey[600],
+              ),
+              if (!isMobile) const SizedBox(width: 8),
+              IconButton(
+                onPressed: () {},
+                icon: const Icon(Icons.notifications_outlined),
+                tooltip: 'Notifications',
+              ),
+              if (!isMobile) const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () =>
+                    Navigator.pushNamed(context, AppRoutes.userProfile),
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.08),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: CircleAvatar(
+                    radius: isMobile ? 14 : 16,
+                    backgroundColor: Colors.blue[600],
+                    child: Icon(
+                      Icons.person,
+                      size: isMobile ? 16 : 20,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+              if (!isMobile) const SizedBox(width: 8),
+              if (!isMobile)
+                GestureDetector(
+                  onTap: () =>
+                      Navigator.pushNamed(context, AppRoutes.userProfile),
+                  child: const Text(
+                    'Adam',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==================== QR SCANNER OVERLAY ====================
+  final TextEditingController _qrCodeController = TextEditingController();
+
+  Widget _buildQRScannerOverlay() {
+    return Positioned(
+      top: 70,
+      right: 8,
+      child: Container(
+        width: 350,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Scan QR Code',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+                IconButton(
+                  onPressed: () {
+                    setState(() {
+                      _showQRScanner = false;
+                    });
+                  },
+                  icon: const Icon(Icons.close),
+                  iconSize: 20,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey[300]!),
+              ),
+              child: Column(
+                children: [
+                  Icon(Icons.qr_code, size: 60, color: Colors.blue[400]),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.orange[200]!),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.laptop_mac,
+                          size: 18,
+                          color: Colors.orange[700],
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Kamera tidak tersedia di perangkat ini. Silakan masukkan kode QR secara manual.',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.orange[800],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _qrCodeController,
+                    decoration: InputDecoration(
+                      hintText: 'Masukkan kode QR',
+                      hintStyle: TextStyle(
+                        color: Colors.grey[400],
+                        fontSize: 14,
+                      ),
+                      prefixIcon: Icon(
+                        Icons.qr_code_scanner,
+                        color: Colors.grey[500],
+                      ),
+                      filled: true,
+                      fillColor: Colors.white,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey[300]!),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey[300]!),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(
+                          color: Colors.blue[700]!,
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        final code = _qrCodeController.text.trim();
+                        if (code.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: const Text('Silakan masukkan kode QR'),
+                              backgroundColor: Colors.orange[600],
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                          return;
+                        }
+                        // Process QR code
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Check-in berhasil dengan kode: $code',
+                            ),
+                            backgroundColor: Colors.green[600],
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                        _qrCodeController.clear();
+                        setState(() {
+                          _showQRScanner = false;
+                        });
+                      },
+                      icon: const Icon(Icons.check_circle, size: 18),
+                      label: const Text('Submit Kode'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue[700],
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, size: 18, color: Colors.blue[700]),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Masukkan kode dari QR untuk check-in ke event atau aktivitas',
+                      style: TextStyle(fontSize: 12, color: Colors.blue[700]),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ==================== UKM LIST VIEW - MOBILE ====================
   Widget _buildUKMListMobile() {
+    if (_isLoading) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(40),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(12),
       child: Column(
@@ -311,22 +990,34 @@ class _UserUKMPageState extends State<UserUKMPage> {
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
+          _buildSearchBar(),
+          const SizedBox(height: 12),
           _buildFilterChipsMobile(),
           const SizedBox(height: 16),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 0.85,
+          if (_filteredUKMs.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(32),
+              alignment: Alignment.center,
+              child: const Text(
+                'Tidak ada UKM yang tersedia',
+                style: TextStyle(color: Colors.grey, fontSize: 14),
+              ),
+            )
+          else
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: 0.85,
+              ),
+              itemCount: _filteredUKMs.length,
+              itemBuilder: (context, index) {
+                return _buildUKMCard(_filteredUKMs[index], isMobile: true);
+              },
             ),
-            itemCount: _allUKMs.length,
-            itemBuilder: (context, index) {
-              return _buildUKMCard(_allUKMs[index], isMobile: true);
-            },
-          ),
         ],
       ),
     );
@@ -334,6 +1025,15 @@ class _UserUKMPageState extends State<UserUKMPage> {
 
   // ==================== UKM LIST VIEW - TABLET ====================
   Widget _buildUKMListTablet() {
+    if (_isLoading) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(40),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -344,22 +1044,34 @@ class _UserUKMPageState extends State<UserUKMPage> {
             style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
+          _buildSearchBar(),
+          const SizedBox(height: 12),
           _buildFilterChipsTablet(),
           const SizedBox(height: 16),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-              childAspectRatio: 0.9,
+          if (_filteredUKMs.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(32),
+              alignment: Alignment.center,
+              child: const Text(
+                'Tidak ada UKM yang tersedia',
+                style: TextStyle(color: Colors.grey, fontSize: 16),
+              ),
+            )
+          else
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+                childAspectRatio: 0.9,
+              ),
+              itemCount: _filteredUKMs.length,
+              itemBuilder: (context, index) {
+                return _buildUKMCard(_filteredUKMs[index], isMobile: false);
+              },
             ),
-            itemCount: _allUKMs.length,
-            itemBuilder: (context, index) {
-              return _buildUKMCard(_allUKMs[index], isMobile: false);
-            },
-          ),
         ],
       ),
     );
@@ -367,6 +1079,15 @@ class _UserUKMPageState extends State<UserUKMPage> {
 
   // ==================== UKM LIST VIEW - DESKTOP ====================
   Widget _buildUKMListDesktop() {
+    if (_isLoading) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(40),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -377,22 +1098,69 @@ class _UserUKMPageState extends State<UserUKMPage> {
             style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
+          _buildSearchBar(),
+          const SizedBox(height: 16),
           _buildFilterChipsDesktop(),
           const SizedBox(height: 24),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 4,
-              crossAxisSpacing: 20,
-              mainAxisSpacing: 20,
-              childAspectRatio: 0.9,
+          if (_filteredUKMs.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(40),
+              alignment: Alignment.center,
+              child: Column(
+                children: [
+                  const Text(
+                    'Tidak ada UKM yang tersedia',
+                    style: TextStyle(color: Colors.grey, fontSize: 16),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Total UKM: ${_allUKMs.length}',
+                    style: const TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Filter: $_selectedFilter',
+                    style: const TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (_allUKMs.isEmpty)
+                        ElevatedButton(
+                          onPressed: _loadUKMs,
+                          child: const Text('Muat Ulang Data'),
+                        ),
+                      if (_allUKMs.isNotEmpty) ...[
+                        ElevatedButton(
+                          onPressed: () {
+                            setState(() {
+                              _selectedFilter = 'Semua';
+                            });
+                          },
+                          child: const Text('Reset Filter'),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            )
+          else
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 4,
+                crossAxisSpacing: 20,
+                mainAxisSpacing: 20,
+                childAspectRatio: 0.9,
+              ),
+              itemCount: _filteredUKMs.length,
+              itemBuilder: (context, index) {
+                return _buildUKMCard(_filteredUKMs[index], isMobile: false);
+              },
             ),
-            itemCount: _allUKMs.length,
-            itemBuilder: (context, index) {
-              return _buildUKMCard(_allUKMs[index], isMobile: false);
-            },
-          ),
         ],
       ),
     );
@@ -400,15 +1168,20 @@ class _UserUKMPageState extends State<UserUKMPage> {
 
   // ==================== UKM CARD ====================
   Widget _buildUKMCard(Map<String, dynamic> ukm, {required bool isMobile}) {
+    final isRegistered = ukm['isRegistered'] as bool;
+    final attendance = ukm['attendance'] as int? ?? 0;
+
     return InkWell(
       onTap: () => _viewUKMDetail(ukm),
       child: Card(
         elevation: 2,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
               child: Container(
+                width: double.infinity,
                 decoration: BoxDecoration(
                   color: Colors.grey[200],
                   borderRadius: const BorderRadius.vertical(
@@ -419,10 +1192,7 @@ class _UserUKMPageState extends State<UserUKMPage> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
-                        ukm['logo'],
-                        style: TextStyle(fontSize: isMobile ? 36 : 50),
-                      ),
+                      _buildUKMLogo(ukm['logo'], size: isMobile ? 50 : 70),
                       const SizedBox(height: 6),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 6),
@@ -444,24 +1214,98 @@ class _UserUKMPageState extends State<UserUKMPage> {
             ),
             Padding(
               padding: const EdgeInsets.all(8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Text(
-                      ukm['isRegistered'] ? 'Terdaftar' : 'Lihat Detail',
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: isMobile ? 10 : 12,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                  if (isRegistered) ...[
+                    // Progress bar untuk pertemuan
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '$attendance/3 Pertemuan Dihadiri',
+                          style: TextStyle(
+                            fontSize: isMobile ? 10 : 11,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 6,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(3),
+                            child: LinearProgressIndicator(
+                              value: attendance / 3,
+                              backgroundColor: Colors.grey[300],
+                              valueColor: AlwaysStoppedAnimation(
+                                attendance >= 3
+                                    ? Colors.green[600]
+                                    : Colors.blue[600],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  Icon(
-                    Icons.arrow_forward,
-                    size: isMobile ? 12 : 16,
-                    color: Colors.grey[600],
+                  ] else ...[
+                    // Belum terdaftar - tampilkan empty progress bar
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '0/3 Pertemuan Dihadiri',
+                          style: TextStyle(
+                            fontSize: isMobile ? 10 : 11,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[500],
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 6,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(3),
+                            child: LinearProgressIndicator(
+                              value: 0,
+                              backgroundColor: Colors.grey[300],
+                              valueColor: AlwaysStoppedAnimation(
+                                Colors.grey[400],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        isRegistered ? 'Terdaftar' : 'Belum Terdaftar',
+                        style: TextStyle(
+                          color: isRegistered
+                              ? Colors.green[700]
+                              : Colors.grey[600],
+                          fontSize: isMobile ? 10 : 12,
+                          fontWeight: isRegistered
+                              ? FontWeight.w600
+                              : FontWeight.normal,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Icon(
+                        Icons.arrow_forward,
+                        size: isMobile ? 12 : 16,
+                        color: isRegistered
+                            ? Colors.green[700]
+                            : Colors.grey[600],
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -472,9 +1316,66 @@ class _UserUKMPageState extends State<UserUKMPage> {
     );
   }
 
+  // ==================== UKM LOGO HELPER ====================
+  Widget _buildUKMLogo(String? logoPath, {double size = 50}) {
+    if (logoPath == null || logoPath.isEmpty) {
+      return _buildUKMLogoPlaceholder(size: size);
+    }
+
+    // Check if it's a network URL
+    if (logoPath.startsWith('http://') || logoPath.startsWith('https://')) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(size / 4),
+        child: Image.network(
+          logoPath,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            return _buildUKMLogoPlaceholder(size: size);
+          },
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return SizedBox(
+              width: size,
+              height: size,
+              child: Center(
+                child: CircularProgressIndicator(
+                  value: loadingProgress.expectedTotalBytes != null
+                      ? loadingProgress.cumulativeBytesLoaded /
+                            loadingProgress.expectedTotalBytes!
+                      : null,
+                  color: Colors.blue[600],
+                  strokeWidth: 2,
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    } else {
+      // Assume it's an emoji or fallback
+      return Text(logoPath, style: TextStyle(fontSize: size * 0.7));
+    }
+  }
+
+  Widget _buildUKMLogoPlaceholder({double size = 50}) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: Colors.grey[300],
+        borderRadius: BorderRadius.circular(size / 4),
+      ),
+      child: Center(
+        child: Icon(Icons.groups, size: size * 0.5, color: Colors.grey[500]),
+      ),
+    );
+  }
+
   // ==================== FILTER CHIPS ====================
   Widget _buildFilterChipsMobile() {
-    final filters = ['Semua', 'Populer', 'Terbaru'];
+    final filters = ['Semua', 'Bergabung', 'Belum', 'Aktif', 'Populer'];
     return SizedBox(
       height: 32,
       child: ListView.builder(
@@ -507,7 +1408,7 @@ class _UserUKMPageState extends State<UserUKMPage> {
   }
 
   Widget _buildFilterChipsTablet() {
-    final filters = ['Semua', 'Populer', 'Aktif', 'Terbaru'];
+    final filters = ['Semua', 'Bergabung', 'Belum', 'Aktif', 'Populer'];
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
@@ -536,7 +1437,7 @@ class _UserUKMPageState extends State<UserUKMPage> {
   }
 
   Widget _buildFilterChipsDesktop() {
-    final filters = ['Semua', 'Populer', 'Aktif', 'Bergerak', 'Terbaru'];
+    final filters = ['Semua', 'Bergabung', 'Belum', 'Aktif', 'Populer'];
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
@@ -560,6 +1461,45 @@ class _UserUKMPageState extends State<UserUKMPage> {
             ),
           );
         }).toList(),
+      ),
+    );
+  }
+
+  // ==================== SEARCH BAR ====================
+  Widget _buildSearchBar() {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: TextField(
+        onChanged: (value) {
+          setState(() {
+            _searchQuery = value;
+          });
+        },
+        decoration: InputDecoration(
+          hintText: 'Cari UKM...',
+          hintStyle: TextStyle(color: Colors.grey[500]),
+          prefixIcon: Icon(Icons.search, color: Colors.grey[600]),
+          suffixIcon: _searchQuery.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.clear),
+                  color: Colors.grey[600],
+                  onPressed: () {
+                    setState(() {
+                      _searchQuery = '';
+                    });
+                  },
+                )
+              : null,
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(
+            vertical: 12,
+            horizontal: 0,
+          ),
+        ),
+        style: const TextStyle(fontSize: 14),
       ),
     );
   }
@@ -589,10 +1529,7 @@ class _UserUKMPageState extends State<UserUKMPage> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(
-                    _selectedUKM!['logo'],
-                    style: const TextStyle(fontSize: 50),
-                  ),
+                  _buildUKMLogo(_selectedUKM!['logo'], size: 80),
                   const SizedBox(height: 8),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -651,10 +1588,7 @@ class _UserUKMPageState extends State<UserUKMPage> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(
-                          _selectedUKM!['logo'],
-                          style: const TextStyle(fontSize: 45),
-                        ),
+                        _buildUKMLogo(_selectedUKM!['logo'], size: 80),
                         const SizedBox(height: 8),
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -711,10 +1645,7 @@ class _UserUKMPageState extends State<UserUKMPage> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
-                        _selectedUKM!['logo'],
-                        style: const TextStyle(fontSize: 80),
-                      ),
+                      _buildUKMLogo(_selectedUKM!['logo'], size: 120),
                       const SizedBox(height: 16),
                       Text(
                         _selectedUKM!['name'],
@@ -878,8 +1809,22 @@ class _UserUKMPageState extends State<UserUKMPage> {
               ],
             ),
           );
-        }),
+        }).toList(),
       ],
     );
+  }
+}
+
+// Lifecycle observer untuk reload data ketika app resume
+class _LifecycleObserver extends WidgetsBindingObserver {
+  final Function() onResume;
+
+  _LifecycleObserver(this.onResume);
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      onResume();
+    }
   }
 }

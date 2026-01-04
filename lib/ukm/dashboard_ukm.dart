@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:unit_activity/widgets/ukm_sidebar.dart';
-import 'package:unit_activity/widgets/ukm_header.dart';
+import 'package:unit_activity/components/ukm_sidebar.dart';
+import 'package:unit_activity/components/ukm_header.dart';
 import 'package:unit_activity/ukm/peserta_ukm.dart';
 import 'package:unit_activity/ukm/event_ukm.dart';
+import 'package:unit_activity/ukm/pertemuan_ukm.dart';
 import 'package:unit_activity/ukm/informasi_ukm.dart';
 import 'package:unit_activity/ukm/notifikasi_ukm.dart';
 import 'package:unit_activity/ukm/akun_ukm.dart';
@@ -20,8 +21,15 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   // Sample data - replace with actual data from API/database
-  final String _ukmName = 'UKM Basket';
+  final String _ukmName = 'UKM Dashboard';
   final String _periode = '2025.1';
+
+  @override
+  void initState() {
+    super.initState();
+    // Login check removed - direct access allowed
+  }
+
   final int _totalPeserta = 40;
   final int _totalEventPeriode = 1;
   final int _totalPertemuan = 6;
@@ -56,6 +64,7 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
   void _handleLogout() {
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
@@ -164,6 +173,8 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
         return const PesertaUKMPage();
       case 'event':
         return const EventUKMPage();
+      case 'pertemuan':
+        return const PertemuanUKMPage();
       case 'informasi':
         return const InformasiUKMPage();
       case 'notifikasi':
@@ -286,7 +297,9 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
                             const SizedBox(),
                             TextButton.icon(
                               onPressed: () {
-                                // TODO: Navigate to detail
+                                setState(() {
+                                  _selectedMenu = 'informasi';
+                                });
                               },
                               icon: const Icon(
                                 Icons.arrow_forward,

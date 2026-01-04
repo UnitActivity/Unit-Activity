@@ -118,4 +118,39 @@ class LoginService {
       };
     }
   }
+
+  // ========== HELPER METHODS FOR SYNCHRONOUS ACCESS ==========
+  /// Cached user data for synchronous access
+  Map<String, dynamic>? _cachedUserData;
+
+  /// Get cached user data
+  Map<String, dynamic>? get currentUserData => _cachedUserData;
+
+  /// Check if user is logged in
+  bool isUserLoggedIn() {
+    return _supabase.auth.currentUser != null;
+  }
+
+  /// Check if current user is UKM
+  bool isUserUKM() {
+    if (_cachedUserData == null) return false;
+    return _cachedUserData!['role'] == 'ukm';
+  }
+
+  /// Initialize cached user data (call this after login or on app start)
+  Future<void> initializeUserData() async {
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user != null) {
+        final userData = await _supabase
+            .from('users')
+            .select()
+            .eq('id_user', user.id)
+            .single();
+        _cachedUserData = userData;
+      }
+    } catch (e) {
+      _cachedUserData = null;
+    }
+  }
 }

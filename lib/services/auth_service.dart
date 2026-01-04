@@ -81,4 +81,20 @@ class AuthService {
       newPassword: newPassword,
     );
   }
+
+  // ========== HELPER METHODS ==========
+  /// Get current user data synchronously (cached)
+  dynamic get currentUser {
+    return _loginService.currentUserData;
+  }
+
+  /// Check if user is logged in
+  bool isLoggedIn() {
+    return _loginService.isUserLoggedIn();
+  }
+
+  /// Check if current user is UKM
+  bool isUKM() {
+    return _loginService.isUserUKM();
+  }
 }
