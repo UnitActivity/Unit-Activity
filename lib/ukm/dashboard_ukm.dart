@@ -76,26 +76,24 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
     });
 
     try {
-      // Get current UKM ID from auth
-      _ukmId = await _dashboardService.getCurrentUkmId();
+      // Get current UKM details (includes UKM ID and name)
+      final ukmDetailsResponse = await _dashboardService.getCurrentUkmDetails();
 
-      if (_ukmId == null) {
+      if (ukmDetailsResponse == null) {
         setState(() {
           _errorMessage =
-              'Tidak dapat mengidentifikasi UKM. Pastikan akun Anda terdaftar sebagai admin UKM.';
+              'Tidak dapat mengidentifikasi UKM. Pastikan akun Anda terdaftar sebagai admin UKM dan memiliki profil UKM.';
           _isLoadingStats = false;
           _isLoadingInformasi = false;
         });
         return;
       }
 
-      // Get UKM details
-      final ukmDetails = await _dashboardService.getUkmDetails(_ukmId!);
-      if (ukmDetails['success'] == true) {
-        setState(() {
-          _ukmName = ukmDetails['data']['nama_ukm'] ?? 'UKM Dashboard';
-        });
-      }
+      // Set UKM ID and name
+      _ukmId = ukmDetailsResponse['id_ukm'];
+      setState(() {
+        _ukmName = ukmDetailsResponse['nama_ukm'] ?? 'UKM Dashboard';
+      });
 
       // Get current periode
       final periode = await _dashboardService.getCurrentPeriode(_ukmId!);
@@ -402,7 +400,7 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
       children: [
         // Title
         Text(
-          '📰 Informasi Terkini',
+          'Informasi Terkini',
           style: GoogleFonts.inter(
             fontSize: isDesktop ? 20 : 18,
             fontWeight: FontWeight.bold,
@@ -417,7 +415,7 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
 
         // Section Title for Statistics
         Text(
-          '📊 Statistik',
+          'Statistik',
           style: GoogleFonts.inter(
             fontSize: isDesktop ? 20 : 18,
             fontWeight: FontWeight.bold,

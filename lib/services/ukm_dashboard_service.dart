@@ -24,40 +24,82 @@ class UkmDashboardService {
   }
 
   /// Get current UKM ID from logged in user
+  /// This method properly queries the ukm table using id_admin
   Future<String?> getCurrentUkmId() async {
     try {
       print('========== GET CURRENT UKM ID ==========');
 
-      // Get current user ID from session
-      final userId = _authService.currentUserId;
-      print('Current user ID from session: $userId');
+      // Get current user ID from session (this is id_admin)
+      final adminId = _authService.currentUserId;
+      print('Current admin ID from session: $adminId');
 
-      if (userId == null) {
+      if (adminId == null) {
         print('❌ No user logged in');
         return null;
       }
 
-      // Get UKM ID from admin table
-      print('Querying admin table for user: $userId');
+      // Query UKM table to get actual id_ukm based on id_admin
+      print('Querying ukm table for admin: $adminId');
       final response = await _supabase
-          .from('admin')
-          .select('id_admin')
-          .eq('id_admin', userId)
+          .from('ukm')
+          .select('id_ukm, nama_ukm')
+          .eq('id_admin', adminId)
           .maybeSingle();
 
-      print('Admin query result: $response');
+      print('UKM query result: $response');
 
       if (response == null) {
-        print('❌ No admin record found for user: $userId');
+        print('❌ No UKM record found for admin: $adminId');
+        print('⚠️ The admin exists but UKM profile needs to be created');
         return null;
       }
 
-      final ukmId = response['id_admin'] as String?;
-      print('✅ Found UKM ID: $ukmId');
+      final ukmId = response['id_ukm'] as String?;
+      final namaUkm = response['nama_ukm'] as String?;
+      print('✅ Found UKM: $namaUkm (ID: $ukmId)');
 
       return ukmId;
     } catch (e) {
       print('❌ Error getting current UKM ID: $e');
+      return null;
+    }
+  }
+
+  /// Get complete UKM details by admin ID (for current logged in UKM admin)
+  Future<Map<String, dynamic>?> getCurrentUkmDetails() async {
+    try {
+      print('========== GET CURRENT UKM DETAILS ==========');
+
+      // Get current admin ID from session
+      final adminId = _authService.currentUserId;
+      print('Current admin ID: $adminId');
+
+      if (adminId == null) {
+        print('❌ No user logged in');
+        return null;
+      }
+
+      // Query UKM table to get complete UKM details
+      final response = await _supabase
+          .from('ukm')
+          .select(
+            'id_ukm, nama_ukm, description, logo, create_at, id_admin, id_current_periode',
+          )
+          .eq('id_admin', adminId)
+          .maybeSingle();
+
+      print('UKM details result: $response');
+
+      if (response == null) {
+        print('❌ No UKM profile found for admin: $adminId');
+        print('⚠️ Admin needs to create UKM profile first');
+        return null;
+      }
+
+      print('✅ UKM details loaded: ${response['nama_ukm']}');
+      return response;
+    } catch (e) {
+      print('❌ Error fetching UKM details: $e');
       return null;
     }
   }

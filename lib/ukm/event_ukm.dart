@@ -4,6 +4,7 @@ import 'package:unit_activity/services/event_service_new.dart';
 import 'package:unit_activity/services/custom_auth_service.dart';
 import 'package:unit_activity/services/ukm_dashboard_service.dart';
 import 'package:unit_activity/ukm/add_event_page.dart';
+import 'package:unit_activity/ukm/detail_event_ukm.dart';
 import 'package:intl/intl.dart';
 
 class EventUKMPage extends StatefulWidget {
@@ -396,104 +397,124 @@ class _EventUKMPageState extends State<EventUKMPage> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.grey[200]!),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            // Event Icon
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: const Color(0xFF4169E1).withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(
-                Icons.event,
-                color: Color(0xFF4169E1),
-                size: 24,
+      child: InkWell(
+        onTap: () {
+          // Navigate to event detail
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => DetailEventUkmPage(
+                eventId: event['id_events'],
+                eventData: event,
               ),
             ),
-            const SizedBox(width: 16),
+          ).then((_) => _loadEvents()); // Reload events when returning
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              // Event Icon
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4169E1).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.event,
+                  color: Color(0xFF4169E1),
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
 
-            // Event Info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    event['nama_event'] ?? 'Unnamed Event',
-                    style: GoogleFonts.inter(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey[800],
+              // Event Info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      event['nama_event'] ?? 'Unnamed Event',
+                      style: GoogleFonts.inter(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey[800],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.calendar_today,
-                        size: 14,
-                        color: Colors.grey[600],
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        tanggalStr,
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.calendar_today,
+                          size: 14,
                           color: Colors.grey[600],
                         ),
-                      ),
-                      const SizedBox(width: 16),
-                      Icon(
-                        Icons.location_on,
-                        size: 14,
-                        color: Colors.grey[600],
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        event['lokasi'] ?? '-',
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
+                        const SizedBox(width: 4),
+                        Text(
+                          tanggalStr,
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Icon(
+                          Icons.location_on,
+                          size: 14,
                           color: Colors.grey[600],
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 4),
+                        Text(
+                          event['lokasi'] ?? '-',
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        _buildStatusChip('Proposal', statusProposal),
+                        const SizedBox(width: 8),
+                        _buildStatusChip('LPJ', statusLPJ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              // Actions
+              Row(
+                children: [
+                  IconButton(
+                    onPressed: () {
+                      // TODO: Navigate to edit event page
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Fitur edit akan segera hadir'),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.edit_outlined),
+                    color: const Color(0xFF4169E1),
+                    tooltip: 'Edit Event',
                   ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      _buildStatusChip('Proposal', statusProposal),
-                      const SizedBox(width: 8),
-                      _buildStatusChip('LPJ', statusLPJ),
-                    ],
+                  IconButton(
+                    onPressed: () =>
+                        _deleteEvent(event['id_events'], event['nama_event']),
+                    icon: const Icon(Icons.delete_outline),
+                    color: Colors.red,
+                    tooltip: 'Hapus',
                   ),
                 ],
               ),
-            ),
-
-            // Actions
-            Row(
-              children: [
-                IconButton(
-                  onPressed: () {
-                    // TODO: Navigate to event detail
-                  },
-                  icon: const Icon(Icons.visibility_outlined),
-                  color: const Color(0xFF4169E1),
-                  tooltip: 'Lihat Detail',
-                ),
-                IconButton(
-                  onPressed: () =>
-                      _deleteEvent(event['id_events'], event['nama_event']),
-                  icon: const Icon(Icons.delete_outline),
-                  color: Colors.red,
-                  tooltip: 'Hapus',
-                ),
-              ],
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

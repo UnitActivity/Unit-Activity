@@ -31,8 +31,10 @@ class _AddEventPageState extends State<AddEventPage> {
   String? _selectedTipeEvent;
   DateTime? _tanggalMulai;
   DateTime? _tanggalAkhir;
-  Uint8List? _proposalFileBytes;
-  String? _proposalFileName;
+
+  // Multiple proposal files support
+  List<Map<String, dynamic>> _proposalFiles = [];
+  // Each item: {bytes: Uint8List, name: String, isSubmitted: bool}
 
   bool _isLoading = false;
   bool _isUploadingFile = false;
@@ -63,53 +65,62 @@ class _AddEventPageState extends State<AddEventPage> {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf', 'doc', 'docx'],
-        withData: true, // Important for web platform
+        withData: true,
+        allowMultiple: true, // Allow multiple files
       );
 
-      if (result != null && result.files.single.bytes != null) {
-        final fileBytes = result.files.single.bytes!;
-        final fileName = result.files.single.name;
+      if (result != null && result.files.isNotEmpty) {
+        for (var file in result.files) {
+          if (file.bytes == null) continue;
 
-        // Validate file type
-        if (!_fileUploadService.isValidProposalFileName(fileName)) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'Format file tidak valid. Gunakan PDF, DOC, atau DOCX',
+          final fileBytes = file.bytes!;
+          final fileName = file.name;
+
+          // Validate file type
+          if (!_fileUploadService.isValidProposalFileName(fileName)) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Format file $fileName tidak valid. Gunakan PDF, DOC, atau DOCX',
+                  ),
+                  backgroundColor: Colors.orange,
                 ),
-                backgroundColor: Colors.red,
-              ),
-            );
+              );
+            }
+            continue;
           }
-          return;
+
+          // Validate file size (max 10MB)
+          final isValidSize = _fileUploadService.isValidFileSizeFromBytes(
+            fileBytes,
+          );
+          if (!isValidSize) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('File $fileName terlalu besar. Maksimal 10MB'),
+                  backgroundColor: Colors.orange,
+                ),
+              );
+            }
+            continue;
+          }
+
+          // Add to list
+          setState(() {
+            _proposalFiles.add({
+              'bytes': fileBytes,
+              'name': fileName,
+              'isSubmitted': false,
+            });
+          });
         }
 
-        // Validate file size (max 10MB)
-        final isValidSize = _fileUploadService.isValidFileSizeFromBytes(
-          fileBytes,
-        );
-        if (!isValidSize) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Ukuran file terlalu besar. Maksimal 10MB'),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
-          return;
-        }
-
-        setState(() {
-          _proposalFileBytes = fileBytes;
-          _proposalFileName = fileName;
-        });
-
-        if (mounted) {
+        if (mounted && _proposalFiles.isNotEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('File dipilih: $_proposalFileName'),
+              content: Text('${result.files.length} file berhasil ditambahkan'),
               backgroundColor: Colors.green,
             ),
           );
@@ -127,6 +138,134 @@ class _AddEventPageState extends State<AddEventPage> {
       }
     } finally {
       setState(() => _isUploadingFile = false);
+    }
+  }
+
+  Future<void> _removeFile(int index) async {
+    setState(() {
+      _proposalFiles.removeAt(index);
+    });
+  }
+
+  Future<void> _submitFile(int index, String eventId) async {
+    final file = _proposalFiles[index];
+
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: Row(
+          children: [
+            const Icon(Icons.send, color: Color(0xFF4169E1)),
+            const SizedBox(width: 12),
+            Text(
+              'Konfirmasi Pengajuan',
+              style: GoogleFonts.inter(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Apakah Anda yakin ingin mengajukan dokumen ini kepada admin untuk diverifikasi?',
+              style: GoogleFonts.inter(fontSize: 14),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.description, color: Colors.blue[700], size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      file['name'],
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(
+              'Batal',
+              style: GoogleFonts.inter(
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF4169E1),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              elevation: 0,
+            ),
+            child: Text(
+              'Ya, Ajukan',
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        // Upload file
+        await _fileUploadService.uploadProposalFromBytes(
+          fileBytes: file['bytes'],
+          fileName: file['name'],
+          eventId: eventId,
+        );
+
+        setState(() {
+          _proposalFiles[index]['isSubmitted'] = true;
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Dokumen ${file['name']} berhasil diajukan'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        print('Error uploading file: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Gagal mengajukan dokumen: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -184,29 +323,167 @@ class _AddEventPageState extends State<AddEventPage> {
         periodeId: periodeId,
       );
 
-      // Upload proposal if selected
-      if (_proposalFileBytes != null && _proposalFileName != null) {
-        final eventId = event['id_events'] as String;
-        await _fileUploadService.uploadProposalFromBytes(
-          fileBytes: _proposalFileBytes!,
-          fileName: _proposalFileName!,
-          eventId: eventId,
-        );
+      final eventId = event['id_events'] as String;
 
-        // Update proposal status
+      // Check if there are files to submit
+      if (_proposalFiles.isNotEmpty) {
+        // Update proposal status to 'draft' since files are added but not submitted yet
         await _eventService.updateProposalStatus(
           eventId: eventId,
-          status: 'menunggu',
+          status: 'draft',
         );
+
+        // Show dialog to submit files now or later
+        if (mounted) {
+          final submitNow = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              title: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Color(0xFF4169E1)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Event Berhasil Dibuat',
+                      style: GoogleFonts.inter(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Apakah Anda ingin mengajukan dokumen proposal sekarang?',
+                    style: GoogleFonts.inter(fontSize: 14),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.amber[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.amber[200]!),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.info_outline,
+                          color: Colors.amber[800],
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '${_proposalFiles.length} dokumen siap diajukan',
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: Colors.amber[900],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: Text(
+                    'Nanti Saja',
+                    style: GoogleFonts.inter(
+                      color: Colors.grey[600],
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4169E1),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: Text(
+                    'Ya, Ajukan Sekarang',
+                    style: GoogleFonts.inter(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+
+          if (submitNow == true) {
+            // Upload all files
+            int successCount = 0;
+            for (var file in _proposalFiles) {
+              try {
+                await _fileUploadService.uploadProposalFromBytes(
+                  fileBytes: file['bytes'],
+                  fileName: file['name'],
+                  eventId: eventId,
+                );
+                successCount++;
+              } catch (e) {
+                print('Error uploading ${file['name']}: $e');
+              }
+            }
+
+            if (successCount > 0) {
+              await _eventService.updateProposalStatus(
+                eventId: eventId,
+                status: 'menunggu',
+              );
+            }
+
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Event berhasil dibuat. $successCount dari ${_proposalFiles.length} dokumen berhasil diajukan',
+                  ),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            }
+          } else {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Event berhasil dibuat. Anda dapat mengajukan dokumen nanti di halaman detail event',
+                  ),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            }
+          }
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Event berhasil ditambahkan'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Event berhasil ditambahkan'),
-            backgroundColor: Colors.green,
-          ),
-        );
         Navigator.pop(context, true); // Return true to indicate success
       }
     } catch (e) {
@@ -615,15 +892,31 @@ class _AddEventPageState extends State<AddEventPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Upload Proposal (Opsional)',
-          style: GoogleFonts.inter(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: Colors.grey[800],
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Upload Proposal (Opsional)',
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[800],
+              ),
+            ),
+            if (_proposalFiles.isNotEmpty)
+              Text(
+                '${_proposalFiles.length} file',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: const Color(0xFF4169E1),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+          ],
         ),
         const SizedBox(height: 8),
+
+        // Upload button
         InkWell(
           onTap: _isUploadingFile ? null : _pickProposalFile,
           child: Container(
@@ -631,20 +924,18 @@ class _AddEventPageState extends State<AddEventPage> {
             decoration: BoxDecoration(
               color: Colors.white,
               border: Border.all(
-                color: _proposalFileBytes != null
+                color: _proposalFiles.isNotEmpty
                     ? const Color(0xFF4169E1)
                     : Colors.grey[300]!,
-                width: _proposalFileBytes != null ? 2 : 1,
+                style: BorderStyle.solid,
               ),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
               children: [
                 Icon(
-                  _proposalFileBytes != null
-                      ? Icons.check_circle
-                      : Icons.upload_file,
-                  color: _proposalFileBytes != null
+                  Icons.upload_file,
+                  color: _proposalFiles.isNotEmpty
                       ? const Color(0xFF4169E1)
                       : Colors.grey[600],
                 ),
@@ -654,43 +945,133 @@ class _AddEventPageState extends State<AddEventPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _proposalFileName ?? 'Pilih file PDF, DOC, atau DOCX',
+                        _proposalFiles.isEmpty
+                            ? 'Pilih file PDF, DOC, atau DOCX'
+                            : 'Tambah file lainnya',
                         style: GoogleFonts.inter(
                           fontSize: 14,
-                          color: _proposalFileBytes != null
-                              ? Colors.grey[800]
+                          color: _proposalFiles.isNotEmpty
+                              ? const Color(0xFF4169E1)
                               : Colors.grey[600],
-                          fontWeight: _proposalFileBytes != null
+                          fontWeight: _proposalFiles.isNotEmpty
                               ? FontWeight.w600
                               : FontWeight.normal,
                         ),
                       ),
-                      if (_proposalFileBytes == null)
-                        Text(
-                          'Maksimal 10MB',
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            color: Colors.grey[500],
-                          ),
+                      Text(
+                        'Maksimal 10MB per file • Bisa pilih beberapa file sekaligus',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: Colors.grey[500],
                         ),
+                      ),
                     ],
                   ),
                 ),
-                if (_proposalFileBytes != null)
-                  IconButton(
-                    icon: const Icon(Icons.close, size: 20),
-                    onPressed: () {
-                      setState(() {
-                        _proposalFileBytes = null;
-                        _proposalFileName = null;
-                      });
-                    },
-                    color: Colors.grey[600],
-                  ),
+                Icon(
+                  Icons.add_circle_outline,
+                  color: _proposalFiles.isNotEmpty
+                      ? const Color(0xFF4169E1)
+                      : Colors.grey[400],
+                ),
               ],
             ),
           ),
         ),
+
+        // List of selected files
+        if (_proposalFiles.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          ...List.generate(_proposalFiles.length, (index) {
+            final file = _proposalFiles[index];
+            final isSubmitted = file['isSubmitted'] == true;
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isSubmitted ? Colors.green[50] : Colors.blue[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: isSubmitted ? Colors.green[200]! : Colors.blue[200]!,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    isSubmitted ? Icons.check_circle : Icons.description,
+                    color: isSubmitted ? Colors.green[700] : Colors.blue[700],
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          file['name'],
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey[800],
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          isSubmitted ? 'Sudah diajukan' : 'Belum diajukan',
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            color: isSubmitted
+                                ? Colors.green[700]
+                                : Colors.orange[700],
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (!isSubmitted) ...[
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 18),
+                      onPressed: () => _removeFile(index),
+                      color: Colors.grey[600],
+                      tooltip: 'Hapus file',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                ],
+              ),
+            );
+          }),
+
+          // Info text
+          Container(
+            margin: const EdgeInsets.only(top: 8),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.amber[50],
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.amber[200]!),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, color: Colors.amber[800], size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'File akan diajukan setelah event dibuat. Anda juga bisa mengajukan nanti.',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: Colors.amber[900],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }
