@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:unit_activity/services/custom_auth_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -12,7 +13,10 @@ class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _authService = CustomAuthService();
+
   bool _obscurePassword = true;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -21,25 +25,77 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  void _handleLogin() {
-    if (_formKey.currentState!.validate()) {
-      // TODO: Implement login logic
-      print('Email: ${_emailController.text}');
-      print('Password: ${_passwordController.text}');
+  Future<void> _handleLogin() async {
+    if (!_formKey.currentState!.validate()) return;
 
-      // Demo: Navigate to admin
-      // Ganti ini dengan logic authentication yang sesungguhnya
-      Navigator.pushReplacementNamed(context, '/admin');
+    setState(() => _isLoading = true);
+
+    try {
+      print('========== LOGIN ATTEMPT ==========');
+      final result = await _authService.login(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
+
+      if (!mounted) return;
+
+      if (result['success']) {
+        final role = result['role'] as String;
+        final userName = result['user']['name'] as String;
+
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Selamat datang, $userName!'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+
+        // Navigate based on role
+        print('Navigating to dashboard for role: $role');
+        if (role == 'admin') {
+          Navigator.pushReplacementNamed(context, '/admin');
+        } else if (role == 'ukm') {
+          Navigator.pushReplacementNamed(context, '/ukm');
+        } else {
+          Navigator.pushReplacementNamed(context, '/user');
+        }
+      } else {
+        // Show error message
+        String errorMessage = result['error'] ?? 'Login gagal';
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+
+      print('Login exception: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Terjadi kesalahan: ${e.toString()}'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
   void _handleForgotPassword() {
-    // Navigate to forgot password page
     Navigator.pushNamed(context, '/forgot-password');
   }
 
   void _handleRegister() {
-    // Navigate to register page
     Navigator.pushNamed(context, '/register');
   }
 
@@ -99,12 +155,13 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                           const SizedBox(height: 32),
 
-                          // NIM/Email Input Field
+                          // Email Input Field
                           TextFormField(
                             controller: _emailController,
                             keyboardType: TextInputType.emailAddress,
+                            enabled: !_isLoading,
                             decoration: InputDecoration(
-                              hintText: 'NIM / Email',
+                              hintText: 'Email',
                               hintStyle: TextStyle(color: Colors.grey[400]),
                               filled: true,
                               fillColor: Colors.grey[50],
@@ -134,19 +191,21 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                             validator: (value) {
                               if (value == null || value.isEmpty) {
-                                return 'Silakan masukkan NIM atau Email';
+                                return 'Silakan masukkan email';
+                              }
+                              if (!value.contains('@')) {
+                                return 'Email tidak valid';
                               }
                               return null;
                             },
                           ),
                           const SizedBox(height: 20),
 
-                          const SizedBox(height: 20),
-
                           // Password Input Field
                           TextFormField(
                             controller: _passwordController,
                             obscureText: _obscurePassword,
+                            enabled: !_isLoading,
                             decoration: InputDecoration(
                               hintText: 'Password',
                               hintStyle: TextStyle(color: Colors.grey[400]),
@@ -182,11 +241,13 @@ class _LoginPageState extends State<LoginPage> {
                                       : Icons.visibility,
                                   color: Colors.grey[600],
                                 ),
-                                onPressed: () {
-                                  setState(() {
-                                    _obscurePassword = !_obscurePassword;
-                                  });
-                                },
+                                onPressed: _isLoading
+                                    ? null
+                                    : () {
+                                        setState(() {
+                                          _obscurePassword = !_obscurePassword;
+                                        });
+                                      },
                               ),
                             ),
                             validator: (value) {
@@ -202,11 +263,15 @@ class _LoginPageState extends State<LoginPage> {
                           Align(
                             alignment: Alignment.centerRight,
                             child: TextButton(
-                              onPressed: _handleForgotPassword,
+                              onPressed: _isLoading
+                                  ? null
+                                  : _handleForgotPassword,
                               child: Text(
                                 'Forget your password ?',
                                 style: TextStyle(
-                                  color: const Color(0xFF4169E1),
+                                  color: _isLoading
+                                      ? Colors.grey
+                                      : const Color(0xFF4169E1),
                                   fontSize: 14,
                                 ),
                               ),
@@ -219,7 +284,7 @@ class _LoginPageState extends State<LoginPage> {
                             width: double.infinity,
                             height: 56,
                             child: ElevatedButton(
-                              onPressed: _handleLogin,
+                              onPressed: _isLoading ? null : _handleLogin,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFF4169E1),
                                 foregroundColor: Colors.white,
@@ -227,15 +292,28 @@ class _LoginPageState extends State<LoginPage> {
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8),
                                 ),
+                                disabledBackgroundColor: Colors.grey[400],
                               ),
-                              child: const Text(
-                                'LOGIN',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1.5,
-                                ),
-                              ),
+                              child: _isLoading
+                                  ? const SizedBox(
+                                      width: 24,
+                                      height: 24,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              Colors.white,
+                                            ),
+                                      ),
+                                    )
+                                  : const Text(
+                                      'LOGIN',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 1.5,
+                                      ),
+                                    ),
                             ),
                           ),
                           const SizedBox(height: 24),
@@ -252,17 +330,19 @@ class _LoginPageState extends State<LoginPage> {
                                 ),
                               ),
                               TextButton(
-                                onPressed: _handleRegister,
+                                onPressed: _isLoading ? null : _handleRegister,
                                 style: TextButton.styleFrom(
                                   padding: EdgeInsets.zero,
                                   minimumSize: const Size(0, 0),
                                   tapTargetSize:
                                       MaterialTapTargetSize.shrinkWrap,
                                 ),
-                                child: const Text(
+                                child: Text(
                                   'Register',
                                   style: TextStyle(
-                                    color: Color(0xFF4169E1),
+                                    color: _isLoading
+                                        ? Colors.grey
+                                        : const Color(0xFF4169E1),
                                     fontSize: 14,
                                     fontWeight: FontWeight.w600,
                                   ),

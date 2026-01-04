@@ -8,6 +8,8 @@ import 'package:unit_activity/ukm/pertemuan_ukm.dart';
 import 'package:unit_activity/ukm/informasi_ukm.dart';
 import 'package:unit_activity/ukm/notifikasi_ukm.dart';
 import 'package:unit_activity/ukm/akun_ukm.dart';
+import 'package:unit_activity/services/ukm_dashboard_service.dart';
+import 'package:unit_activity/services/custom_auth_service.dart';
 
 class DashboardUKMPage extends StatefulWidget {
   const DashboardUKMPage({super.key});
@@ -19,35 +21,128 @@ class DashboardUKMPage extends StatefulWidget {
 class _DashboardUKMPageState extends State<DashboardUKMPage> {
   String _selectedMenu = 'dashboard';
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  final UkmDashboardService _dashboardService = UkmDashboardService();
+  final CustomAuthService _authService = CustomAuthService();
 
-  // Sample data - replace with actual data from API/database
-  final String _ukmName = 'UKM Dashboard';
-  final String _periode = '2025.1';
+  // Dashboard data
+  String _ukmName = 'UKM Dashboard';
+  String _periode = '2025.1';
+  String? _ukmId;
+  String? _periodeId;
+
+  // Statistics data
+  Map<String, dynamic>? _dashboardStats;
+  List<dynamic> _informasiList = [];
+  bool _isLoadingStats = true;
+  bool _isLoadingInformasi = true;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    // Login check removed - direct access allowed
+    _checkAuthAndLoadData();
   }
 
-  final int _totalPeserta = 40;
-  final int _totalEventPeriode = 1;
-  final int _totalPertemuan = 6;
+  Future<void> _checkAuthAndLoadData() async {
+    print('========== DASHBOARD AUTH CHECK ==========');
 
-  // Sample information data
-  final List<Map<String, dynamic>> _informasiList = [
-    {
-      'title': 'Badminton Playing At UWIKA Cup',
-      'category': 'UKM Badminton',
-      'image': '', // Placeholder for image
-    },
-    {
-      'title': 'Basketball Championship 2025',
-      'category': 'UKM Basket',
-      'image': '',
-    },
-    {'title': 'Futsal Tournament', 'category': 'UKM Futsal', 'image': ''},
-  ];
+    // Check if user is authenticated using CustomAuthService
+    if (!_authService.isLoggedIn) {
+      print('❌ User not logged in');
+      // User not logged in, redirect to login
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Anda belum login. Silakan login terlebih dahulu.';
+          _isLoadingStats = false;
+          _isLoadingInformasi = false;
+        });
+      }
+      return;
+    }
+
+    print('✅ User logged in: ${_authService.currentUserRole}');
+    print('User data: ${_authService.currentUser}');
+
+    // User is authenticated, load dashboard data
+    _loadDashboardData();
+  }
+
+  // Load all dashboard data
+  Future<void> _loadDashboardData() async {
+    setState(() {
+      _isLoadingStats = true;
+      _isLoadingInformasi = true;
+      _errorMessage = null;
+    });
+
+    try {
+      // Get current UKM ID from auth
+      _ukmId = await _dashboardService.getCurrentUkmId();
+
+      if (_ukmId == null) {
+        setState(() {
+          _errorMessage =
+              'Tidak dapat mengidentifikasi UKM. Pastikan akun Anda terdaftar sebagai admin UKM.';
+          _isLoadingStats = false;
+          _isLoadingInformasi = false;
+        });
+        return;
+      }
+
+      // Get UKM details
+      final ukmDetails = await _dashboardService.getUkmDetails(_ukmId!);
+      if (ukmDetails['success'] == true) {
+        setState(() {
+          _ukmName = ukmDetails['data']['nama_ukm'] ?? 'UKM Dashboard';
+        });
+      }
+
+      // Get current periode
+      final periode = await _dashboardService.getCurrentPeriode(_ukmId!);
+      if (periode != null) {
+        setState(() {
+          _periodeId = periode['id_periode'];
+          _periode = '${periode['semester']} ${periode['tahun']}';
+        });
+      }
+
+      // Load stats and informasi in parallel
+      final results = await Future.wait([
+        _dashboardService.getUkmStats(_ukmId!, periodeId: _periodeId),
+        _dashboardService.getUkmInformasi(
+          _ukmId!,
+          limit: 5,
+          periodeId: _periodeId,
+        ),
+      ]);
+
+      if (mounted) {
+        setState(() {
+          // Update statistics
+          if (results[0]['success'] == true) {
+            _dashboardStats = results[0]['data'];
+          }
+
+          // Update informasi
+          if (results[1]['success'] == true) {
+            _informasiList = results[1]['data'] ?? [];
+          }
+
+          _isLoadingStats = false;
+          _isLoadingInformasi = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading dashboard data: $e');
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Gagal memuat data dashboard';
+          _isLoadingStats = false;
+          _isLoadingInformasi = false;
+        });
+      }
+    }
+  }
 
   int _currentCarouselIndex = 0;
 
@@ -114,7 +209,7 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
 
     return Scaffold(
       key: _scaffoldKey,
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: Colors.grey[100],
       drawer: isDesktop
           ? null
           : Drawer(
@@ -187,23 +282,149 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
   }
 
   Widget _buildDashboardContent(bool isDesktop) {
+    // Show loading state
+    if (_isLoadingStats && _isLoadingInformasi) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const SizedBox(
+              width: 50,
+              height: 50,
+              child: CircularProgressIndicator(
+                strokeWidth: 3,
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4169E1)),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Memuat dashboard...',
+              style: GoogleFonts.inter(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[700],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Show error state
+    if (_errorMessage != null) {
+      final isNotLoggedIn = _errorMessage!.contains('belum login');
+
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.red[50],
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                isNotLoggedIn ? Icons.lock_outline : Icons.error_outline,
+                size: 60,
+                color: Colors.red[400],
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              _errorMessage!,
+              style: GoogleFonts.inter(
+                color: Colors.grey[800],
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            if (isNotLoggedIn)
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pushReplacementNamed(context, '/login');
+                },
+                icon: const Icon(Icons.login, size: 20),
+                label: Text(
+                  'Login Sekarang',
+                  style: GoogleFonts.inter(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF4169E1),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 14,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  elevation: 0,
+                ),
+              )
+            else
+              ElevatedButton.icon(
+                onPressed: _loadDashboardData,
+                icon: const Icon(Icons.refresh, size: 20),
+                label: Text(
+                  'Coba Lagi',
+                  style: GoogleFonts.inter(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF4169E1),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 14,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  elevation: 0,
+                ),
+              ),
+          ],
+        ),
+      );
+    }
+
+    // Show dashboard content
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Title
         Text(
-          'Informasi Terkini',
+          '📰 Informasi Terkini',
           style: GoogleFonts.inter(
-            fontSize: isDesktop ? 24 : 20,
+            fontSize: isDesktop ? 20 : 18,
             fontWeight: FontWeight.bold,
             color: Colors.black87,
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 16),
 
         // Carousel Section
         _buildInformasiCarousel(isDesktop),
-        const SizedBox(height: 32),
+        const SizedBox(height: 24),
+
+        // Section Title for Statistics
+        Text(
+          '📊 Statistik',
+          style: GoogleFonts.inter(
+            fontSize: isDesktop ? 20 : 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 16),
 
         // Statistics Cards
         _buildStatisticsCards(isDesktop),
@@ -212,6 +433,48 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
   }
 
   Widget _buildInformasiCarousel(bool isDesktop) {
+    // Handle empty state
+    if (_informasiList.isEmpty) {
+      return Container(
+        height: isDesktop ? 300 : 250,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.info_outline, size: 60, color: Colors.grey[400]),
+              const SizedBox(height: 16),
+              Text(
+                'Belum ada informasi',
+                style: GoogleFonts.inter(
+                  fontSize: 16,
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Ensure current index is valid
+    if (_currentCarouselIndex >= _informasiList.length) {
+      _currentCarouselIndex = 0;
+    }
+
+    final currentInfo = _informasiList[_currentCarouselIndex];
+
     return Column(
       children: [
         // Carousel
@@ -219,39 +482,33 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
           height: isDesktop ? 300 : 250,
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
               ),
             ],
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(12),
             child: Stack(
               children: [
-                // Image placeholder
-                Container(
-                  width: double.infinity,
-                  height: double.infinity,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        const Color(0xFF4169E1).withValues(alpha: 0.1),
-                        const Color(0xFF4169E1).withValues(alpha: 0.05),
-                      ],
-                    ),
-                  ),
-                  child: Icon(
-                    Icons.image_outlined,
-                    size: 80,
-                    color: Colors.grey[300],
-                  ),
-                ),
+                // Image or placeholder
+                if (currentInfo['gambar'] != null &&
+                    currentInfo['gambar'].toString().isNotEmpty)
+                  Image.network(
+                    currentInfo['gambar'],
+                    width: double.infinity,
+                    height: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return _buildImagePlaceholder();
+                    },
+                  )
+                else
+                  _buildImagePlaceholder(),
 
                 // Content overlay
                 Positioned(
@@ -266,7 +523,7 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
                         end: Alignment.bottomCenter,
                         colors: [
                           Colors.transparent,
-                          Colors.black.withValues(alpha: 0.7),
+                          Colors.black.withOpacity(0.7),
                         ],
                       ),
                     ),
@@ -275,21 +532,27 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          _informasiList[_currentCarouselIndex]['title'],
+                          currentInfo['judul'] ?? 'Tanpa Judul',
                           style: GoogleFonts.inter(
                             fontSize: isDesktop ? 18 : 16,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
                           ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _informasiList[_currentCarouselIndex]['category'],
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            color: Colors.white.withValues(alpha: 0.9),
+                        if (currentInfo['deskripsi'] != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            currentInfo['deskripsi'],
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              color: Colors.white.withOpacity(0.9),
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                        ),
+                        ],
                         const SizedBox(height: 8),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -335,39 +598,63 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
         const SizedBox(height: 16),
 
         // Carousel Indicators
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(
-            _informasiList.length,
-            (index) => GestureDetector(
-              onTap: () {
-                setState(() {
-                  _currentCarouselIndex = index;
-                });
-              },
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                width: _currentCarouselIndex == index ? 24 : 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: _currentCarouselIndex == index
-                      ? const Color(0xFF4169E1)
-                      : Colors.grey[300],
-                  borderRadius: BorderRadius.circular(4),
+        if (_informasiList.length > 1)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(
+              _informasiList.length,
+              (index) => GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _currentCarouselIndex = index;
+                  });
+                },
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  width: _currentCarouselIndex == index ? 24 : 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: _currentCarouselIndex == index
+                        ? const Color(0xFF4169E1)
+                        : Colors.grey[300],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
                 ),
               ),
             ),
           ),
-        ),
       ],
     );
   }
 
+  Widget _buildImagePlaceholder() {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFF4169E1).withOpacity(0.1),
+            const Color(0xFF4169E1).withOpacity(0.05),
+          ],
+        ),
+      ),
+      child: Icon(Icons.image_outlined, size: 80, color: Colors.grey[300]),
+    );
+  }
+
   Widget _buildStatisticsCards(bool isDesktop) {
+    // Get statistics from loaded data or use defaults
+    final totalPeserta = _dashboardStats?['totalPeserta'] ?? 0;
+    final totalEvent = _dashboardStats?['totalEvent'] ?? 0;
+    final totalPertemuan = _dashboardStats?['totalPertemuan'] ?? 0;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final crossAxisCount = isDesktop ? 3 : 1;
-        final childAspectRatio = isDesktop ? 2.5 : 3.5;
+        final childAspectRatio = isDesktop ? 2.2 : 2.2;
 
         return GridView.count(
           shrinkWrap: true,
@@ -379,19 +666,19 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
           children: [
             _buildStatCard(
               title: 'Total Peserta',
-              value: '$_totalPeserta',
+              value: '$totalPeserta',
               icon: Icons.people_outline,
               color: const Color(0xFF4169E1),
             ),
             _buildStatCard(
               title: 'Total Event Periode ini',
-              value: '$_totalEventPeriode',
+              value: '$totalEvent',
               icon: Icons.event_note_outlined,
               color: const Color(0xFF10B981),
             ),
             _buildStatCard(
               title: 'Pertemuan',
-              value: '$_totalPertemuan',
+              value: '$totalPertemuan',
               icon: Icons.calendar_today_outlined,
               color: const Color(0xFFF59E0B),
             ),
@@ -407,56 +694,82 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
     required IconData icon,
     required Color color,
   }) {
+    // Create gradient from the base color
+    final gradient = LinearGradient(colors: [color, color.withOpacity(0.8)]);
+
     return Container(
-      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        gradient: gradient,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Stack(
         children: [
-          // Title
-          Text(
-            title,
-            style: GoogleFonts.inter(
-              fontSize: 14,
-              color: Colors.grey[600],
-              fontWeight: FontWeight.w500,
+          // Background Pattern
+          Positioned(
+            right: -20,
+            top: -20,
+            child: Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.1),
+              ),
             ),
           ),
-
-          // Value and Icon
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                value,
-                style: GoogleFonts.inter(
-                  fontSize: 36,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                  height: 1,
+          // Content
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.25),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(icon, color: Colors.white, size: 28),
+                    ),
+                    Icon(
+                      Icons.trending_up_rounded,
+                      color: Colors.white.withOpacity(0.7),
+                      size: 20,
+                    ),
+                  ],
                 ),
-              ),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
+                const Spacer(),
+                Text(
+                  value,
+                  style: GoogleFonts.inter(
+                    fontSize: 36,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    height: 1,
+                  ),
                 ),
-                child: Icon(icon, color: color, size: 24),
-              ),
-            ],
+                const SizedBox(height: 4),
+                Text(
+                  title,
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.white.withOpacity(0.95),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),

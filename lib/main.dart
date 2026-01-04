@@ -11,6 +11,7 @@ import 'package:unit_activity/admin/dashboard_admin.dart';
 import 'package:unit_activity/ukm/dashboard_ukm.dart';
 import 'package:unit_activity/user/dashboard_user.dart';
 import 'package:unit_activity/config/config.dart';
+import 'package:unit_activity/services/custom_auth_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -28,6 +29,17 @@ Future<void> main() async {
     url: SupabaseConfig.supabaseUrl,
     anonKey: SupabaseConfig.supabaseAnonKey,
   );
+
+  // Initialize CustomAuthService and restore session
+  print('========== INITIALIZING AUTH SERVICE ==========');
+  final authService = CustomAuthService();
+  await authService.initialize();
+  print('Auth service initialized. Logged in: ${authService.isLoggedIn}');
+  if (authService.isLoggedIn) {
+    print(
+      'Current user: ${authService.currentUserRole} - ${authService.currentUser?['name']}',
+    );
+  }
 
   runApp(
     DevicePreview(

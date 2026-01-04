@@ -97,4 +97,19 @@ class AuthService {
   bool isUKM() {
     return _loginService.isUserUKM();
   }
+
+  /// Get current user role
+  String? getUserRole() {
+    return _loginService.getUserRole();
+  }
+
+  /// Check if current user is Admin
+  bool isAdmin() {
+    return _loginService.isAdmin();
+  }
+
+  /// Check if current user is regular User
+  bool isUser() {
+    return _loginService.isUser();
+  }
 }
