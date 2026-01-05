@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:unit_activity/widgets/user_sidebar.dart';
 import 'package:unit_activity/widgets/qr_scanner_mixin.dart';
 import 'package:unit_activity/widgets/notification_bell_widget.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:unit_activity/user/notifikasi_user.dart';
 import 'package:unit_activity/user/profile.dart';
 import 'package:unit_activity/user/dashboard_user.dart';
@@ -21,7 +19,6 @@ class _UserEventPageState extends State<UserEventPage> with QRScannerMixin {
   Map<String, dynamic>? _selectedEvent;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   String _selectedMenu = 'event';
-  final SupabaseClient _supabase = Supabase.instance.client;
 
   final List<Map<String, dynamic>> _allEvents = [
     {

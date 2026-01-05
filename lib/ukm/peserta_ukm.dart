@@ -407,12 +407,35 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
                 Expanded(
                   flex: 2,
                   child: Text(
+                    'Kehadiran',
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[700],
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 2,
+                  child: Text(
                     'Tanggal Bergabung',
                     style: GoogleFonts.inter(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: Colors.grey[700],
                     ),
+                  ),
+                ),
+                SizedBox(
+                  width: 80,
+                  child: Text(
+                    'Aksi',
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[700],
+                    ),
+                    textAlign: TextAlign.center,
                   ),
                 ),
               ],
@@ -500,15 +523,191 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
           ),
           Expanded(
             flex: 2,
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _getAttendanceColor(
+                      peserta['kehadiran_count'] ?? 0,
+                      peserta['total_pertemuan'] ?? 0,
+                    ),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    '${peserta['kehadiran_count'] ?? 0}/${peserta['total_pertemuan'] ?? 0}',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            flex: 2,
             child: Text(
               _formatTanggal(peserta['tanggal']),
               style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[700]),
               overflow: TextOverflow.ellipsis,
             ),
           ),
+          SizedBox(
+            width: 80,
+            child: IconButton(
+              onPressed: () => _showKickConfirmation(peserta),
+              icon: const Icon(Icons.person_remove_outlined, size: 20),
+              style: IconButton.styleFrom(
+                foregroundColor: Colors.red,
+                backgroundColor: Colors.red.withOpacity(0.1),
+              ),
+              tooltip: 'Kick Peserta',
+            ),
+          ),
         ],
       ),
     );
+  }
+
+  Color _getAttendanceColor(int attended, int total) {
+    if (total == 0) return Colors.grey;
+    final percentage = attended / total;
+    if (percentage >= 0.75) return Colors.green;
+    if (percentage >= 0.5) return Colors.orange;
+    return Colors.red;
+  }
+
+  Future<void> _showKickConfirmation(Map<String, dynamic> peserta) async {
+    final TextEditingController reasonController = TextEditingController();
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.warning_amber_rounded,
+                color: Colors.red,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Kick Peserta',
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Apakah Anda yakin ingin mengeluarkan ${peserta['nama']} dari UKM?',
+              style: GoogleFonts.inter(fontSize: 14),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: reasonController,
+              decoration: InputDecoration(
+                labelText: 'Alasan (Opsional)',
+                hintText: 'Masukkan alasan mengeluarkan peserta',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 12,
+                ),
+              ),
+              maxLines: 3,
+              style: GoogleFonts.inter(fontSize: 14),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(
+              'Batal',
+              style: GoogleFonts.inter(
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: Text(
+              'Kick',
+              style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true && mounted) {
+      try {
+        await _pesertaService.removePeserta(
+          peserta['id_follow'],
+          reasonController.text.isEmpty
+              ? 'Dikeluarkan oleh admin UKM'
+              : reasonController.text,
+        );
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '${peserta['nama']} berhasil dikeluarkan',
+                style: GoogleFonts.inter(),
+              ),
+              backgroundColor: Colors.green,
+            ),
+          );
+          _loadData(); // Reload data
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Gagal mengeluarkan peserta: $e',
+                style: GoogleFonts.inter(),
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+
+    reasonController.dispose();
   }
 
   String _formatTanggal(dynamic tanggal) {

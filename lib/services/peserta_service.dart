@@ -51,8 +51,11 @@ class PesertaService {
 
   // Get all members (peserta) for a specific UKM and periode
   Future<List<Map<String, dynamic>>> getPesertaByUkm(
-      String idUkm, String idPeriode) async {
+    String idUkm,
+    String idPeriode,
+  ) async {
     try {
+      // Get peserta list
       final response = await _supabase
           .from('user_halaman_ukm')
           .select('''
@@ -69,9 +72,31 @@ class PesertaService {
           .eq('status', 'active')
           .order('follow', ascending: false);
 
-      return (response as List).map((item) {
-        return {
+      // Get total pertemuan for this UKM and periode
+      final totalPertemuanResponse = await _supabase
+          .from('pertemuan')
+          .select('id_pertemuan')
+          .eq('id_ukm', idUkm)
+          .eq('id_periode', idPeriode);
+
+      final totalPertemuan = (totalPertemuanResponse as List).length;
+
+      // Map peserta with attendance data
+      final pesertaList = <Map<String, dynamic>>[];
+
+      for (var item in response as List) {
+        // Get attendance count for this user
+        final attendanceResponse = await _supabase
+            .from('user_pertemuan')
+            .select('id_user_pertemuan')
+            .eq('id_user', item['id_user'])
+            .eq('id_periode', idPeriode);
+
+        final kehadiranCount = (attendanceResponse as List).length;
+
+        pesertaList.add({
           'id_follow': item['id_follow'],
+          'id_user': item['id_user'],
           'nama': item['users']['username'],
           'email': item['users']['email'],
           'nim': item['users']['nim'],
@@ -79,8 +104,12 @@ class PesertaService {
           'status': item['status'],
           'logbook': item['logbook'],
           'deskripsi': item['deskripsi'],
-        };
-      }).toList();
+          'kehadiran_count': kehadiranCount,
+          'total_pertemuan': totalPertemuan,
+        });
+      }
+
+      return pesertaList;
     } catch (e) {
       throw Exception('Failed to load peserta: $e');
     }
@@ -103,7 +132,9 @@ class PesertaService {
 
   // Update member info
   Future<UserHalamanUkmModel> updatePeserta(
-      String idFollow, UserHalamanUkmModel peserta) async {
+    String idFollow,
+    UserHalamanUkmModel peserta,
+  ) async {
     try {
       final response = await _supabase
           .from('user_halaman_ukm')
@@ -121,11 +152,14 @@ class PesertaService {
   // Remove member (unfollow)
   Future<void> removePeserta(String idFollow, String reason) async {
     try {
-      await _supabase.from('user_halaman_ukm').update({
-        'status': 'inactive',
-        'unfollow': DateTime.now().toIso8601String(),
-        'unfollow_reason': reason,
-      }).eq('id_follow', idFollow);
+      await _supabase
+          .from('user_halaman_ukm')
+          .update({
+            'status': 'inactive',
+            'unfollow': DateTime.now().toIso8601String(),
+            'unfollow_reason': reason,
+          })
+          .eq('id_follow', idFollow);
     } catch (e) {
       throw Exception('Failed to remove peserta: $e');
     }

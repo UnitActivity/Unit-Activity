@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:unit_activity/services/informasi_service.dart';
-import 'package:unit_activity/services/auth_service.dart';
 import 'package:unit_activity/models/informasi_model.dart';
 import 'package:intl/intl.dart';
 
@@ -15,10 +14,8 @@ class InformasiUKMPage extends StatefulWidget {
 class _InformasiUKMPageState extends State<InformasiUKMPage> {
   int _currentPage = 1;
   final InformasiService _informasiService = InformasiService();
-  final AuthService _authService = AuthService();
 
   List<InformasiModel> _informasiList = [];
-  bool _isLoading = true;
 
   @override
   void initState() {
@@ -27,16 +24,13 @@ class _InformasiUKMPageState extends State<InformasiUKMPage> {
   }
 
   Future<void> _loadInformasi() async {
-    setState(() => _isLoading = true);
     try {
       // Load all informasi without UUID filter
       final informasi = await _informasiService.getAllInformasi();
       setState(() {
         _informasiList = informasi;
-        _isLoading = false;
       });
     } catch (e) {
-      setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -211,7 +205,7 @@ class _InformasiUKMPageState extends State<InformasiUKMPage> {
                               child: Padding(
                                 padding: const EdgeInsets.only(right: 8),
                                 child: Text(
-                                  info.judul ?? '-',
+                                  info.judul,
                                   style: GoogleFonts.inter(
                                     fontSize: 14,
                                     color: Colors.grey[800],

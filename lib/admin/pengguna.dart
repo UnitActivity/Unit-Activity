@@ -55,14 +55,12 @@ class _PenggunaPageState extends State<PenggunaPage> {
           .maybeSingle();
 
       // If not found, try with capital 'Aktif'
-      if (periodeResponse == null) {
-        periodeResponse = await _supabase
+      periodeResponse ??= await _supabase
             .from('periode_ukm')
             .select('id_periode, nama_periode, semester, tahun, status')
             .eq('status', 'Aktif')
             .limit(1)
             .maybeSingle();
-      }
 
       // If still not found, try to get any periode ordered by created date
       if (periodeResponse == null) {
@@ -721,7 +719,7 @@ class _PenggunaPageState extends State<PenggunaPage> {
                     Navigator.pop(context);
                   },
                 );
-              }).toList(),
+              }),
             ],
           ),
         ),
@@ -845,7 +843,6 @@ class _PenggunaPageState extends State<PenggunaPage> {
             itemCount: _allUsers.length,
             itemBuilder: (context, index) {
               final user = _allUsers[index];
-              final userId = user['id_user'].toString();
 
               return Container(
                 padding: const EdgeInsets.symmetric(
@@ -1012,8 +1009,6 @@ class _PenggunaPageState extends State<PenggunaPage> {
   }
 
   Widget _buildMobileCard(Map<String, dynamic> user) {
-    final userId = user['id_user'].toString();
-
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(

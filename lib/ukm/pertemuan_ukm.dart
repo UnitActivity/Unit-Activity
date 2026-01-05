@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:unit_activity/ukm/detail_pertemuan_ukm.dart';
 import 'package:unit_activity/services/pertemuan_service.dart';
-import 'package:unit_activity/services/auth_service.dart';
 import 'package:unit_activity/models/pertemuan_model.dart';
 import 'package:intl/intl.dart';
 
@@ -16,7 +15,6 @@ class PertemuanUKMPage extends StatefulWidget {
 class _PertemuanUKMPageState extends State<PertemuanUKMPage> {
   int _currentPage = 1;
   final PertemuanService _pertemuanService = PertemuanService();
-  final AuthService _authService = AuthService();
 
   List<PertemuanModel> _pertemuanList = [];
   bool _isLoading = true;

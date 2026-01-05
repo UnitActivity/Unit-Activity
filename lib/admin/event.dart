@@ -13,7 +13,6 @@ class EventPage extends StatefulWidget {
 
 class _EventPageState extends State<EventPage> {
   final SupabaseClient _supabase = Supabase.instance.client;
-  String _sortBy = 'Urutkan';
   String _searchQuery = '';
   int _currentPage = 1;
   final int _itemsPerPage = 10;

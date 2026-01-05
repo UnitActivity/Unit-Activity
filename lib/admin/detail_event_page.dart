@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'detail_document_page.dart';
 
 class DetailEventPage extends StatefulWidget {
   final Map<String, dynamic> event;
@@ -15,7 +14,6 @@ class DetailEventPage extends StatefulWidget {
 
 class _DetailEventPageState extends State<DetailEventPage> {
   final SupabaseClient _supabase = Supabase.instance.client;
-  bool _isLoading = false;
   List<Map<String, dynamic>> _dokumenProposal = [];
   List<Map<String, dynamic>> _dokumenLpj = [];
   int _jumlahPeserta = 0;
@@ -28,7 +26,6 @@ class _DetailEventPageState extends State<DetailEventPage> {
 
   Future<void> _loadEventDetails() async {
     if (!mounted) return;
-    setState(() => _isLoading = true);
 
     try {
       final idEvent = widget.event['id_event'];
@@ -55,12 +52,8 @@ class _DetailEventPageState extends State<DetailEventPage> {
           .count();
       _jumlahPeserta = pesertaCount.count;
 
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
     } catch (e) {
       if (mounted) {
-        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Gagal memuat detail event: \$e'),
@@ -709,7 +702,7 @@ class _DetailEventPageState extends State<DetailEventPage> {
             ],
           ),
           const SizedBox(height: 20),
-          ...documents.map((doc) => _buildDocumentItem(context, doc)).toList(),
+          ...documents.map((doc) => _buildDocumentItem(context, doc)),
         ],
       ),
     );

@@ -11,7 +11,7 @@ import 'package:unit_activity/user/event.dart';
 import 'package:unit_activity/user/history.dart';
 
 class UserUKMPage extends StatefulWidget {
-  const UserUKMPage({Key? key}) : super(key: key);
+  const UserUKMPage({super.key});
 
   @override
   State<UserUKMPage> createState() => _UserUKMPageState();
@@ -27,7 +27,6 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
   bool _isLoading = true;
 
   List<Map<String, dynamic>> _allUKMs = [];
-  Map<String, int> _userUKMAttendance = {}; // Store attendance for each UKM
 
   @override
   void initState() {
@@ -64,11 +63,11 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
 
       print('DEBUG: Response: $response');
       print(
-        'DEBUG: Response length: ${response is List ? response.length : 'N/A'}',
+        'DEBUG: Response length: ${response.length}',
       );
 
       // Load user's registered UKMs (baik login maupun anonymous)
-      final registeredUKMIds = Set<String>();
+      final registeredUKMIds = <String>{};
       final Map<String, int> attendanceMap = {};
 
       try {
@@ -80,14 +79,12 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
 
         print('DEBUG: userUKMResponse: $userUKMResponse');
 
-        if (userUKMResponse is List) {
-          for (var item in userUKMResponse) {
-            registeredUKMIds.add(item['id_ukm']?.toString() ?? '');
-            // Set default attendance, will be updated later from database
-            attendanceMap[item['id_ukm']?.toString() ?? ''] = 0;
-          }
+        for (var item in userUKMResponse) {
+          registeredUKMIds.add(item['id_ukm']?.toString() ?? '');
+          // Set default attendance, will be updated later from database
+          attendanceMap[item['id_ukm']?.toString() ?? ''] = 0;
         }
-      } catch (e) {
+            } catch (e) {
         print('DEBUG: Error loading user UKMs: $e');
       }
 
@@ -115,7 +112,6 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
             'attendance': attendanceMap[ukm['id_ukm']?.toString()] ?? 0,
           };
         }).toList();
-        _userUKMAttendance = attendanceMap;
         print('DEBUG: _allUKMs size: ${_allUKMs.length}');
         print('DEBUG: _filteredUKMs size: ${_filteredUKMs.length}');
         _isLoading = false;
@@ -147,7 +143,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
         filtered = _allUKMs
             .where(
               (ukm) =>
-                  ukm['isRegistered'] == true && ukm['attendance'] ?? 0 > 0,
+                  ukm['isRegistered'] == true && (ukm['attendance'] as int? ?? 0) > 0,
             )
             .toList();
         break;
@@ -250,13 +246,6 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                       child: ElevatedButton(
                         onPressed: () async {
                           try {
-                            final user = _supabase.auth.currentUser;
-
-                            // Generate anonymous user ID jika tidak login
-                            final userId =
-                                user?.id ??
-                                'anonymous_${DateTime.now().millisecondsSinceEpoch}';
-
                             // Save to Supabase
                             await _supabase.from('user_halaman_ukm').insert({
                               'id_ukm': ukm['id'],
@@ -1710,7 +1699,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
               ],
             ),
           );
-        }).toList(),
+        }),
       ],
     );
   }

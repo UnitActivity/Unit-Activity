@@ -198,8 +198,6 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop = MediaQuery.of(context).size.width >= 768;
-
     return Scaffold(
       backgroundColor: Colors.grey[50],
       body: CustomScrollView(

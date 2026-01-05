@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:unit_activity/services/event_service_new.dart';
-import 'package:unit_activity/services/file_upload_service.dart';
 import 'package:unit_activity/services/custom_auth_service.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -20,7 +19,6 @@ class DetailEventUkmPage extends StatefulWidget {
 class _DetailEventUkmPageState extends State<DetailEventUkmPage>
     with SingleTickerProviderStateMixin {
   final EventService _eventService = EventService();
-  final FileUploadService _fileUploadService = FileUploadService();
   final SupabaseClient _supabase = Supabase.instance.client;
 
   // Use getter to always access the singleton instance
@@ -31,16 +29,22 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
   List<Map<String, dynamic>> _dokumenLpj = [];
   List<Map<String, dynamic>> _pesertaList = [];
   List<Map<String, dynamic>> _filteredPesertaList = [];
+  List<Map<String, dynamic>> _pendingParticipants = [];
   bool _isLoading = true;
   bool _isUploadingFile = false;
   int _jumlahPeserta = 0;
   late TabController _tabController;
   final TextEditingController _searchController = TextEditingController();
 
+  // QR Code state
+  String? _currentQRCode;
+  DateTime? _qrExpiresAt;
+  bool _isQRActive = false;
+
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _checkAuthAndLoadData();
   }
 
@@ -100,10 +104,17 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
       final pesertaData = await _supabase
           .from('absen_event')
           .select('*, users(username, email, nim)')
-          .eq('id_event', widget.eventId);
+          .eq('id_event', widget.eventId)
+          .neq('status', 'pending');
       _pesertaList = List<Map<String, dynamic>>.from(pesertaData);
       _filteredPesertaList = _pesertaList;
       _jumlahPeserta = _pesertaList.length;
+
+      // Load pending participants
+      final pendingData = await _eventService.getPendingParticipants(
+        widget.eventId,
+      );
+      _pendingParticipants = pendingData;
     } catch (e) {
       print('Error loading event details: $e');
       if (mounted) {
@@ -777,6 +788,7 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
                     children: [
                       _buildInfoTab(isDesktop),
                       _buildPesertaTab(isDesktop),
+                      _buildQRAttendanceTab(isDesktop),
                       _buildDokumenTab(context, isDesktop),
                     ],
                   ),
@@ -1149,6 +1161,10 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
           Tab(
             icon: Icon(Icons.people_outline_rounded, size: 20),
             text: 'Peserta',
+          ),
+          Tab(
+            icon: Icon(Icons.qr_code_2_rounded, size: 20),
+            text: 'QR Absensi',
           ),
           Tab(icon: Icon(Icons.folder_open_rounded, size: 20), text: 'Dokumen'),
         ],
@@ -1810,9 +1826,7 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
             ),
           )
         else
-          ...documents
-              .map((doc) => _buildDocumentItem(doc, documentType))
-              .toList(),
+          ...documents.map((doc) => _buildDocumentItem(doc, documentType)),
       ],
     );
   }
@@ -2063,5 +2077,435 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
         ],
       ),
     );
+  }
+
+  Widget _buildQRAttendanceTab(bool isDesktop) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        children: [
+          // Pending Participants Section
+          if (_pendingParticipants.isNotEmpty) ...[
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.orange[50],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.orange[200]!),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.orange[100],
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          Icons.pending_actions,
+                          color: Colors.orange[700],
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Peserta Menunggu Persetujuan (${_pendingParticipants.length})',
+                          style: GoogleFonts.inter(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.orange[900],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  ...List.generate(_pendingParticipants.length, (index) {
+                    final participant = _pendingParticipants[index];
+                    final user = participant['users'] as Map<String, dynamic>?;
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey[200]!),
+                      ),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            backgroundColor: const Color(
+                              0xFF4169E1,
+                            ).withOpacity(0.1),
+                            child: Text(
+                              (user?['username'] ?? 'U')[0].toUpperCase(),
+                              style: GoogleFonts.inter(
+                                color: const Color(0xFF4169E1),
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  user?['username'] ?? '-',
+                                  style: GoogleFonts.inter(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                Text(
+                                  user?['email'] ?? '-',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => _acceptParticipant(
+                              participant['id_absen_event'],
+                            ),
+                            icon: const Icon(
+                              Icons.check_circle,
+                              color: Colors.green,
+                            ),
+                            tooltip: 'Terima',
+                          ),
+                          IconButton(
+                            onPressed: () => _rejectParticipant(
+                              participant['id_absen_event'],
+                            ),
+                            icon: const Icon(Icons.cancel, color: Colors.red),
+                            tooltip: 'Tolak',
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
+
+          // QR Code Generator Section
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF4169E1).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.qr_code_2_rounded,
+                        color: Color(0xFF4169E1),
+                        size: 32,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'QR Code Absensi',
+                            style: GoogleFonts.inter(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            'Generate QR code untuk absensi peserta (berlaku 10 detik)',
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+
+                if (_isQRActive && _currentQRCode != null) ...[
+                  // Show QR Code
+                  Container(
+                    padding: const EdgeInsets.all(32),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: const Color(0xFF4169E1),
+                        width: 2,
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        Container(
+                          width: 250,
+                          height: 250,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[100],
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.qr_code_2,
+                                  size: 150,
+                                  color: Color(0xFF4169E1),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  _currentQRCode!,
+                                  style: GoogleFonts.robotoMono(fontSize: 10),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'QR Code Aktif',
+                          style: GoogleFonts.inter(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green,
+                          ),
+                        ),
+                        if (_qrExpiresAt != null)
+                          TweenAnimationBuilder<int>(
+                            tween: IntTween(begin: 10, end: 0),
+                            duration: const Duration(seconds: 10),
+                            builder: (context, value, child) {
+                              if (value == 0) {
+                                Future.microtask(() {
+                                  setState(() {
+                                    _isQRActive = false;
+                                    _currentQRCode = null;
+                                    _qrExpiresAt = null;
+                                  });
+                                });
+                              }
+                              return Text(
+                                'Kadaluarsa dalam $value detik',
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  color: value <= 3
+                                      ? Colors.red
+                                      : Colors.grey[600],
+                                  fontWeight: value <= 3
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                                ),
+                              );
+                            },
+                          ),
+                      ],
+                    ),
+                  ),
+                ] else ...[
+                  ElevatedButton.icon(
+                    onPressed: _generateQRCode,
+                    icon: const Icon(Icons.qr_code_scanner, size: 24),
+                    label: Text(
+                      'Generate QR Code',
+                      style: GoogleFonts.inter(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF4169E1),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 32,
+                        vertical: 20,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 0,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _generateQRCode() async {
+    try {
+      final result = await _eventService.generateAttendanceQR(widget.eventId);
+      setState(() {
+        _currentQRCode = result['qr_code'];
+        _qrExpiresAt = DateTime.parse(result['expires_at']);
+        _isQRActive = true;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'QR Code berhasil di-generate',
+              style: GoogleFonts.inter(),
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal generate QR: $e', style: GoogleFonts.inter()),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _acceptParticipant(String absenEventId) async {
+    try {
+      await _eventService.acceptParticipant(absenEventId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Peserta diterima', style: GoogleFonts.inter()),
+            backgroundColor: Colors.green,
+          ),
+        );
+        _loadEventDetails();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Gagal menerima peserta: $e',
+              style: GoogleFonts.inter(),
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _rejectParticipant(String absenEventId) async {
+    final TextEditingController reasonController = TextEditingController();
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Tolak Peserta',
+          style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Berikan alasan penolakan',
+              style: GoogleFonts.inter(fontSize: 14),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: reasonController,
+              decoration: InputDecoration(
+                labelText: 'Alasan',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              maxLines: 3,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Batal', style: GoogleFonts.inter()),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: Text('Tolak', style: GoogleFonts.inter()),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true && mounted) {
+      try {
+        await _eventService.rejectParticipant(
+          absenEventId,
+          reasonController.text.isEmpty
+              ? 'Tidak memenuhi kriteria'
+              : reasonController.text,
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Peserta ditolak', style: GoogleFonts.inter()),
+              backgroundColor: Colors.green,
+            ),
+          );
+          _loadEventDetails();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Gagal menolak peserta: $e',
+                style: GoogleFonts.inter(),
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+
+    reasonController.dispose();
   }
 }

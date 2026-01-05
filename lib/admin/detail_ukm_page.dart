@@ -40,14 +40,12 @@ class _DetailUkmPageState extends State<DetailUkmPage>
   bool _hasSymbol = false;
 
   // Data states from database
-  List<Map<String, dynamic>> _periodeList = [];
   List<Map<String, dynamic>> _anggotaList = [];
   List<Map<String, dynamic>> _pertemuanList = [];
   List<Map<String, dynamic>> _eventList = [];
   List<Map<String, dynamic>> _dokumenProposalList = [];
   List<Map<String, dynamic>> _dokumenLpjList = [];
   bool _isLoadingData = false;
-  Map<String, dynamic>? _currentPeriode;
 
   @override
   void initState() {
@@ -326,23 +324,19 @@ class _DetailUkmPageState extends State<DetailUkmPage>
       // Load current periode
       final currentPeriodeId = widget.ukm['id_current_periode'];
       if (currentPeriodeId != null) {
-        final periodeData = await _supabase
+        await _supabase
             .from('periode_ukm')
             .select()
             .eq('id_periode', currentPeriodeId)
             .maybeSingle();
-        if (periodeData != null) {
-          _currentPeriode = periodeData;
-        }
       }
 
       // Load all periode
-      final periodeData = await _supabase
+      await _supabase
           .from('periode_ukm')
           .select()
           .eq('id_ukm', idUkm)
           .order('create_at', ascending: false);
-      _periodeList = List<Map<String, dynamic>>.from(periodeData);
 
       // Load anggota (followers) with user details
       final anggotaData = await _supabase
@@ -1240,291 +1234,6 @@ class _DetailUkmPageState extends State<DetailUkmPage>
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildCombinedProfileCard(bool isDesktop) {
-    final logoUrl = _newLogoUrl ?? widget.ukm['logo'];
-
-    return Container(
-      padding: EdgeInsets.all(isDesktop ? 32 : 24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Logo/Photo - Centered
-          Center(
-            child: Stack(
-              children: [
-                Container(
-                  width: isDesktop ? 120 : 100,
-                  height: isDesktop ? 120 : 100,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.grey[200],
-                    image: logoUrl != null
-                        ? DecorationImage(
-                            image: NetworkImage(logoUrl),
-                            fit: BoxFit.cover,
-                          )
-                        : null,
-                  ),
-                  child: logoUrl == null
-                      ? Icon(
-                          Icons.groups,
-                          size: isDesktop ? 60 : 50,
-                          color: Colors.grey[400],
-                        )
-                      : null,
-                ),
-                if (_isEditMode)
-                  Positioned(
-                    bottom: 0,
-                    right: 0,
-                    child: GestureDetector(
-                      onTap: _uploadLogo,
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF4169E1),
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.2),
-                              blurRadius: 4,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: const Icon(
-                          Icons.camera_alt,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // Informasi UKM Title
-          Text(
-            'Informasi UKM',
-            style: GoogleFonts.inter(
-              fontSize: isDesktop ? 20 : 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          // Info Rows
-          _buildInfoRow(
-            icon: Icons.groups_outlined,
-            label: 'Nama UKM',
-            value: widget.ukm['nama_ukm'],
-            isDesktop: isDesktop,
-            controller: _isEditMode ? _namaController : null,
-          ),
-          _buildInfoRow(
-            icon: Icons.email_outlined,
-            label: 'Email',
-            value: widget.ukm['email'],
-            isDesktop: isDesktop,
-            controller: _isEditMode ? _emailController : null,
-          ),
-          _buildInfoRow(
-            icon: Icons.description_outlined,
-            label: 'Deskripsi',
-            value: widget.ukm['description'] ?? '-',
-            isDesktop: isDesktop,
-            controller: _isEditMode ? _deskripsiController : null,
-            maxLines: 3,
-          ),
-          _buildInfoRow(
-            icon: Icons.calendar_today_outlined,
-            label: 'Dibuat Pada',
-            value: _formatDate(widget.ukm['create_at']),
-            isDesktop: isDesktop,
-            controller: null,
-          ),
-
-          // Action Buttons (if edit mode)
-          if (_isEditMode) ...[
-            const SizedBox(height: 24),
-            _buildActionButtons(isDesktop),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoRow({
-    required IconData icon,
-    required String label,
-    required String? value,
-    required bool isDesktop,
-    TextEditingController? controller,
-    int maxLines = 1,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 20),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: const Color(0xFF4169E1).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, size: 20, color: const Color(0xFF4169E1)),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey[600],
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                controller != null
-                    ? TextField(
-                        controller: controller,
-                        maxLines: maxLines,
-                        style: GoogleFonts.inter(
-                          fontSize: 15,
-                          color: Colors.black87,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        decoration: InputDecoration(
-                          isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 10,
-                          ),
-                          filled: true,
-                          fillColor: Colors.grey[50],
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide(color: Colors.grey[300]!),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide(color: Colors.grey[300]!),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(
-                              color: Color(0xFF4169E1),
-                              width: 2,
-                            ),
-                          ),
-                        ),
-                      )
-                    : Text(
-                        value ?? '-',
-                        style: GoogleFonts.inter(
-                          fontSize: 15,
-                          color: Colors.black87,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        maxLines: maxLines,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionButtons(bool isDesktop) {
-    return Row(
-      children: [
-        Expanded(
-          child: OutlinedButton(
-            onPressed: _isSaving
-                ? null
-                : () {
-                    setState(() {
-                      _isEditMode = false;
-                      _namaController.text = widget.ukm['nama_ukm'];
-                      _emailController.text = widget.ukm['email'];
-                      _deskripsiController.text =
-                          widget.ukm['description'] ?? '';
-                      _newLogoUrl = null;
-                    });
-                  },
-            style: OutlinedButton.styleFrom(
-              padding: EdgeInsets.symmetric(vertical: isDesktop ? 16 : 14),
-              side: BorderSide(color: Colors.grey[300]!),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            child: Text(
-              'Batal',
-              style: GoogleFonts.inter(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey[700],
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: ElevatedButton(
-            onPressed: _isSaving ? null : _saveChanges,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF4169E1),
-              foregroundColor: Colors.white,
-              padding: EdgeInsets.symmetric(vertical: isDesktop ? 16 : 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              elevation: 0,
-            ),
-            child: _isSaving
-                ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                  )
-                : Text(
-                    'Simpan',
-                    style: GoogleFonts.inter(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-          ),
-        ),
-      ],
     );
   }
 

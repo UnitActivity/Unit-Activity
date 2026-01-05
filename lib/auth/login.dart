@@ -156,7 +156,6 @@ class _LoginPageState extends State<LoginPage> {
 
   Widget _buildBrandingSection() {
     final size = MediaQuery.of(context).size;
-    final isDesktop = size.width > 900;
     final isMobile = size.width < 600;
 
     return Column(
