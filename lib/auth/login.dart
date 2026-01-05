@@ -155,13 +155,17 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Widget _buildBrandingSection() {
+    final size = MediaQuery.of(context).size;
+    final isDesktop = size.width > 900;
+    final isMobile = size.width < 600;
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         // Icon/Logo
         Container(
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.all(isMobile ? 16 : 24),
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.2),
             shape: BoxShape.circle,
@@ -173,34 +177,34 @@ class _LoginPageState extends State<LoginPage> {
               ),
             ],
           ),
-          child: const Icon(
+          child: Icon(
             Icons.school_rounded,
-            size: 80,
+            size: isMobile ? 50 : 80,
             color: Colors.white,
           ),
         ),
-        const SizedBox(height: 32),
+        SizedBox(height: isMobile ? 20 : 32),
 
         // App Title
         Text(
           'UNIT ACTIVITY',
           textAlign: TextAlign.center,
           style: GoogleFonts.poppins(
-            fontSize: 48,
+            fontSize: isMobile ? 28 : 48,
             fontWeight: FontWeight.w800,
             color: Colors.white,
-            letterSpacing: 2,
+            letterSpacing: isMobile ? 1 : 2,
             height: 1.2,
           ),
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: isMobile ? 8 : 12),
 
         // Subtitle
         Text(
           'Platform Manajemen Kegiatan UKM',
           textAlign: TextAlign.center,
           style: GoogleFonts.inter(
-            fontSize: 16,
+            fontSize: isMobile ? 12 : 16,
             fontWeight: FontWeight.w400,
             color: Colors.white.withOpacity(0.9),
             letterSpacing: 0.5,
@@ -211,11 +215,14 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Widget _buildLoginCard() {
+    final size = MediaQuery.of(context).size;
+    final isMobile = size.width < 600;
+
     return Container(
-      padding: const EdgeInsets.all(40),
+      padding: EdgeInsets.all(isMobile ? 24 : 40),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(isMobile ? 16 : 24),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.15),
@@ -234,22 +241,22 @@ class _LoginPageState extends State<LoginPage> {
               'Selamat Datang',
               textAlign: TextAlign.center,
               style: GoogleFonts.poppins(
-                fontSize: 28,
+                fontSize: isMobile ? 20 : 28,
                 fontWeight: FontWeight.w700,
                 color: Colors.black87,
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: isMobile ? 4 : 8),
             Text(
               'Silakan masuk untuk melanjutkan',
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(
-                fontSize: 14,
+                fontSize: isMobile ? 12 : 14,
                 fontWeight: FontWeight.w400,
                 color: Colors.grey[600],
               ),
             ),
-            const SizedBox(height: 32),
+            SizedBox(height: isMobile ? 20 : 32),
 
             // Email Input Field
             Column(
@@ -258,12 +265,12 @@ class _LoginPageState extends State<LoginPage> {
                 Text(
                   'Email',
                   style: GoogleFonts.inter(
-                    fontSize: 14,
+                    fontSize: isMobile ? 12 : 14,
                     fontWeight: FontWeight.w600,
                     color: Colors.grey[800],
                   ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: isMobile ? 6 : 8),
                 TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
@@ -325,7 +332,7 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: isMobile ? 12 : 20),
 
             // Password Input Field
             Column(
@@ -334,12 +341,12 @@ class _LoginPageState extends State<LoginPage> {
                 Text(
                   'Password',
                   style: GoogleFonts.inter(
-                    fontSize: 14,
+                    fontSize: isMobile ? 12 : 14,
                     fontWeight: FontWeight.w600,
                     color: Colors.grey[800],
                   ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: isMobile ? 6 : 8),
                 TextFormField(
                   controller: _passwordController,
                   obscureText: _obscurePassword,
@@ -436,12 +443,12 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ),
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: isMobile ? 16 : 24),
 
             // Login Button
             SizedBox(
               width: double.infinity,
-              height: 54,
+              height: isMobile ? 48 : 54,
               child: ElevatedButton(
                 onPressed: _isLoading ? null : _handleLogin,
                 style: ElevatedButton.styleFrom(
