@@ -143,21 +143,24 @@ class _InformasiPageState extends State<InformasiPage> {
   @override
   Widget build(BuildContext context) {
     final isDesktop = MediaQuery.of(context).size.width >= 768;
+    final isMobile = MediaQuery.of(context).size.width < 600;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Header with Stats
-        _buildHeader(isDesktop),
-        const SizedBox(height: 24),
+        _buildHeader(isDesktop, isMobile),
+        SizedBox(height: isMobile ? 16 : 24),
 
-        // Filter Chips
-        _buildFilterChips(),
-        const SizedBox(height: 16),
+        // Filter Chips (Desktop only)
+        if (!isMobile) ...[
+          _buildFilterChips(isMobile),
+          SizedBox(height: isMobile ? 12 : 16),
+        ],
 
         // Search and Actions Bar
-        _buildSearchAndActionsBar(isDesktop),
-        const SizedBox(height: 24),
+        _buildSearchAndActionsBar(isDesktop, isMobile),
+        SizedBox(height: isMobile ? 16 : 24),
 
         // Content
         _isLoading
@@ -176,7 +179,7 @@ class _InformasiPageState extends State<InformasiPage> {
     );
   }
 
-  Widget _buildHeader(bool isDesktop) {
+  Widget _buildHeader(bool isDesktop, bool isMobile) {
     final totalInfo = _allInformasi.length;
     final activeInfo = _allInformasi
         .where((i) => i['status'] == 'Aktif')
@@ -186,29 +189,32 @@ class _InformasiPageState extends State<InformasiPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 20),
+        SizedBox(height: isMobile ? 12 : 20),
         // Stats Cards
         Wrap(
-          spacing: 12,
-          runSpacing: 12,
+          spacing: isMobile ? 8 : 12,
+          runSpacing: isMobile ? 8 : 12,
           children: [
             _buildStatCard(
               'Total Informasi',
               totalInfo.toString(),
               Icons.article_outlined,
               const Color(0xFF4169E1),
+              isMobile,
             ),
             _buildStatCard(
               'Aktif',
               activeInfo.toString(),
               Icons.check_circle_outline,
               Colors.green,
+              isMobile,
             ),
             _buildStatCard(
               'Draft',
               draftInfo.toString(),
               Icons.edit_note_outlined,
               Colors.orange,
+              isMobile,
             ),
           ],
         ),
@@ -221,17 +227,19 @@ class _InformasiPageState extends State<InformasiPage> {
     String value,
     IconData icon,
     Color color,
+    bool isMobile,
   ) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(top: 16),
+      padding: EdgeInsets.all(isMobile ? 10 : 16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(isMobile ? 8 : 12),
         border: Border.all(color: color.withOpacity(0.2)),
         boxShadow: [
           BoxShadow(
             color: color.withOpacity(0.1),
-            blurRadius: 8,
+            blurRadius: isMobile ? 4 : 8,
             offset: const Offset(0, 2),
           ),
         ],
@@ -240,28 +248,31 @@ class _InformasiPageState extends State<InformasiPage> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: EdgeInsets.all(isMobile ? 6 : 8),
             decoration: BoxDecoration(
               color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(isMobile ? 6 : 8),
             ),
-            child: Icon(icon, color: color, size: 20),
+            child: Icon(icon, color: color, size: isMobile ? 16 : 20),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: isMobile ? 8 : 12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 value,
                 style: GoogleFonts.inter(
-                  fontSize: 24,
+                  fontSize: isMobile ? 18 : 24,
                   fontWeight: FontWeight.bold,
                   color: Colors.black87,
                 ),
               ),
               Text(
                 label,
-                style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600]),
+                style: GoogleFonts.inter(
+                  fontSize: isMobile ? 10 : 12,
+                  color: Colors.grey[600],
+                ),
               ),
             ],
           ),
@@ -270,7 +281,7 @@ class _InformasiPageState extends State<InformasiPage> {
     );
   }
 
-  Widget _buildFilterChips() {
+  Widget _buildFilterChips(bool isMobile) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
@@ -284,6 +295,7 @@ class _InformasiPageState extends State<InformasiPage> {
               _filterStatus = value;
               _currentPage = 1;
             }),
+            isMobile,
           ),
         ],
       ),
@@ -295,12 +307,16 @@ class _InformasiPageState extends State<InformasiPage> {
     String currentValue,
     List<String> options,
     Function(String) onChanged,
+    bool isMobile,
   ) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 8 : 12,
+        vertical: isMobile ? 6 : 8,
+      ),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(isMobile ? 16 : 20),
         border: Border.all(color: Colors.grey[300]!),
       ),
       child: Row(
@@ -309,7 +325,7 @@ class _InformasiPageState extends State<InformasiPage> {
           Text(
             '$label: ',
             style: GoogleFonts.inter(
-              fontSize: 13,
+              fontSize: isMobile ? 11 : 13,
               fontWeight: FontWeight.w500,
               color: Colors.grey[700],
             ),
@@ -318,9 +334,13 @@ class _InformasiPageState extends State<InformasiPage> {
             value: currentValue,
             underline: const SizedBox(),
             isDense: true,
-            icon: Icon(Icons.arrow_drop_down, color: Colors.grey[700]),
+            icon: Icon(
+              Icons.arrow_drop_down,
+              color: Colors.grey[700],
+              size: isMobile ? 18 : 20,
+            ),
             style: GoogleFonts.inter(
-              fontSize: 13,
+              fontSize: isMobile ? 11 : 13,
               fontWeight: FontWeight.w600,
               color: const Color(0xFF4169E1),
             ),
@@ -336,7 +356,150 @@ class _InformasiPageState extends State<InformasiPage> {
     );
   }
 
-  Widget _buildSearchAndActionsBar(bool isDesktop) {
+  Widget _buildSearchAndActionsBar(bool isDesktop, bool isMobile) {
+    if (isMobile) {
+      // Mobile: Column layout
+      return Column(
+        children: [
+          // Search Bar
+          TextField(
+            onChanged: (value) {
+              setState(() {
+                _searchQuery = value;
+                _currentPage = 1;
+              });
+            },
+            decoration: InputDecoration(
+              hintText: 'Cari informasi...',
+              hintStyle: GoogleFonts.inter(
+                fontSize: 12,
+                color: Colors.grey[500],
+              ),
+              prefixIcon: Icon(Icons.search, color: Colors.grey[600], size: 18),
+              suffixIcon: _searchQuery.isNotEmpty
+                  ? IconButton(
+                      icon: Icon(
+                        Icons.clear,
+                        color: Colors.grey[600],
+                        size: 18,
+                      ),
+                      onPressed: () => setState(() {
+                        _searchQuery = '';
+                        _currentPage = 1;
+                      }),
+                    )
+                  : null,
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: Colors.grey[300]!),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: Colors.grey[300]!),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(
+                  color: Color(0xFF4169E1),
+                  width: 2,
+                ),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 10,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Action Buttons Row with Status Filter
+          Row(
+            children: [
+              // Status Filter
+              _buildFilterChip(
+                'Status',
+                _filterStatus,
+                ['Semua', 'Aktif', 'Draft', 'Arsip'],
+                (value) => setState(() {
+                  _filterStatus = value;
+                  _currentPage = 1;
+                }),
+                isMobile,
+              ),
+              const SizedBox(width: 8),
+              // View Mode Toggle
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey[300]!),
+                ),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: Icon(
+                        Icons.grid_view_rounded,
+                        size: 18,
+                        color: _viewMode == 'grid'
+                            ? const Color(0xFF4169E1)
+                            : Colors.grey[600],
+                      ),
+                      onPressed: () => setState(() => _viewMode = 'grid'),
+                      tooltip: 'Grid View',
+                      padding: const EdgeInsets.all(8),
+                      constraints: const BoxConstraints(),
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        Icons.view_list_rounded,
+                        size: 18,
+                        color: _viewMode == 'list'
+                            ? const Color(0xFF4169E1)
+                            : Colors.grey[600],
+                      ),
+                      onPressed: () => setState(() => _viewMode = 'list'),
+                      tooltip: 'List View',
+                      padding: const EdgeInsets.all(8),
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Add Button
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _showAddInformasiDialog,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4169E1),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    elevation: 0,
+                  ),
+                  icon: const Icon(Icons.add, size: 16),
+                  label: Text(
+                    'Tambah',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
+    // Desktop: Row layout
     return Row(
       children: [
         // Search Bar
@@ -515,26 +678,27 @@ class _InformasiPageState extends State<InformasiPage> {
   }
 
   Widget _buildGridView(bool isDesktop) {
-    final crossAxisCount = isDesktop ? 3 : 2;
+    final isMobile = MediaQuery.of(context).size.width < 600;
+    final crossAxisCount = isMobile ? 1 : (isDesktop ? 3 : 2);
 
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
-        childAspectRatio: 0.75,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
+        childAspectRatio: isMobile ? 1.2 : 0.75,
+        crossAxisSpacing: isMobile ? 0 : 16,
+        mainAxisSpacing: isMobile ? 12 : 16,
       ),
       itemCount: _paginatedInformasi.length,
       itemBuilder: (context, index) {
         final info = _paginatedInformasi[index];
-        return _buildGridCard(info);
+        return _buildGridCard(info, isMobile);
       },
     );
   }
 
-  Widget _buildGridCard(Map<String, dynamic> info) {
+  Widget _buildGridCard(Map<String, dynamic> info, bool isMobile) {
     final ukmName =
         (info['ukm'] as Map<String, dynamic>?)?['nama_ukm'] ?? 'UKM';
     final status = info['status'] ?? 'Draft';
@@ -552,11 +716,11 @@ class _InformasiPageState extends State<InformasiPage> {
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(isMobile ? 12 : 16),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.06),
-              blurRadius: 12,
+              blurRadius: isMobile ? 8 : 12,
               offset: const Offset(0, 4),
             ),
           ],
@@ -568,11 +732,11 @@ class _InformasiPageState extends State<InformasiPage> {
             Stack(
               children: [
                 ClipRRect(
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(16),
+                  borderRadius: BorderRadius.vertical(
+                    top: Radius.circular(isMobile ? 12 : 16),
                   ),
                   child: AspectRatio(
-                    aspectRatio: 1.5,
+                    aspectRatio: isMobile ? 2.0 : 1.5,
                     child: info['gambar'] != null
                         ? Image.network(
                             _supabase.storage
@@ -584,7 +748,7 @@ class _InformasiPageState extends State<InformasiPage> {
                                   color: Colors.grey[200],
                                   child: Icon(
                                     Icons.image_not_supported,
-                                    size: 40,
+                                    size: isMobile ? 32 : 40,
                                     color: Colors.grey[400],
                                   ),
                                 ),
@@ -593,28 +757,28 @@ class _InformasiPageState extends State<InformasiPage> {
                             color: Colors.grey[200],
                             child: Icon(
                               Icons.image_outlined,
-                              size: 40,
+                              size: isMobile ? 32 : 40,
                               color: Colors.grey[400],
                             ),
                           ),
                   ),
                 ),
                 Positioned(
-                  top: 8,
-                  right: 8,
+                  top: isMobile ? 6 : 8,
+                  right: isMobile ? 6 : 8,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isMobile ? 8 : 10,
+                      vertical: isMobile ? 3 : 4,
                     ),
                     decoration: BoxDecoration(
                       color: _getStatusColor(status),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(isMobile ? 10 : 12),
                     ),
                     child: Text(
                       status,
                       style: GoogleFonts.inter(
-                        fontSize: 11,
+                        fontSize: isMobile ? 10 : 11,
                         fontWeight: FontWeight.w600,
                         color: Colors.white,
                       ),
@@ -626,15 +790,15 @@ class _InformasiPageState extends State<InformasiPage> {
             // Content
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.all(12),
+                padding: EdgeInsets.all(isMobile ? 10 : 12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // UKM Badge
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isMobile ? 6 : 8,
+                        vertical: isMobile ? 3 : 4,
                       ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF4169E1).withOpacity(0.1),
@@ -643,7 +807,7 @@ class _InformasiPageState extends State<InformasiPage> {
                       child: Text(
                         ukmName,
                         style: GoogleFonts.inter(
-                          fontSize: 11,
+                          fontSize: isMobile ? 10 : 11,
                           fontWeight: FontWeight.w600,
                           color: const Color(0xFF4169E1),
                         ),
@@ -651,13 +815,13 @@ class _InformasiPageState extends State<InformasiPage> {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: isMobile ? 6 : 8),
                     // Title
                     Expanded(
                       child: Text(
                         info['judul'] ?? 'Tanpa Judul',
                         style: GoogleFonts.inter(
-                          fontSize: 14,
+                          fontSize: isMobile ? 13 : 14,
                           fontWeight: FontWeight.w600,
                           color: Colors.black87,
                           height: 1.3,
@@ -666,13 +830,13 @@ class _InformasiPageState extends State<InformasiPage> {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: isMobile ? 6 : 8),
                     // Date
                     Row(
                       children: [
                         Icon(
                           Icons.access_time,
-                          size: 14,
+                          size: isMobile ? 12 : 14,
                           color: Colors.grey[600],
                         ),
                         const SizedBox(width: 4),
@@ -680,7 +844,7 @@ class _InformasiPageState extends State<InformasiPage> {
                           child: Text(
                             _formatDate(info['create_at']),
                             style: GoogleFonts.inter(
-                              fontSize: 12,
+                              fontSize: isMobile ? 10 : 12,
                               color: Colors.grey[600],
                             ),
                           ),
@@ -698,18 +862,19 @@ class _InformasiPageState extends State<InformasiPage> {
   }
 
   Widget _buildListView() {
+    final isMobile = MediaQuery.of(context).size.width < 600;
     return ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: _paginatedInformasi.length,
       itemBuilder: (context, index) {
         final info = _paginatedInformasi[index];
-        return _buildListCard(info);
+        return _buildListCard(info, isMobile);
       },
     );
   }
 
-  Widget _buildListCard(Map<String, dynamic> info) {
+  Widget _buildListCard(Map<String, dynamic> info, bool isMobile) {
     final ukmName =
         (info['ukm'] as Map<String, dynamic>?)?['nama_ukm'] ?? 'UKM';
     final periodeName =
@@ -727,14 +892,14 @@ class _InformasiPageState extends State<InformasiPage> {
         _fetchInformasi(); // Refresh after returning
       },
       child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
+        margin: EdgeInsets.only(bottom: isMobile ? 8 : 12),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(isMobile ? 12 : 16),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.04),
-              blurRadius: 8,
+              blurRadius: isMobile ? 6 : 8,
               offset: const Offset(0, 2),
             ),
           ],
@@ -743,12 +908,12 @@ class _InformasiPageState extends State<InformasiPage> {
           children: [
             // Image
             ClipRRect(
-              borderRadius: const BorderRadius.horizontal(
-                left: Radius.circular(16),
+              borderRadius: BorderRadius.horizontal(
+                left: Radius.circular(isMobile ? 12 : 16),
               ),
               child: SizedBox(
-                width: 120,
-                height: 120,
+                width: isMobile ? 80 : 120,
+                height: isMobile ? 80 : 120,
                 child: info['gambar'] != null
                     ? Image.network(
                         _supabase.storage
@@ -759,7 +924,7 @@ class _InformasiPageState extends State<InformasiPage> {
                           color: Colors.grey[200],
                           child: Icon(
                             Icons.image_not_supported,
-                            size: 32,
+                            size: isMobile ? 24 : 32,
                             color: Colors.grey[400],
                           ),
                         ),
@@ -768,7 +933,7 @@ class _InformasiPageState extends State<InformasiPage> {
                         color: Colors.grey[200],
                         child: Icon(
                           Icons.image_outlined,
-                          size: 32,
+                          size: isMobile ? 24 : 32,
                           color: Colors.grey[400],
                         ),
                       ),
@@ -777,7 +942,7 @@ class _InformasiPageState extends State<InformasiPage> {
             // Content
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: EdgeInsets.all(isMobile ? 10 : 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -785,9 +950,9 @@ class _InformasiPageState extends State<InformasiPage> {
                       children: [
                         // UKM Badge
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isMobile ? 6 : 8,
+                            vertical: isMobile ? 3 : 4,
                           ),
                           decoration: BoxDecoration(
                             color: const Color(0xFF4169E1).withOpacity(0.1),
@@ -796,18 +961,18 @@ class _InformasiPageState extends State<InformasiPage> {
                           child: Text(
                             ukmName,
                             style: GoogleFonts.inter(
-                              fontSize: 11,
+                              fontSize: isMobile ? 10 : 11,
                               fontWeight: FontWeight.w600,
                               color: const Color(0xFF4169E1),
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        SizedBox(width: isMobile ? 6 : 8),
                         // Status Badge
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isMobile ? 6 : 8,
+                            vertical: isMobile ? 3 : 4,
                           ),
                           decoration: BoxDecoration(
                             color: _getStatusColor(status),
@@ -816,7 +981,7 @@ class _InformasiPageState extends State<InformasiPage> {
                           child: Text(
                             status,
                             style: GoogleFonts.inter(
-                              fontSize: 11,
+                              fontSize: isMobile ? 10 : 11,
                               fontWeight: FontWeight.w600,
                               color: Colors.white,
                             ),
@@ -824,21 +989,21 @@ class _InformasiPageState extends State<InformasiPage> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: isMobile ? 6 : 8),
                     // Title
                     Text(
                       info['judul'] ?? 'Tanpa Judul',
                       style: GoogleFonts.inter(
-                        fontSize: 16,
+                        fontSize: isMobile ? 13 : 16,
                         fontWeight: FontWeight.w600,
                         color: Colors.black87,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 8),
-                    // Description
-                    if (info['deskripsi'] != null)
+                    if (!isMobile && info['deskripsi'] != null) ...[
+                      const SizedBox(height: 8),
+                      // Description (hidden on mobile)
                       Text(
                         info['deskripsi'],
                         style: GoogleFonts.inter(
@@ -849,24 +1014,29 @@ class _InformasiPageState extends State<InformasiPage> {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                    const SizedBox(height: 8),
+                    ],
+                    SizedBox(height: isMobile ? 6 : 8),
                     // Meta Info
                     Row(
                       children: [
                         Icon(
                           Icons.access_time,
-                          size: 14,
+                          size: isMobile ? 12 : 14,
                           color: Colors.grey[600],
                         ),
                         const SizedBox(width: 4),
-                        Text(
-                          _formatDate(info['create_at']),
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            color: Colors.grey[600],
+                        Expanded(
+                          child: Text(
+                            _formatDate(info['create_at']),
+                            style: GoogleFonts.inter(
+                              fontSize: isMobile ? 10 : 12,
+                              color: Colors.grey[600],
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        if (periodeName != null) ...[
+                        if (!isMobile && periodeName != null) ...[
                           const SizedBox(width: 12),
                           Icon(
                             Icons.calendar_today,
@@ -894,10 +1064,10 @@ class _InformasiPageState extends State<InformasiPage> {
             ),
             // Arrow Icon
             Padding(
-              padding: const EdgeInsets.only(right: 16),
+              padding: EdgeInsets.only(right: isMobile ? 8 : 16),
               child: Icon(
                 Icons.arrow_forward_ios,
-                size: 16,
+                size: isMobile ? 14 : 16,
                 color: Colors.grey[400],
               ),
             ),
@@ -923,20 +1093,32 @@ class _InformasiPageState extends State<InformasiPage> {
   Widget _buildPagination() {
     if (_totalPages <= 1) return const SizedBox.shrink();
 
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 12 : 16,
+        vertical: isMobile ? 10 : 12,
+      ),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(isMobile ? 8 : 12),
         border: Border.all(color: Colors.grey[300]!),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           // Info Text
-          Text(
-            'Menampilkan ${(_currentPage - 1) * _itemsPerPage + 1}-${(_currentPage * _itemsPerPage) > _filteredInformasi.length ? _filteredInformasi.length : _currentPage * _itemsPerPage} dari ${_filteredInformasi.length}',
-            style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[700]),
+          Flexible(
+            child: Text(
+              isMobile
+                  ? '${(_currentPage - 1) * _itemsPerPage + 1}-${(_currentPage * _itemsPerPage) > _filteredInformasi.length ? _filteredInformasi.length : _currentPage * _itemsPerPage} / ${_filteredInformasi.length}'
+                  : 'Menampilkan ${(_currentPage - 1) * _itemsPerPage + 1}-${(_currentPage * _itemsPerPage) > _filteredInformasi.length ? _filteredInformasi.length : _currentPage * _itemsPerPage} dari ${_filteredInformasi.length}',
+              style: GoogleFonts.inter(
+                fontSize: isMobile ? 11 : 14,
+                color: Colors.grey[700],
+              ),
+            ),
           ),
 
           // Navigation Buttons
@@ -952,24 +1134,27 @@ class _InformasiPageState extends State<InformasiPage> {
                       }
                     : null,
                 icon: const Icon(Icons.chevron_left),
+                iconSize: isMobile ? 20 : 24,
                 color: const Color(0xFF4169E1),
                 disabledColor: Colors.grey[400],
+                padding: EdgeInsets.all(isMobile ? 4 : 8),
+                constraints: const BoxConstraints(),
               ),
 
               // Page Numbers
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
+                padding: EdgeInsets.symmetric(
+                  horizontal: isMobile ? 8 : 12,
+                  vertical: isMobile ? 4 : 6,
                 ),
                 decoration: BoxDecoration(
                   color: const Color(0xFF4169E1),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(isMobile ? 6 : 8),
                 ),
                 child: Text(
                   '$_currentPage / $_totalPages',
                   style: GoogleFonts.inter(
-                    fontSize: 14,
+                    fontSize: isMobile ? 11 : 14,
                     fontWeight: FontWeight.w600,
                     color: Colors.white,
                   ),
@@ -986,8 +1171,11 @@ class _InformasiPageState extends State<InformasiPage> {
                       }
                     : null,
                 icon: const Icon(Icons.chevron_right),
+                iconSize: isMobile ? 20 : 24,
                 color: const Color(0xFF4169E1),
                 disabledColor: Colors.grey[400],
+                padding: EdgeInsets.all(isMobile ? 4 : 8),
+                constraints: const BoxConstraints(),
               ),
             ],
           ),

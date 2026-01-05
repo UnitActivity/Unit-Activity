@@ -8,6 +8,7 @@ import 'package:unit_activity/admin/event.dart';
 import 'package:unit_activity/admin/periode.dart';
 import 'package:unit_activity/admin/notifikasi.dart';
 import 'package:unit_activity/admin/informasi.dart';
+import 'package:unit_activity/admin/profile_admin.dart';
 import 'package:unit_activity/services/dashboard_service.dart';
 
 class DashboardAdminPage extends StatefulWidget {
@@ -125,6 +126,7 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
   }
 
   void _handleMenuSelected(String menu) {
+    print('Menu selected: $menu');
     setState(() {
       _selectedMenu = menu;
     });
@@ -194,10 +196,10 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
                 Positioned.fill(
                   child: SingleChildScrollView(
                     padding: EdgeInsets.only(
-                      left: isDesktop ? 20 : 14,
-                      right: isDesktop ? 20 : 14,
-                      top: isDesktop ? 95 : 75,
-                      bottom: isDesktop ? 20 : 16,
+                      left: isDesktop ? 20 : 12,
+                      right: isDesktop ? 20 : 12,
+                      top: isDesktop ? 95 : 70,
+                      bottom: isDesktop ? 20 : 12,
                     ),
                     child: _buildContent(),
                   ),
@@ -213,6 +215,7 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
                       _scaffoldKey.currentState?.openDrawer();
                     },
                     onLogout: _handleLogout,
+                    onProfilePressed: _handleMenuSelected,
                   ),
                 ),
               ],
@@ -224,6 +227,7 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
   }
 
   Widget _buildContent() {
+    print('Building content for menu: $_selectedMenu');
     switch (_selectedMenu) {
       case 'dashboard':
         return _buildDashboardContent();
@@ -239,6 +243,9 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
         return const NotifikasiPage();
       case 'informasi':
         return const InformasiPage();
+      case 'profile':
+        print('Returning ProfileAdminPage');
+        return const ProfileAdminPage();
       default:
         return _buildDashboardContent();
     }
@@ -246,23 +253,27 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
 
   Widget _buildDashboardContent() {
     if (_isLoadingStats) {
+      final size = MediaQuery.of(context).size;
+      final isMobile = size.width < 768;
+
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const SizedBox(
-              width: 50,
-              height: 50,
-              child: CircularProgressIndicator(
+            const SizedBox(height: 24),
+            SizedBox(
+              width: isMobile ? 40 : 50,
+              height: isMobile ? 40 : 50,
+              child: const CircularProgressIndicator(
                 strokeWidth: 3,
                 valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4169E1)),
               ),
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: isMobile ? 16 : 20),
             Text(
               'Memuat dashboard...',
               style: GoogleFonts.inter(
-                fontSize: 16,
+                fontSize: isMobile ? 14 : 16,
                 fontWeight: FontWeight.w600,
                 color: Colors.grey[700],
               ),
@@ -273,28 +284,31 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
     }
 
     if (_dashboardStats == null) {
+      final size = MediaQuery.of(context).size;
+      final isMobile = size.width < 768;
+
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              padding: const EdgeInsets.all(24),
+              padding: EdgeInsets.all(isMobile ? 18 : 24),
               decoration: BoxDecoration(
                 color: Colors.red[50],
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 Icons.error_outline,
-                size: 60,
+                size: isMobile ? 48 : 60,
                 color: Colors.red[400],
               ),
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: isMobile ? 16 : 24),
             Text(
               'Gagal memuat data dashboard',
               style: GoogleFonts.inter(
                 color: Colors.grey[800],
-                fontSize: 18,
+                fontSize: isMobile ? 15 : 18,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -373,7 +387,7 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
               mainAxisSpacing: isMobile ? 12 : 16,
               childAspectRatio: isLargeScreen
                   ? 2.2
-                  : (isMediumScreen ? 2.5 : 3.2),
+                  : (isMediumScreen ? 2.5 : 2.5),
               children: [
                 _buildModernStatCard(
                   title: 'Total UKM',
@@ -711,7 +725,10 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
           ),
         ),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          padding: EdgeInsets.symmetric(
+            horizontal: isMobile ? 8 : 12,
+            vertical: isMobile ? 3 : 4,
+          ),
           decoration: BoxDecoration(
             color: Colors.grey[100],
             borderRadius: BorderRadius.circular(8),
@@ -722,7 +739,7 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
             underline: const SizedBox(),
             isDense: true,
             style: GoogleFonts.inter(
-              fontSize: isMobile ? 11 : 12,
+              fontSize: isMobile ? 10 : 12,
               color: Colors.black87,
             ),
             items: periodOptions.entries.map((entry) {
@@ -931,8 +948,8 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
             rankColor = Colors.grey;
 
           return Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.all(12),
+            margin: EdgeInsets.only(bottom: isMobile ? 6 : 8),
+            padding: EdgeInsets.all(isMobile ? 10 : 12),
             decoration: BoxDecoration(
               color: Colors.grey[50],
               borderRadius: BorderRadius.circular(8),
@@ -940,8 +957,8 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
             child: Row(
               children: [
                 Container(
-                  width: 28,
-                  height: 28,
+                  width: isMobile ? 24 : 28,
+                  height: isMobile ? 24 : 28,
                   decoration: BoxDecoration(
                     color: rankColor,
                     shape: BoxShape.circle,
@@ -950,14 +967,14 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
                     child: Text(
                       '$rank',
                       style: GoogleFonts.inter(
-                        fontSize: 12,
+                        fontSize: isMobile ? 11 : 12,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: isMobile ? 10 : 12),
                 Expanded(
                   child: Text(
                     ukm['name'] ?? 'Unknown',

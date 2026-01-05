@@ -238,28 +238,33 @@ class _EditPenggunaPageState extends State<EditPenggunaPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
         title: Text(
           'Edit Pengguna',
-          style: GoogleFonts.inter(fontWeight: FontWeight.w700),
+          style: GoogleFonts.inter(
+            fontWeight: FontWeight.w700,
+            fontSize: isMobile ? 16 : 18,
+          ),
         ),
         backgroundColor: const Color(0xFF4169E1),
         foregroundColor: Colors.white,
         elevation: 0,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(isMobile ? 16 : 24),
         child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 24),
+              SizedBox(height: isMobile ? 16 : 24),
               // Form Card
               Container(
-                padding: const EdgeInsets.all(24),
+                padding: EdgeInsets.all(isMobile ? 16 : 24),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
@@ -286,7 +291,7 @@ class _EditPenggunaPageState extends State<EditPenggunaPage> {
                         return null;
                       },
                     ),
-                    const SizedBox(height: 20),
+                    SizedBox(height: isMobile ? 14 : 20),
 
                     // Email Field
                     _buildTextField(
@@ -321,11 +326,11 @@ class _EditPenggunaPageState extends State<EditPenggunaPage> {
                         return null;
                       },
                     ),
-                    const SizedBox(height: 24),
+                    SizedBox(height: isMobile ? 16 : 24),
 
-                    // Change Password Section
+                    // Password Section
                     Container(
-                      padding: const EdgeInsets.all(16),
+                      padding: EdgeInsets.all(isMobile ? 12 : 16),
                       decoration: BoxDecoration(
                         color: Colors.blue.withOpacity(0.05),
                         borderRadius: BorderRadius.circular(12),
@@ -339,13 +344,13 @@ class _EditPenggunaPageState extends State<EditPenggunaPage> {
                               Icon(
                                 Icons.lock_outline,
                                 color: Colors.blue[700],
-                                size: 20,
+                                size: isMobile ? 18 : 20,
                               ),
-                              const SizedBox(width: 8),
+                              SizedBox(width: isMobile ? 6 : 8),
                               Text(
-                                'Ganti Password',
+                                'Ubah Password',
                                 style: GoogleFonts.inter(
-                                  fontSize: 15,
+                                  fontSize: isMobile ? 13 : 15,
                                   fontWeight: FontWeight.w600,
                                   color: Colors.blue[700],
                                 ),
@@ -380,11 +385,11 @@ class _EditPenggunaPageState extends State<EditPenggunaPage> {
                                 });
                               },
                             ),
-                            const SizedBox(height: 16),
+                            SizedBox(height: isMobile ? 12 : 16),
 
                             // Password Requirements
                             Container(
-                              padding: const EdgeInsets.all(12),
+                              padding: EdgeInsets.all(isMobile ? 10 : 12),
                               decoration: BoxDecoration(
                                 color: Colors.grey[50],
                                 borderRadius: BorderRadius.circular(8),
@@ -395,7 +400,7 @@ class _EditPenggunaPageState extends State<EditPenggunaPage> {
                                   Text(
                                     'Password harus mengandung:',
                                     style: GoogleFonts.inter(
-                                      fontSize: 12,
+                                      fontSize: isMobile ? 11 : 12,
                                       fontWeight: FontWeight.w600,
                                       color: Colors.grey[700],
                                     ),
@@ -472,7 +477,7 @@ class _EditPenggunaPageState extends State<EditPenggunaPage> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 32),
+                    SizedBox(height: isMobile ? 20 : 32),
 
                     // Action Buttons
                     Row(
@@ -481,7 +486,9 @@ class _EditPenggunaPageState extends State<EditPenggunaPage> {
                           child: OutlinedButton(
                             onPressed: () => Navigator.pop(context),
                             style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              padding: EdgeInsets.symmetric(
+                                vertical: isMobile ? 12 : 16,
+                              ),
                               side: BorderSide(color: Colors.grey[300]!),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
@@ -490,21 +497,23 @@ class _EditPenggunaPageState extends State<EditPenggunaPage> {
                             child: Text(
                               'Batal',
                               style: GoogleFonts.inter(
-                                fontSize: 15,
+                                fontSize: isMobile ? 13 : 15,
                                 fontWeight: FontWeight.w600,
                                 color: Colors.grey[700],
                               ),
                             ),
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        SizedBox(width: isMobile ? 10 : 12),
                         Expanded(
                           child: ElevatedButton(
                             onPressed: _isLoading ? null : _updateUser,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF4169E1),
                               foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              padding: EdgeInsets.symmetric(
+                                vertical: isMobile ? 12 : 16,
+                              ),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
@@ -524,7 +533,7 @@ class _EditPenggunaPageState extends State<EditPenggunaPage> {
                                 : Text(
                                     'Simpan',
                                     style: GoogleFonts.inter(
-                                      fontSize: 15,
+                                      fontSize: isMobile ? 13 : 15,
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),
@@ -549,13 +558,15 @@ class _EditPenggunaPageState extends State<EditPenggunaPage> {
     TextInputType? keyboardType,
     String? Function(String?)? validator,
   }) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
           style: GoogleFonts.inter(
-            fontSize: 14,
+            fontSize: isMobile ? 12 : 14,
             fontWeight: FontWeight.w600,
             color: Colors.black87,
           ),

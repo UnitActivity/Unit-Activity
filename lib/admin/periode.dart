@@ -77,14 +77,15 @@ class _PeriodePageState extends State<PeriodePage> {
   @override
   Widget build(BuildContext context) {
     final isDesktop = MediaQuery.of(context).size.width >= 768;
+    final isMobile = MediaQuery.of(context).size.width < 600;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // Modern Header with Gradient
-        const SizedBox(height: 24),
+        SizedBox(height: isMobile ? 24 : 24),
         Container(
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.all(isMobile ? 16 : 24),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
@@ -97,20 +98,20 @@ class _PeriodePageState extends State<PeriodePage> {
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: EdgeInsets.all(isMobile ? 10 : 12),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     colors: [Color(0xFF4169E1), Color(0xFF5B7FE8)],
                   ),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.calendar_today_rounded,
                   color: Colors.white,
-                  size: 24,
+                  size: isMobile ? 20 : 24,
                 ),
               ),
-              const SizedBox(width: 16),
+              SizedBox(width: isMobile ? 12 : 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -118,16 +119,16 @@ class _PeriodePageState extends State<PeriodePage> {
                     Text(
                       'Periode UKM',
                       style: GoogleFonts.inter(
-                        fontSize: isDesktop ? 24 : 20,
+                        fontSize: isMobile ? 18 : (isDesktop ? 24 : 20),
                         fontWeight: FontWeight.w700,
                         color: Colors.black87,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: isMobile ? 2 : 4),
                     Text(
                       'Kelola periode akademik UKM',
                       style: GoogleFonts.inter(
-                        fontSize: 14,
+                        fontSize: isMobile ? 12 : 14,
                         color: Colors.grey[600],
                       ),
                     ),
@@ -136,9 +137,9 @@ class _PeriodePageState extends State<PeriodePage> {
               ),
               // Stats Badge
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
+                padding: EdgeInsets.symmetric(
+                  horizontal: isMobile ? 10 : 16,
+                  vertical: isMobile ? 6 : 8,
                 ),
                 decoration: BoxDecoration(
                   color: const Color(0xFF4169E1).withOpacity(0.1),
@@ -153,13 +154,13 @@ class _PeriodePageState extends State<PeriodePage> {
                     Icon(
                       Icons.article_outlined,
                       color: const Color(0xFF4169E1),
-                      size: 18,
+                      size: isMobile ? 16 : 18,
                     ),
-                    const SizedBox(width: 6),
+                    SizedBox(width: isMobile ? 4 : 6),
                     Text(
                       '$_totalPeriode Periode',
                       style: GoogleFonts.inter(
-                        fontSize: 13,
+                        fontSize: isMobile ? 11 : 13,
                         fontWeight: FontWeight.w600,
                         color: const Color(0xFF4169E1),
                       ),
@@ -170,11 +171,11 @@ class _PeriodePageState extends State<PeriodePage> {
             ],
           ),
         ),
-        const SizedBox(height: 24),
+        SizedBox(height: isMobile ? 16 : 24),
 
         // Search and Actions Bar
-        _buildModernSearchBar(isDesktop),
-        const SizedBox(height: 24),
+        _buildModernSearchBar(isDesktop, isMobile),
+        SizedBox(height: isMobile ? 16 : 24),
 
         // Loading or Content
         if (_isLoading)
@@ -212,9 +213,9 @@ class _PeriodePageState extends State<PeriodePage> {
     );
   }
 
-  Widget _buildModernSearchBar(bool isDesktop) {
+  Widget _buildModernSearchBar(bool isDesktop, bool isMobile) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(isMobile ? 16 : 20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -678,8 +679,10 @@ class _PeriodePageState extends State<PeriodePage> {
   Widget _buildModernPagination() {
     if (_totalPages <= 1) return const SizedBox.shrink();
 
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(isMobile ? 12 : 20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -691,79 +694,140 @@ class _PeriodePageState extends State<PeriodePage> {
           ),
         ],
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          // Results Info
-          Text(
-            'Menampilkan ${(_currentPage - 1) * _itemsPerPage + 1} - ${(_currentPage * _itemsPerPage) > _filteredPeriode.length ? _filteredPeriode.length : (_currentPage * _itemsPerPage)} dari ${_filteredPeriode.length} Periode',
-            style: GoogleFonts.inter(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: Colors.grey[700],
-            ),
-          ),
-
-          // Page Navigation
-          Row(
-            children: [
-              // Previous Button
-              _buildPageButton(
-                icon: Icons.chevron_left_rounded,
-                enabled: _currentPage > 1,
-                onPressed: () {
-                  setState(() {
-                    _currentPage--;
-                  });
-                },
-              ),
-
-              const SizedBox(width: 12),
-
-              // Page Numbers
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      const Color(0xFF4169E1).withOpacity(0.1),
-                      const Color(0xFF4169E1).withOpacity(0.05),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: const Color(0xFF4169E1).withOpacity(0.3),
-                  ),
-                ),
-                child: Text(
-                  '$_currentPage / $_totalPages',
+      child: isMobile
+          ? Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Results Info - Mobile
+                Text(
+                  'Hal ${_currentPage} dari ${_totalPages}',
                   style: GoogleFonts.inter(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF4169E1),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey[700],
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                // Page Navigation - Mobile
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _buildPageButton(
+                      icon: Icons.chevron_left_rounded,
+                      enabled: _currentPage > 1,
+                      onPressed: () {
+                        setState(() {
+                          _currentPage--;
+                        });
+                      },
+                    ),
+                    const SizedBox(width: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            const Color(0xFF4169E1).withOpacity(0.1),
+                            const Color(0xFF4169E1).withOpacity(0.05),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: const Color(0xFF4169E1).withOpacity(0.3),
+                        ),
+                      ),
+                      child: Text(
+                        '$_currentPage / $_totalPages',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF4169E1),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    _buildPageButton(
+                      icon: Icons.chevron_right_rounded,
+                      enabled: _currentPage < _totalPages,
+                      onPressed: () {
+                        setState(() {
+                          _currentPage++;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            )
+          : Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // Results Info - Desktop
+                Text(
+                  'Menampilkan ${(_currentPage - 1) * _itemsPerPage + 1} - ${(_currentPage * _itemsPerPage) > _filteredPeriode.length ? _filteredPeriode.length : (_currentPage * _itemsPerPage)} dari ${_filteredPeriode.length} Periode',
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey[700],
                   ),
                 ),
-              ),
-
-              const SizedBox(width: 12),
-
-              // Next Button
-              _buildPageButton(
-                icon: Icons.chevron_right_rounded,
-                enabled: _currentPage < _totalPages,
-                onPressed: () {
-                  setState(() {
-                    _currentPage++;
-                  });
-                },
-              ),
-            ],
-          ),
-        ],
-      ),
+                // Page Navigation - Desktop
+                Row(
+                  children: [
+                    _buildPageButton(
+                      icon: Icons.chevron_left_rounded,
+                      enabled: _currentPage > 1,
+                      onPressed: () {
+                        setState(() {
+                          _currentPage--;
+                        });
+                      },
+                    ),
+                    const SizedBox(width: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            const Color(0xFF4169E1).withOpacity(0.1),
+                            const Color(0xFF4169E1).withOpacity(0.05),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: const Color(0xFF4169E1).withOpacity(0.3),
+                        ),
+                      ),
+                      child: Text(
+                        '$_currentPage / $_totalPages',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF4169E1),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    _buildPageButton(
+                      icon: Icons.chevron_right_rounded,
+                      enabled: _currentPage < _totalPages,
+                      onPressed: () {
+                        setState(() {
+                          _currentPage++;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
     );
   }
 

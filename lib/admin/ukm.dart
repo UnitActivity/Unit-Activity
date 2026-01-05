@@ -106,50 +106,56 @@ class _UkmPageState extends State<UkmPage> {
     final isTablet =
         MediaQuery.of(context).size.width >= 600 &&
         MediaQuery.of(context).size.width < 900;
+    final isMobile = MediaQuery.of(context).size.width < 600;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        const SizedBox(height: 24),
         // Modern Header
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.all(isMobile ? 16 : 24),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Colors.white, const Color(0xFF4169E1).withOpacity(0.05)],
+              colors: [
+                const Color.fromARGB(255, 255, 255, 255),
+                const Color(0xFF4169E1).withOpacity(0.1),
+              ],
             ),
+            borderRadius: BorderRadius.circular(16),
           ),
           child: Text(
             'Manajemen UKM',
             style: GoogleFonts.inter(
-              fontSize: 24,
+              fontSize: isMobile ? 20 : 24,
               fontWeight: FontWeight.w700,
               color: Colors.black87,
               letterSpacing: -0.5,
             ),
           ),
         ),
-        const SizedBox(height: 24),
+        SizedBox(height: isMobile ? 16 : 24),
 
         // Stats Cards
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 24),
           child: _buildStatsCards(isDesktop),
         ),
-        const SizedBox(height: 24),
+        SizedBox(height: isMobile ? 16 : 24),
 
         // Search and Actions Bar
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 24),
           child: _buildSearchAndFilterBar(isDesktop),
         ),
         const SizedBox(height: 20),
 
         // Content
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 24),
           child: _isLoading
               ? _buildLoadingState()
               : _allUkm.isEmpty
@@ -162,11 +168,11 @@ class _UkmPageState extends State<UkmPage> {
         if (!_isLoading && _allUkm.isNotEmpty) ...[
           const SizedBox(height: 20),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
+            padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 24),
             child: _buildPagination(),
           ),
         ],
-        const SizedBox(height: 24),
+        SizedBox(height: isMobile ? 16 : 24),
       ],
     );
   }
@@ -208,8 +214,10 @@ class _UkmPageState extends State<UkmPage> {
     required Gradient gradient,
     required bool isDesktop,
   }) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
     return Container(
-      padding: EdgeInsets.all(isDesktop ? 20 : 16),
+      padding: EdgeInsets.all(isMobile ? 12 : (isDesktop ? 20 : 16)),
       decoration: BoxDecoration(
         gradient: gradient,
         borderRadius: BorderRadius.circular(12),
@@ -224,14 +232,14 @@ class _UkmPageState extends State<UkmPage> {
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(10),
+            padding: EdgeInsets.all(isMobile ? 8 : 10),
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.25),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, color: Colors.white, size: 24),
+            child: Icon(icon, color: Colors.white, size: isMobile ? 20 : 24),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: isMobile ? 10 : 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -239,16 +247,16 @@ class _UkmPageState extends State<UkmPage> {
                 Text(
                   title,
                   style: GoogleFonts.inter(
-                    fontSize: 12,
+                    fontSize: isMobile ? 11 : 12,
                     fontWeight: FontWeight.w500,
                     color: Colors.white.withOpacity(0.9),
                   ),
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: isMobile ? 2 : 4),
                 Text(
                   value,
                   style: GoogleFonts.inter(
-                    fontSize: isDesktop ? 24 : 20,
+                    fontSize: isMobile ? 18 : (isDesktop ? 24 : 20),
                     fontWeight: FontWeight.w800,
                     color: Colors.white,
                   ),
@@ -336,6 +344,8 @@ class _UkmPageState extends State<UkmPage> {
   }
 
   Widget _buildSearchAndFilterBar(bool isDesktop) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -349,101 +359,215 @@ class _UkmPageState extends State<UkmPage> {
           ),
         ],
       ),
-      child: Row(
-        children: [
-          // Search Bar
-          Expanded(
-            flex: 3,
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.grey[50],
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey[200]!),
-              ),
-              child: TextField(
-                onChanged: (value) {
-                  _searchQuery = value;
-                  _currentPage = 1;
-                  _loadUkm();
-                },
-                decoration: InputDecoration(
-                  hintText: 'Cari nama UKM, email atau deskripsi...',
-                  hintStyle: GoogleFonts.inter(
-                    fontSize: 14,
-                    color: Colors.grey[500],
+      child: isMobile
+          ? Column(
+              children: [
+                // Search Bar - Full Width
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.grey[50],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey[200]!),
                   ),
-                  prefixIcon: Icon(
-                    Icons.search_rounded,
-                    color: Colors.grey[600],
-                    size: 22,
-                  ),
-                  suffixIcon: _searchQuery.isNotEmpty
-                      ? IconButton(
-                          icon: Icon(Icons.clear, color: Colors.grey[600]),
-                          onPressed: () {
-                            setState(() {
-                              _searchQuery = '';
-                              _currentPage = 1;
-                            });
-                            _loadUkm();
-                          },
-                        )
-                      : null,
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
+                  child: TextField(
+                    onChanged: (value) {
+                      _searchQuery = value;
+                      _currentPage = 1;
+                      _loadUkm();
+                    },
+                    decoration: InputDecoration(
+                      hintText: 'Cari UKM...',
+                      hintStyle: GoogleFonts.inter(
+                        fontSize: 14,
+                        color: Colors.grey[500],
+                      ),
+                      prefixIcon: Icon(
+                        Icons.search_rounded,
+                        color: Colors.grey[600],
+                        size: 22,
+                      ),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: Icon(Icons.clear, color: Colors.grey[600]),
+                              onPressed: () {
+                                setState(() {
+                                  _searchQuery = '';
+                                  _currentPage = 1;
+                                });
+                                _loadUkm();
+                              },
+                            )
+                          : null,
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                    ),
                   ),
                 ),
-              ),
+                const SizedBox(height: 12),
+                // Buttons Row - Below Search
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _loadUkm,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF4169E1),
+                          side: const BorderSide(color: Color(0xFF4169E1)),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        icon: const Icon(Icons.refresh_rounded, size: 20),
+                        label: Text(
+                          'Refresh',
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          final result = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const AddUkmPage(),
+                            ),
+                          );
+                          if (result == true) {
+                            _loadUkm();
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF4169E1),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 0,
+                        ),
+                        icon: const Icon(Icons.add_rounded, size: 20),
+                        label: Text(
+                          'Tambah',
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            )
+          : Row(
+              children: [
+                // Search Bar
+                Expanded(
+                  flex: 3,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey[200]!),
+                    ),
+                    child: TextField(
+                      onChanged: (value) {
+                        _searchQuery = value;
+                        _currentPage = 1;
+                        _loadUkm();
+                      },
+                      decoration: InputDecoration(
+                        hintText: 'Cari nama UKM, email atau deskripsi...',
+                        hintStyle: GoogleFonts.inter(
+                          fontSize: 14,
+                          color: Colors.grey[500],
+                        ),
+                        prefixIcon: Icon(
+                          Icons.search_rounded,
+                          color: Colors.grey[600],
+                          size: 22,
+                        ),
+                        suffixIcon: _searchQuery.isNotEmpty
+                            ? IconButton(
+                                icon: Icon(
+                                  Icons.clear,
+                                  color: Colors.grey[600],
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    _searchQuery = '';
+                                    _currentPage = 1;
+                                  });
+                                  _loadUkm();
+                                },
+                              )
+                            : null,
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(width: 12),
+
+                // Refresh Button
+                _buildIconButton(
+                  icon: Icons.refresh_rounded,
+                  tooltip: 'Refresh Data',
+                  onPressed: _loadUkm,
+                ),
+
+                const SizedBox(width: 8),
+
+                // Add Button
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const AddUkmPage(),
+                      ),
+                    );
+                    if (result == true) {
+                      _loadUkm();
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4169E1),
+                    foregroundColor: Colors.white,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isDesktop ? 20 : 16,
+                      vertical: isDesktop ? 16 : 14,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 0,
+                  ),
+                  icon: const Icon(Icons.add_rounded, size: 20),
+                  label: Text(
+                    isDesktop ? 'Tambah UKM' : 'Tambah',
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ),
-
-          const SizedBox(width: 12),
-
-          // Refresh Button
-          _buildIconButton(
-            icon: Icons.refresh_rounded,
-            tooltip: 'Refresh Data',
-            onPressed: _loadUkm,
-          ),
-
-          const SizedBox(width: 8),
-
-          // Add Button
-          ElevatedButton.icon(
-            onPressed: () async {
-              final result = await Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const AddUkmPage()),
-              );
-              if (result == true) {
-                _loadUkm();
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF4169E1),
-              foregroundColor: Colors.white,
-              padding: EdgeInsets.symmetric(
-                horizontal: isDesktop ? 20 : 16,
-                vertical: isDesktop ? 16 : 14,
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              elevation: 0,
-            ),
-            icon: const Icon(Icons.add_rounded, size: 20),
-            label: Text(
-              isDesktop ? 'Tambah UKM' : 'Tambah',
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -706,6 +830,8 @@ class _UkmPageState extends State<UkmPage> {
   }
 
   Widget _buildMobileList() {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
     return ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -715,14 +841,14 @@ class _UkmPageState extends State<UkmPage> {
         final ukmId = ukm['id_ukm'].toString();
 
         return Container(
-          margin: const EdgeInsets.only(bottom: 16),
+          margin: EdgeInsets.only(bottom: isMobile ? 12 : 16),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.06),
-                blurRadius: 12,
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 8,
                 offset: const Offset(0, 4),
               ),
             ],
@@ -731,7 +857,7 @@ class _UkmPageState extends State<UkmPage> {
             children: [
               // Header
               Container(
-                padding: const EdgeInsets.all(20),
+                padding: EdgeInsets.all(isMobile ? 14 : 20),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
@@ -755,7 +881,7 @@ class _UkmPageState extends State<UkmPage> {
                         ),
                       ),
                       child: CircleAvatar(
-                        radius: 28,
+                        radius: isMobile ? 24 : 28,
                         backgroundColor: const Color(
                           0xFF4169E1,
                         ).withOpacity(0.1),
@@ -767,15 +893,15 @@ class _UkmPageState extends State<UkmPage> {
                         child:
                             ukm['logo'] == null ||
                                 ukm['logo'].toString().isEmpty
-                            ? const Icon(
+                            ? Icon(
                                 Icons.groups_rounded,
-                                color: Color(0xFF4169E1),
-                                size: 28,
+                                color: const Color(0xFF4169E1),
+                                size: isMobile ? 24 : 28,
                               )
                             : null,
                       ),
                     ),
-                    const SizedBox(width: 16),
+                    SizedBox(width: isMobile ? 12 : 16),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -783,7 +909,7 @@ class _UkmPageState extends State<UkmPage> {
                           Text(
                             ukm['nama_ukm'] ?? '-',
                             style: GoogleFonts.inter(
-                              fontSize: 16,
+                              fontSize: isMobile ? 15 : 16,
                               fontWeight: FontWeight.w700,
                               color: Colors.black87,
                             ),
@@ -794,15 +920,15 @@ class _UkmPageState extends State<UkmPage> {
                             children: [
                               Icon(
                                 Icons.email_outlined,
-                                size: 14,
+                                size: isMobile ? 13 : 14,
                                 color: Colors.grey[600],
                               ),
-                              const SizedBox(width: 6),
+                              SizedBox(width: isMobile ? 4 : 6),
                               Expanded(
                                 child: Text(
                                   ukm['email'] ?? '-',
                                   style: GoogleFonts.inter(
-                                    fontSize: 12,
+                                    fontSize: isMobile ? 11 : 12,
                                     color: Colors.grey[600],
                                   ),
                                   overflow: TextOverflow.ellipsis,
@@ -822,9 +948,9 @@ class _UkmPageState extends State<UkmPage> {
                   ukm['description'].toString().isNotEmpty)
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 16,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isMobile ? 14 : 20,
+                    vertical: isMobile ? 12 : 16,
                   ),
                   decoration: BoxDecoration(
                     color: Colors.grey[50],
@@ -836,7 +962,7 @@ class _UkmPageState extends State<UkmPage> {
                   child: Text(
                     ukm['description'],
                     style: GoogleFonts.inter(
-                      fontSize: 13,
+                      fontSize: isMobile ? 12 : 13,
                       color: Colors.grey[700],
                       height: 1.5,
                     ),
@@ -847,7 +973,7 @@ class _UkmPageState extends State<UkmPage> {
 
               // Actions
               Padding(
-                padding: const EdgeInsets.all(16),
+                padding: EdgeInsets.all(isMobile ? 12 : 16),
                 child: Row(
                   children: [
                     Expanded(
@@ -856,39 +982,49 @@ class _UkmPageState extends State<UkmPage> {
                         style: OutlinedButton.styleFrom(
                           foregroundColor: const Color(0xFF4169E1),
                           side: const BorderSide(color: Color(0xFF4169E1)),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          padding: EdgeInsets.symmetric(
+                            vertical: isMobile ? 10 : 12,
+                          ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
                         ),
-                        icon: const Icon(Icons.visibility_outlined, size: 18),
+                        icon: Icon(
+                          Icons.visibility_outlined,
+                          size: isMobile ? 16 : 18,
+                        ),
                         label: Text(
                           'Lihat',
                           style: GoogleFonts.inter(
-                            fontSize: 13,
+                            fontSize: isMobile ? 12 : 13,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    SizedBox(width: isMobile ? 8 : 12),
                     Expanded(
                       child: ElevatedButton.icon(
                         onPressed: () => _deleteUkm(ukmId),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.red,
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          padding: EdgeInsets.symmetric(
+                            vertical: isMobile ? 10 : 12,
+                          ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
                           elevation: 0,
                         ),
-                        icon: const Icon(Icons.delete_outline, size: 18),
+                        icon: Icon(
+                          Icons.delete_outline,
+                          size: isMobile ? 16 : 18,
+                        ),
                         label: Text(
                           'Hapus',
                           style: GoogleFonts.inter(
-                            fontSize: 13,
+                            fontSize: isMobile ? 12 : 13,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -905,8 +1041,10 @@ class _UkmPageState extends State<UkmPage> {
   }
 
   Widget _buildPagination() {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(isMobile ? 12 : 20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -918,81 +1056,162 @@ class _UkmPageState extends State<UkmPage> {
           ),
         ],
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          // Results Info
-          Text(
-            'Menampilkan ${(_currentPage - 1) * _itemsPerPage + 1} - ${(_currentPage * _itemsPerPage) > _totalUkm ? _totalUkm : (_currentPage * _itemsPerPage)} dari $_totalUkm UKM',
-            style: GoogleFonts.inter(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: Colors.grey[700],
-            ),
-          ),
-
-          // Page Navigation
-          Row(
-            children: [
-              // Previous Button
-              _buildPageButton(
-                icon: Icons.chevron_left_rounded,
-                enabled: _currentPage > 1,
-                onPressed: () {
-                  setState(() {
-                    _currentPage--;
-                  });
-                  _loadUkm();
-                },
-              ),
-
-              const SizedBox(width: 12),
-
-              // Page Numbers
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      const Color(0xFF4169E1).withOpacity(0.1),
-                      const Color(0xFF4169E1).withOpacity(0.05),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: const Color(0xFF4169E1).withOpacity(0.3),
-                  ),
-                ),
-                child: Text(
-                  '$_currentPage / $_totalPages',
+      child: isMobile
+          ? Column(
+              children: [
+                // Results Info - mobile
+                Text(
+                  'Halaman $_currentPage dari $_totalPages',
                   style: GoogleFonts.inter(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF4169E1),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey[700],
                   ),
                 ),
-              ),
+                const SizedBox(height: 12),
+                // Page Navigation
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Previous Button
+                    _buildPageButton(
+                      icon: Icons.chevron_left_rounded,
+                      enabled: _currentPage > 1,
+                      onPressed: () {
+                        setState(() {
+                          _currentPage--;
+                        });
+                        _loadUkm();
+                      },
+                    ),
+                    const SizedBox(width: 12),
+                    // Page Numbers
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            const Color(0xFF4169E1).withOpacity(0.1),
+                            const Color(0xFF4169E1).withOpacity(0.05),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: const Color(0xFF4169E1).withOpacity(0.3),
+                        ),
+                      ),
+                      child: Text(
+                        '$_currentPage / $_totalPages',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF4169E1),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Next Button
+                    _buildPageButton(
+                      icon: Icons.chevron_right_rounded,
+                      enabled: _currentPage < _totalPages,
+                      onPressed: () {
+                        setState(() {
+                          _currentPage++;
+                        });
+                        _loadUkm();
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                // Total UKM info
+                Text(
+                  '${(_currentPage - 1) * _itemsPerPage + 1}-${(_currentPage * _itemsPerPage) > _totalUkm ? _totalUkm : (_currentPage * _itemsPerPage)} dari $_totalUkm',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            )
+          : Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // Results Info
+                Text(
+                  'Menampilkan ${(_currentPage - 1) * _itemsPerPage + 1} - ${(_currentPage * _itemsPerPage) > _totalUkm ? _totalUkm : (_currentPage * _itemsPerPage)} dari $_totalUkm UKM',
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey[700],
+                  ),
+                ),
 
-              const SizedBox(width: 12),
+                // Page Navigation
+                Row(
+                  children: [
+                    // Previous Button
+                    _buildPageButton(
+                      icon: Icons.chevron_left_rounded,
+                      enabled: _currentPage > 1,
+                      onPressed: () {
+                        setState(() {
+                          _currentPage--;
+                        });
+                        _loadUkm();
+                      },
+                    ),
 
-              // Next Button
-              _buildPageButton(
-                icon: Icons.chevron_right_rounded,
-                enabled: _currentPage < _totalPages,
-                onPressed: () {
-                  setState(() {
-                    _currentPage++;
-                  });
-                  _loadUkm();
-                },
-              ),
-            ],
-          ),
-        ],
-      ),
+                    const SizedBox(width: 12),
+
+                    // Page Numbers
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            const Color(0xFF4169E1).withOpacity(0.1),
+                            const Color(0xFF4169E1).withOpacity(0.05),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: const Color(0xFF4169E1).withOpacity(0.3),
+                        ),
+                      ),
+                      child: Text(
+                        '$_currentPage / $_totalPages',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF4169E1),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(width: 12),
+
+                    // Next Button
+                    _buildPageButton(
+                      icon: Icons.chevron_right_rounded,
+                      enabled: _currentPage < _totalPages,
+                      onPressed: () {
+                        setState(() {
+                          _currentPage++;
+                        });
+                        _loadUkm();
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
     );
   }
 

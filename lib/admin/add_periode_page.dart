@@ -156,6 +156,7 @@ class _AddPeriodePageState extends State<AddPeriodePage> {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
     final isDesktop = MediaQuery.of(context).size.width >= 768;
 
     return Scaffold(
@@ -164,13 +165,17 @@ class _AddPeriodePageState extends State<AddPeriodePage> {
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          icon: Icon(
+            Icons.arrow_back,
+            color: Colors.black87,
+            size: isMobile ? 20 : 24,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           'Tambah Periode',
           style: GoogleFonts.inter(
-            fontSize: 20,
+            fontSize: isMobile ? 16 : 20,
             fontWeight: FontWeight.w600,
             color: Colors.black87,
           ),
@@ -188,13 +193,13 @@ class _AddPeriodePageState extends State<AddPeriodePage> {
               constraints: BoxConstraints(
                 maxWidth: isDesktop ? 800 : double.infinity,
               ),
-              padding: const EdgeInsets.all(24),
+              padding: EdgeInsets.all(isMobile ? 16 : 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Info Card
                   Container(
-                    padding: const EdgeInsets.all(16),
+                    padding: EdgeInsets.all(isMobile ? 12 : 16),
                     decoration: BoxDecoration(
                       color: const Color(0xFF4169E1).withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
@@ -207,14 +212,14 @@ class _AddPeriodePageState extends State<AddPeriodePage> {
                         Icon(
                           Icons.info_outline,
                           color: const Color(0xFF4169E1),
-                          size: 24,
+                          size: isMobile ? 20 : 24,
                         ),
-                        const SizedBox(width: 12),
+                        SizedBox(width: isMobile ? 8 : 12),
                         Expanded(
                           child: Text(
                             'Format nama periode: YYYY.1 untuk semester ganjil, YYYY.2 untuk semester genap',
                             style: GoogleFonts.inter(
-                              fontSize: 14,
+                              fontSize: isMobile ? 12 : 14,
                               color: const Color(0xFF4169E1),
                             ),
                           ),
@@ -222,11 +227,11 @@ class _AddPeriodePageState extends State<AddPeriodePage> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  SizedBox(height: isMobile ? 16 : 24),
 
                   // Form Card
                   Container(
-                    padding: const EdgeInsets.all(24),
+                    padding: EdgeInsets.all(isMobile ? 16 : 24),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(12),
@@ -245,19 +250,19 @@ class _AddPeriodePageState extends State<AddPeriodePage> {
                         Text(
                           'Nama Periode',
                           style: GoogleFonts.inter(
-                            fontSize: 14,
+                            fontSize: isMobile ? 12 : 14,
                             fontWeight: FontWeight.w600,
                             color: Colors.grey[700],
                           ),
                         ),
-                        const SizedBox(height: 8),
+                        SizedBox(height: isMobile ? 6 : 8),
                         TextFormField(
                           controller: _namaPeriodeController,
                           validator: _validatePeriodeName,
                           decoration: InputDecoration(
                             hintText: 'Contoh: 2025.1',
                             hintStyle: GoogleFonts.inter(
-                              fontSize: 14,
+                              fontSize: isMobile ? 12 : 14,
                               color: Colors.grey[400],
                             ),
                             filled: true,
@@ -281,25 +286,25 @@ class _AddPeriodePageState extends State<AddPeriodePage> {
                               borderRadius: BorderRadius.circular(8),
                               borderSide: const BorderSide(color: Colors.red),
                             ),
-                            contentPadding: const EdgeInsets.all(16),
+                            contentPadding: EdgeInsets.all(isMobile ? 12 : 16),
                           ),
                         ),
-                        const SizedBox(height: 24),
+                        SizedBox(height: isMobile ? 16 : 24),
 
                         // Tanggal Awal
                         Text(
                           'Tanggal Awal',
                           style: GoogleFonts.inter(
-                            fontSize: 14,
+                            fontSize: isMobile ? 12 : 14,
                             fontWeight: FontWeight.w600,
                             color: Colors.grey[700],
                           ),
                         ),
-                        const SizedBox(height: 8),
+                        SizedBox(height: isMobile ? 6 : 8),
                         InkWell(
                           onTap: () => _selectDate(context, true),
                           child: Container(
-                            padding: const EdgeInsets.all(16),
+                            padding: EdgeInsets.all(isMobile ? 12 : 16),
                             decoration: BoxDecoration(
                               color: Colors.grey[50],
                               borderRadius: BorderRadius.circular(8),
@@ -310,9 +315,9 @@ class _AddPeriodePageState extends State<AddPeriodePage> {
                                 Icon(
                                   Icons.calendar_today,
                                   color: Colors.grey[600],
-                                  size: 20,
+                                  size: isMobile ? 18 : 20,
                                 ),
-                                const SizedBox(width: 12),
+                                SizedBox(width: isMobile ? 8 : 12),
                                 Text(
                                   _tanggalAwal == null
                                       ? 'Pilih tanggal awal'
@@ -320,7 +325,7 @@ class _AddPeriodePageState extends State<AddPeriodePage> {
                                           'dd-MM-yyyy',
                                         ).format(_tanggalAwal!),
                                   style: GoogleFonts.inter(
-                                    fontSize: 14,
+                                    fontSize: isMobile ? 12 : 14,
                                     color: _tanggalAwal == null
                                         ? Colors.grey[400]
                                         : Colors.black87,
@@ -330,22 +335,22 @@ class _AddPeriodePageState extends State<AddPeriodePage> {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 24),
+                        SizedBox(height: isMobile ? 16 : 24),
 
                         // Tanggal Akhir
                         Text(
                           'Tanggal Akhir',
                           style: GoogleFonts.inter(
-                            fontSize: 14,
+                            fontSize: isMobile ? 12 : 14,
                             fontWeight: FontWeight.w600,
                             color: Colors.grey[700],
                           ),
                         ),
-                        const SizedBox(height: 8),
+                        SizedBox(height: isMobile ? 6 : 8),
                         InkWell(
                           onTap: () => _selectDate(context, false),
                           child: Container(
-                            padding: const EdgeInsets.all(16),
+                            padding: EdgeInsets.all(isMobile ? 12 : 16),
                             decoration: BoxDecoration(
                               color: Colors.grey[50],
                               borderRadius: BorderRadius.circular(8),
@@ -356,9 +361,9 @@ class _AddPeriodePageState extends State<AddPeriodePage> {
                                 Icon(
                                   Icons.calendar_today,
                                   color: Colors.grey[600],
-                                  size: 20,
+                                  size: isMobile ? 18 : 20,
                                 ),
-                                const SizedBox(width: 12),
+                                SizedBox(width: isMobile ? 8 : 12),
                                 Text(
                                   _tanggalAkhir == null
                                       ? 'Pilih tanggal akhir'
@@ -366,7 +371,7 @@ class _AddPeriodePageState extends State<AddPeriodePage> {
                                           'dd-MM-yyyy',
                                         ).format(_tanggalAkhir!),
                                   style: GoogleFonts.inter(
-                                    fontSize: 14,
+                                    fontSize: isMobile ? 12 : 14,
                                     color: _tanggalAkhir == null
                                         ? Colors.grey[400]
                                         : Colors.black87,
@@ -379,7 +384,7 @@ class _AddPeriodePageState extends State<AddPeriodePage> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  SizedBox(height: isMobile ? 16 : 24),
 
                   // Action Buttons
                   Row(
@@ -390,7 +395,9 @@ class _AddPeriodePageState extends State<AddPeriodePage> {
                               ? null
                               : () => Navigator.pop(context),
                           style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            padding: EdgeInsets.symmetric(
+                              vertical: isMobile ? 12 : 16,
+                            ),
                             side: BorderSide(color: Colors.grey[300]!),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),
@@ -399,30 +406,32 @@ class _AddPeriodePageState extends State<AddPeriodePage> {
                           child: Text(
                             'Batal',
                             style: GoogleFonts.inter(
-                              fontSize: 15,
+                              fontSize: isMobile ? 13 : 15,
                               fontWeight: FontWeight.w600,
                               color: Colors.grey[700],
                             ),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      SizedBox(width: isMobile ? 8 : 12),
                       Expanded(
                         child: ElevatedButton(
                           onPressed: _isSaving ? null : _savePeriode,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF4169E1),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            padding: EdgeInsets.symmetric(
+                              vertical: isMobile ? 12 : 16,
+                            ),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
                             elevation: 0,
                           ),
                           child: _isSaving
-                              ? const SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(
+                              ? SizedBox(
+                                  height: isMobile ? 18 : 20,
+                                  width: isMobile ? 18 : 20,
+                                  child: const CircularProgressIndicator(
                                     strokeWidth: 2,
                                     valueColor: AlwaysStoppedAnimation<Color>(
                                       Colors.white,
@@ -432,7 +441,7 @@ class _AddPeriodePageState extends State<AddPeriodePage> {
                               : Text(
                                   'Simpan',
                                   style: GoogleFonts.inter(
-                                    fontSize: 15,
+                                    fontSize: isMobile ? 13 : 15,
                                     fontWeight: FontWeight.w600,
                                     color: Colors.white,
                                   ),
