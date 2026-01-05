@@ -1,7 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:unit_activity/config/routes.dart';
 import 'package:unit_activity/widgets/user_sidebar.dart';
-import 'package:unit_activity/widgets/user_header.dart';
+import 'package:unit_activity/widgets/qr_scanner_mixin.dart';
+import 'package:unit_activity/widgets/notification_bell_widget.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:unit_activity/user/notifikasi_user.dart';
+import 'package:unit_activity/user/profile.dart';
+import 'package:unit_activity/user/dashboard_user.dart';
+import 'package:unit_activity/user/event.dart';
+import 'package:unit_activity/user/ukm.dart';
 
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
@@ -10,7 +17,10 @@ class HistoryPage extends StatefulWidget {
   State<HistoryPage> createState() => _HistoryPageState();
 }
 
-class _HistoryPageState extends State<HistoryPage> {
+class _HistoryPageState extends State<HistoryPage> with QRScannerMixin {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  String _selectedMenu = 'history';
+  final SupabaseClient _supabase = Supabase.instance.client;
   final Map<String, List<Map<String, dynamic>>> _historyData = {
     '2025.1': [
       {
@@ -50,52 +60,38 @@ class _HistoryPageState extends State<HistoryPage> {
   // ==================== MOBILE LAYOUT ====================
   Widget _buildMobileLayout() {
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: Colors.grey[50],
-      body: Column(
+      body: Stack(
         children: [
-          UserHeader(
-            userName: 'Adam',
-            onMenuPressed: () {
-              Scaffold.of(context).openDrawer();
-            },
-            onLogout: () => AppRoutes.logout(context),
-          ),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Histori Aktivitas',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 16),
-                  ..._buildHistoryList(),
-                ],
-              ),
+          SingleChildScrollView(
+            padding: const EdgeInsets.only(
+              top: 70,
+              left: 12,
+              right: 12,
+              bottom: 80,
             ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Histori Aktivitas',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+                ..._buildHistoryList(),
+              ],
+            ),
+          ),
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: _buildFloatingTopBar(isMobile: true),
           ),
         ],
       ),
-      drawer: Drawer(
-        child: UserSidebar(
-          selectedMenu: 'histori',
-          onMenuSelected: (menu) {
-            Navigator.pop(context);
-            if (menu == 'dashboard') {
-              AppRoutes.navigateToUserDashboard(context);
-            } else if (menu == 'event') {
-              AppRoutes.navigateToUserEvent(context);
-            } else if (menu == 'ukm') {
-              AppRoutes.navigateToUserUKM(context);
-            } else if (menu == 'profile') {
-              AppRoutes.navigateToUserProfile(context);
-            }
-          },
-          onLogout: () => AppRoutes.logout(context),
-        ),
-      ),
+      bottomNavigationBar: _buildBottomNavBar(),
     );
   }
 
@@ -103,54 +99,184 @@ class _HistoryPageState extends State<HistoryPage> {
   Widget _buildDesktopLayout() {
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      body: Row(
+      body: Stack(
         children: [
-          UserSidebar(
-            selectedMenu: 'histori',
-            onMenuSelected: (menu) {
-              if (menu == 'dashboard') {
-                AppRoutes.navigateToUserDashboard(context);
-              } else if (menu == 'event') {
-                AppRoutes.navigateToUserEvent(context);
-              } else if (menu == 'ukm') {
-                AppRoutes.navigateToUserUKM(context);
-              } else if (menu == 'profile') {
-                AppRoutes.navigateToUserProfile(context);
-              }
-            },
-            onLogout: () => AppRoutes.logout(context),
-          ),
-          Expanded(
-            child: Column(
-              children: [
-                UserHeader(
-                  userName: 'Adam',
-                  onLogout: () => AppRoutes.logout(context),
-                ),
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Histori Aktivitas',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                          ),
+          Row(
+            children: [
+              SizedBox(
+                width: 250,
+                child: UserSidebar(
+                  selectedMenu: 'histori',
+                  onMenuSelected: (menu) {
+                    if (menu == 'dashboard') {
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const DashboardUser(),
                         ),
-                        const SizedBox(height: 24),
-                        ..._buildHistoryList(),
-                      ],
+                      );
+                    } else if (menu == 'event') {
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const UserEventPage(),
+                        ),
+                      );
+                    } else if (menu == 'ukm') {
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const UserUKMPage(),
+                        ),
+                      );
+                    } else if (menu == 'profile') {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ProfilePage(),
+                        ),
+                      );
+                    }
+                  },
+                  onLogout: () => Navigator.pushNamedAndRemoveUntil(
+                    context,
+                    '/login',
+                    (route) => false,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  children: [
+                    const SizedBox(height: 70),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Histori Aktivitas',
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            ..._buildHistoryList(),
+                          ],
+                        ),
+                      ),
                     ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          Positioned(
+            top: 0,
+            left: 260,
+            right: 0,
+            child: _buildFloatingTopBar(isMobile: false),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==================== FLOATING TOP BAR ====================
+  Widget _buildFloatingTopBar({required bool isMobile}) {
+    return Container(
+      margin: const EdgeInsets.only(left: 8, right: 8, top: 8),
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 12 : 20,
+        vertical: 12,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: isMobile
+          ? Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                NotificationBellWidget(
+                  onViewAll: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const NotifikasiUserPage(),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ProfilePage(),
+                    ),
+                  ),
+                  child: const CircleAvatar(
+                    radius: 16,
+                    backgroundColor: Colors.blue,
+                    child: Icon(Icons.person, color: Colors.white, size: 20),
+                  ),
+                ),
+              ],
+            )
+          : Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                // QR Scanner Button
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.blue[50],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: IconButton(
+                    onPressed: () => openQRScannerDialog(
+                      onCodeScanned: _handleQRCodeScanned,
+                    ),
+                    icon: Icon(Icons.qr_code_scanner, color: Colors.blue[700]),
+                    tooltip: 'Scan QR Code',
+                  ),
+                ),
+                const SizedBox(width: 12),
+                NotificationBellWidget(
+                  onViewAll: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const NotifikasiUserPage(),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(width: 12),
+                GestureDetector(
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ProfilePage(),
+                    ),
+                  ),
+                  child: const CircleAvatar(
+                    radius: 16,
+                    backgroundColor: Colors.blue,
+                    child: Icon(Icons.person, color: Colors.white, size: 20),
                   ),
                 ),
               ],
             ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -243,6 +369,172 @@ class _HistoryPageState extends State<HistoryPage> {
 
   Widget _buildIllustration(String type) {
     return CustomPaint(painter: IllustrationPainter(type: type));
+  }
+
+  // ==================== QR SCANNER HANDLER ====================
+  void _handleQRCodeScanned(String code) {
+    print('DEBUG: QR Code scanned: $code');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('History check-in berhasil dengan kode: $code'),
+        backgroundColor: Colors.green[600],
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  // ==================== BOTTOM NAVIGATION BAR ====================
+  Widget _buildBottomNavBar() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                // Dashboard
+                _buildNavItem(
+                  Icons.home_rounded,
+                  'Dashboard',
+                  _selectedMenu == 'dashboard',
+                  () => _handleMenuSelected('dashboard'),
+                ),
+                // Event
+                _buildNavItem(
+                  Icons.event_rounded,
+                  'Event',
+                  _selectedMenu == 'event',
+                  () => _handleMenuSelected('event'),
+                ),
+                // Center QR Scanner button
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.blue[600],
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.blue.withOpacity(0.4),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () => openQRScannerDialog(
+                        onCodeScanned: _handleQRCodeScanned,
+                      ),
+                      borderRadius: BorderRadius.circular(28),
+                      child: const Center(
+                        child: Icon(
+                          Icons.qr_code_2,
+                          color: Colors.white,
+                          size: 28,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                // UKM
+                _buildNavItem(
+                  Icons.school_rounded,
+                  'UKM',
+                  _selectedMenu == 'ukm',
+                  () => _handleMenuSelected('ukm'),
+                ),
+                // History
+                _buildNavItem(
+                  Icons.history_rounded,
+                  'History',
+                  _selectedMenu == 'history',
+                  () => _handleMenuSelected('history'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==================== NAV ITEM WIDGET ====================
+  Widget _buildNavItem(
+    IconData icon,
+    String label,
+    bool isSelected,
+    VoidCallback onTap,
+  ) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            color: isSelected ? Colors.blue[600] : Colors.grey[600],
+            size: 24,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              color: isSelected ? Colors.blue[600] : Colors.grey[600],
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==================== MENU HANDLERS ====================
+  void _handleMenuSelected(String menu) {
+    if (_selectedMenu == menu) return;
+
+    setState(() {
+      _selectedMenu = menu;
+    });
+
+    switch (menu) {
+      case 'dashboard':
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const DashboardUser()),
+        );
+        break;
+      case 'event':
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const UserEventPage()),
+        );
+        break;
+      case 'ukm':
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const UserUKMPage()),
+        );
+        break;
+      case 'history':
+        // Already on history page
+        break;
+    }
   }
 }
 
@@ -517,7 +809,7 @@ class HistoryDetailPage extends StatelessWidget {
   // ==================== SIDEBAR ====================
   Widget _buildSidebar(BuildContext context) {
     return Container(
-      width: 250,
+      width: 260,
       color: Colors.white,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -537,35 +829,24 @@ class HistoryDetailPage extends StatelessWidget {
           _buildMenuItemDetail(
             Icons.dashboard,
             'Dashboard',
-            AppRoutes.userDashboard,
+            'dashboard',
             context,
           ),
-          _buildMenuItemDetail(
-            Icons.event,
-            'Event',
-            AppRoutes.userEvent,
-            context,
-          ),
-          _buildMenuItemDetail(Icons.groups, 'UKM', AppRoutes.userUKM, context),
-          _buildMenuItemDetail(
-            Icons.history,
-            'Histori',
-            AppRoutes.userHistory,
-            context,
-          ),
-          _buildMenuItemDetail(
-            Icons.person,
-            'Profile',
-            AppRoutes.userProfile,
-            context,
-          ),
+          _buildMenuItemDetail(Icons.event, 'Event', 'event', context),
+          _buildMenuItemDetail(Icons.groups, 'UKM', 'ukm', context),
+          _buildMenuItemDetail(Icons.history, 'Histori', 'history', context),
+          _buildMenuItemDetail(Icons.person, 'Profile', 'profile', context),
           const Spacer(),
           Padding(
             padding: const EdgeInsets.all(16),
             child: SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: () => AppRoutes.logout(context),
+                onPressed: () => Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  '/login',
+                  (route) => false,
+                ),
                 icon: const Icon(Icons.logout, size: 18),
                 label: const Text('Log Out'),
                 style: ElevatedButton.styleFrom(
@@ -593,16 +874,28 @@ class HistoryDetailPage extends StatelessWidget {
     final isSelected = title == 'Histori';
     return InkWell(
       onTap: () {
-        if (route == AppRoutes.userDashboard) {
-          AppRoutes.navigateToUserDashboard(context);
-        } else if (route == AppRoutes.userEvent) {
-          AppRoutes.navigateToUserEvent(context);
-        } else if (route == AppRoutes.userUKM) {
-          AppRoutes.navigateToUserUKM(context);
-        } else if (route == AppRoutes.userHistory) {
-          AppRoutes.navigateToUserHistory(context);
-        } else if (route == AppRoutes.userProfile) {
-          AppRoutes.navigateToUserProfile(context);
+        if (route == 'dashboard') {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const DashboardUser()),
+          );
+        } else if (route == 'event') {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const UserEventPage()),
+          );
+        } else if (route == 'ukm') {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const UserUKMPage()),
+          );
+        } else if (route == 'history') {
+          // Already on history
+        } else if (route == 'profile') {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const ProfilePage()),
+          );
         }
       },
       child: Container(
@@ -662,20 +955,29 @@ class HistoryDetailPage extends StatelessWidget {
         children: [
           if (!isMobile)
             IconButton(
-              onPressed: () => Navigator.pushNamed(context, AppRoutes.home),
+              onPressed: () => Navigator.pushNamed(context, '/user'),
               icon: const Icon(Icons.home_outlined),
             ),
           if (!isMobile) const SizedBox(width: 8),
           if (!isMobile)
             IconButton(onPressed: () {}, icon: const Icon(Icons.search)),
           if (!isMobile) const SizedBox(width: 8),
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.notifications_outlined),
+          NotificationBellWidget(
+            onViewAll: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const NotifikasiUserPage(),
+                ),
+              );
+            },
           ),
           if (!isMobile) const SizedBox(width: 8),
           GestureDetector(
-            onTap: () => Navigator.pushNamed(context, AppRoutes.userProfile),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const ProfilePage()),
+            ),
             child: Container(
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
@@ -703,7 +1005,10 @@ class HistoryDetailPage extends StatelessWidget {
           if (!isMobile) const SizedBox(width: 8),
           if (!isMobile)
             GestureDetector(
-              onTap: () => Navigator.pushNamed(context, AppRoutes.userProfile),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ProfilePage()),
+              ),
               child: const Text(
                 'Adam',
                 style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),

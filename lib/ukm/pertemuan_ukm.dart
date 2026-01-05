@@ -522,7 +522,9 @@ class _PertemuanUKMPageState extends State<PertemuanUKMPage> {
                                 if (formKey.currentState!.validate()) {
                                   try {
                                     // Parse date string to DateTime
-                                    final parts = tanggalController.text.split('-');
+                                    final parts = tanggalController.text.split(
+                                      '-',
+                                    );
                                     final tanggal = DateTime(
                                       int.parse(parts[2]), // year
                                       int.parse(parts[1]), // month
@@ -541,8 +543,10 @@ class _PertemuanUKMPageState extends State<PertemuanUKMPage> {
                                     );
 
                                     // Save to database
-                                    await _pertemuanService.createPertemuan(newPertemuan);
-                                    
+                                    await _pertemuanService.createPertemuan(
+                                      newPertemuan,
+                                    );
+
                                     if (!context.mounted) return;
                                     Navigator.pop(context);
                                     ScaffoldMessenger.of(context).showSnackBar(
@@ -554,14 +558,16 @@ class _PertemuanUKMPageState extends State<PertemuanUKMPage> {
                                         backgroundColor: Colors.green,
                                       ),
                                     );
-                                    
+
                                     // Reload data
                                     _loadPertemuan();
                                   } catch (e) {
                                     if (!context.mounted) return;
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
-                                        content: Text('Gagal menambahkan pertemuan: $e'),
+                                        content: Text(
+                                          'Gagal menambahkan pertemuan: $e',
+                                        ),
                                         backgroundColor: Colors.red,
                                       ),
                                     );

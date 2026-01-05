@@ -1,17 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:unit_activity/config/routes.dart';
 import 'dart:ui';
 
 class UserHeader extends StatelessWidget {
   final VoidCallback? onMenuPressed;
   final VoidCallback? onLogout;
   final String userName;
+  final VoidCallback? onHomePressed;
+  final VoidCallback? onQrPressed;
+  final VoidCallback? onNotificationPressed;
+  final bool showWelcomeText;
 
   const UserHeader({
     super.key,
     this.onMenuPressed,
     this.onLogout,
     required this.userName,
+    this.onHomePressed,
+    this.onQrPressed,
+    this.onNotificationPressed,
+    this.showWelcomeText = true,
   });
 
   @override
@@ -47,9 +56,9 @@ class UserHeader extends StatelessWidget {
             child: Row(
               children: [
                 // Left Side
-                if (isDesktop)
+                if (isDesktop && showWelcomeText)
                   _buildWelcomeText()
-                else
+                else if (!isDesktop)
                   IconButton(
                     icon: const Icon(Icons.menu, color: Colors.black87),
                     onPressed: onMenuPressed,
@@ -57,8 +66,31 @@ class UserHeader extends StatelessWidget {
                     constraints: const BoxConstraints(),
                   ),
 
-                // Center - Empty Space
-                const Spacer(),
+                // Center - Action Icons (Desktop only)
+                if (isDesktop) ...[
+                  const Spacer(),
+                  _buildActionButton(
+                    icon: Icons.home_outlined,
+                    tooltip: 'Home',
+                    onPressed: onHomePressed ?? () {},
+                  ),
+                  const SizedBox(width: 12),
+                  _buildActionButton(
+                    icon: Icons.qr_code_scanner,
+                    tooltip: 'Scan QR Code',
+                    onPressed: onQrPressed ?? () {},
+                  ),
+                  const SizedBox(width: 12),
+                  _buildActionButton(
+                    icon: Icons.notifications_outlined,
+                    tooltip: 'Notifications',
+                    onPressed: onNotificationPressed ?? () {},
+                  ),
+                ],
+
+                // Right Side - Spacer or Direct Avatar
+                if (!isDesktop) const Spacer(),
+                const SizedBox(width: 12),
 
                 // Right Side - Avatar with Dropdown
                 _buildAvatarDropdown(context),
@@ -84,6 +116,22 @@ class UserHeader extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onPressed,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: IconButton(
+        icon: Icon(icon, color: Colors.black87, size: 24),
+        onPressed: onPressed,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(),
       ),
     );
   }

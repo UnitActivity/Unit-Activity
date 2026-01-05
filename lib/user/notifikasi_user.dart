@@ -2,7 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:unit_activity/services/user_notification_service.dart';
 import 'package:unit_activity/widgets/user_sidebar.dart';
-import 'package:unit_activity/config/routes.dart';
+import 'package:unit_activity/widgets/qr_scanner_mixin.dart';
+import 'package:unit_activity/user/dashboard_user.dart';
+import 'package:unit_activity/user/event.dart';
+import 'package:unit_activity/user/ukm.dart';
+import 'package:unit_activity/user/history.dart';
+import 'package:unit_activity/user/profile.dart';
 
 class NotifikasiUserPage extends StatefulWidget {
   const NotifikasiUserPage({super.key});
@@ -11,7 +16,8 @@ class NotifikasiUserPage extends StatefulWidget {
   State<NotifikasiUserPage> createState() => _NotifikasiUserPageState();
 }
 
-class _NotifikasiUserPageState extends State<NotifikasiUserPage> {
+class _NotifikasiUserPageState extends State<NotifikasiUserPage>
+    with QRScannerMixin {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final UserNotificationService _notificationService =
       UserNotificationService();
@@ -48,16 +54,28 @@ class _NotifikasiUserPageState extends State<NotifikasiUserPage> {
     // Navigate based on menu
     switch (menu) {
       case 'dashboard':
-        Navigator.pushReplacementNamed(context, '/user/dashboard');
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const DashboardUser()),
+        );
         break;
       case 'event':
-        Navigator.pushReplacementNamed(context, '/user/event');
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const UserEventPage()),
+        );
         break;
       case 'ukm':
-        Navigator.pushReplacementNamed(context, '/user/ukm');
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const UserUKMPage()),
+        );
         break;
       case 'histori':
-        Navigator.pushReplacementNamed(context, '/user/history');
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const HistoryPage()),
+        );
         break;
     }
   }
@@ -90,7 +108,7 @@ class _NotifikasiUserPageState extends State<NotifikasiUserPage> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              Navigator.pushReplacementNamed(context, '/login');
+              Navigator.pushNamed(context, '/login');
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
@@ -202,8 +220,27 @@ class _NotifikasiUserPageState extends State<NotifikasiUserPage> {
             ),
           ),
           const Spacer(),
+          // QR Scanner Button (Desktop only)
+          if (!isMobile) ...[
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: IconButton(
+                onPressed: () =>
+                    openQRScannerDialog(onCodeScanned: _handleQRCodeScanned),
+                icon: Icon(Icons.qr_code_scanner, color: Colors.blue[700]),
+                tooltip: 'Scan QR Code',
+              ),
+            ),
+            const SizedBox(width: 12),
+          ],
           GestureDetector(
-            onTap: () => AppRoutes.navigateToUserProfile(context),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const ProfilePage()),
+            ),
             child: const CircleAvatar(
               radius: 16,
               backgroundColor: Colors.blue,
@@ -211,6 +248,18 @@ class _NotifikasiUserPageState extends State<NotifikasiUserPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // ==================== QR SCANNER HANDLER ====================
+  void _handleQRCodeScanned(String code) {
+    print('DEBUG: QR Code scanned: $code');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('QR Code scanned: $code'),
+        backgroundColor: Colors.green[600],
+        duration: const Duration(seconds: 2),
       ),
     );
   }

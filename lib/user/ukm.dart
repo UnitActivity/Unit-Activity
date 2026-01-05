@@ -1,7 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:unit_activity/config/routes.dart';
+import 'package:unit_activity/widgets/qr_scanner_mixin.dart';
+import 'package:unit_activity/widgets/notification_bell_widget.dart';
+import 'package:unit_activity/widgets/user_sidebar.dart';
+import 'package:unit_activity/user/notifikasi_user.dart';
+import 'package:unit_activity/user/profile.dart';
+import 'package:unit_activity/user/dashboard_user.dart';
+import 'package:unit_activity/user/event.dart';
+import 'package:unit_activity/user/history.dart';
 
 class UserUKMPage extends StatefulWidget {
   const UserUKMPage({Key? key}) : super(key: key);
@@ -10,14 +17,13 @@ class UserUKMPage extends StatefulWidget {
   State<UserUKMPage> createState() => _UserUKMPageState();
 }
 
-class _UserUKMPageState extends State<UserUKMPage> {
+class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
   final SupabaseClient _supabase = Supabase.instance.client;
 
   String _selectedMenu = 'UKM';
   Map<String, dynamic>? _selectedUKM;
   String _selectedFilter = 'Semua';
   String _searchQuery = '';
-  bool _showQRScanner = false;
   bool _isLoading = true;
 
   List<Map<String, dynamic>> _allUKMs = [];
@@ -369,7 +375,6 @@ class _UserUKMPageState extends State<UserUKMPage> {
   Widget _buildMobileLayout() {
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      drawer: Drawer(child: _buildSidebarVerticalModern()),
       body: Stack(
         children: [
           SingleChildScrollView(
@@ -377,7 +382,7 @@ class _UserUKMPageState extends State<UserUKMPage> {
               top: 70,
               left: 12,
               right: 12,
-              bottom: 12,
+              bottom: 80,
             ),
             child: _selectedUKM == null
                 ? _buildUKMListMobile()
@@ -389,9 +394,9 @@ class _UserUKMPageState extends State<UserUKMPage> {
             right: 0,
             child: _buildFloatingTopBar(isMobile: true),
           ),
-          if (_showQRScanner) _buildQRScannerOverlay(),
         ],
       ),
+      bottomNavigationBar: _buildBottomNavBar(),
     );
   }
 
@@ -430,7 +435,6 @@ class _UserUKMPageState extends State<UserUKMPage> {
             right: 0,
             child: _buildFloatingTopBar(isMobile: false),
           ),
-          if (_showQRScanner) _buildQRScannerOverlay(),
         ],
       ),
     );
@@ -444,7 +448,45 @@ class _UserUKMPageState extends State<UserUKMPage> {
         children: [
           Row(
             children: [
-              _buildSidebarModern(),
+              UserSidebar(
+                selectedMenu: 'ukm',
+                onMenuSelected: (menu) {
+                  if (menu == 'dashboard') {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const DashboardUser(),
+                      ),
+                    );
+                  } else if (menu == 'event') {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const UserEventPage(),
+                      ),
+                    );
+                  } else if (menu == 'histori') {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const HistoryPage(),
+                      ),
+                    );
+                  } else if (menu == 'profile') {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ProfilePage(),
+                      ),
+                    );
+                  }
+                },
+                onLogout: () => Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  '/login',
+                  (route) => false,
+                ),
+              ),
               Expanded(
                 child: Column(
                   children: [
@@ -461,117 +503,11 @@ class _UserUKMPageState extends State<UserUKMPage> {
           ),
           Positioned(
             top: 0,
-            left: 250,
+            left: 260,
             right: 0,
             child: _buildFloatingTopBar(isMobile: false),
           ),
-          if (_showQRScanner) _buildQRScannerOverlay(),
         ],
-      ),
-    );
-  }
-
-  // ==================== SIDEBAR ====================
-  Widget _buildSidebarModern() {
-    return Container(
-      width: 250,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 10,
-            offset: const Offset(2, 0),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text(
-              'UNIT ACTIVITY',
-              style: GoogleFonts.orbitron(
-                fontSize: 22,
-                fontWeight: FontWeight.w900,
-                color: const Color(0xFF4169E1),
-                letterSpacing: 1.2,
-              ),
-            ),
-          ),
-          const Divider(height: 1),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              children: [
-                _buildModernMenuItem(
-                  Icons.dashboard,
-                  'Dashboard',
-                  AppRoutes.userDashboard,
-                ),
-                _buildModernMenuItem(Icons.event, 'Event', AppRoutes.userEvent),
-                _buildModernMenuItem(Icons.groups, 'UKM', AppRoutes.userUKM),
-                _buildModernMenuItem(
-                  Icons.history,
-                  'Histori',
-                  AppRoutes.userHistory,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildModernMenuItem(IconData icon, String title, String route) {
-    final isSelected = _selectedMenu == title;
-
-    return InkWell(
-      onTap: () {
-        setState(() => _selectedMenu = title);
-        if (route == AppRoutes.userDashboard) {
-          AppRoutes.navigateToUserDashboard(context);
-        } else if (route == AppRoutes.userEvent) {
-          AppRoutes.navigateToUserEvent(context);
-        } else if (route == AppRoutes.userUKM) {
-          AppRoutes.navigateToUserUKM(context);
-        } else if (route == AppRoutes.userHistory) {
-          AppRoutes.navigateToUserHistory(context);
-        } else if (route == AppRoutes.userProfile) {
-          AppRoutes.navigateToUserProfile(context);
-        }
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.blue[50] : Colors.transparent,
-          border: Border(
-            left: BorderSide(
-              color: isSelected ? Colors.blue[700]! : Colors.transparent,
-              width: 3,
-            ),
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              size: 20,
-              color: isSelected ? Colors.blue[700] : Colors.grey[600],
-            ),
-            const SizedBox(width: 12),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                color: isSelected ? Colors.blue[700] : Colors.grey[700],
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -612,22 +548,14 @@ class _UserUKMPageState extends State<UserUKMPage> {
           _buildMenuItemCompactModern(
             Icons.dashboard_rounded,
             'Dashboard',
-            AppRoutes.userDashboard,
+            'dashboard',
           ),
-          _buildMenuItemCompactModern(
-            Icons.event_rounded,
-            'Event',
-            AppRoutes.userEvent,
-          ),
-          _buildMenuItemCompactModern(
-            Icons.groups_rounded,
-            'UKM',
-            AppRoutes.userUKM,
-          ),
+          _buildMenuItemCompactModern(Icons.event_rounded, 'Event', 'event'),
+          _buildMenuItemCompactModern(Icons.groups_rounded, 'UKM', 'ukm'),
           _buildMenuItemCompactModern(
             Icons.history_rounded,
             'Histori',
-            AppRoutes.userHistory,
+            'history',
           ),
         ],
       ),
@@ -662,16 +590,23 @@ class _UserUKMPageState extends State<UserUKMPage> {
         setState(() => _selectedMenu = title);
         Navigator.pop(context);
         Future.delayed(const Duration(milliseconds: 200), () {
-          if (route == AppRoutes.userDashboard) {
-            AppRoutes.navigateToUserDashboard(context);
-          } else if (route == AppRoutes.userEvent) {
-            AppRoutes.navigateToUserEvent(context);
-          } else if (route == AppRoutes.userUKM) {
-            AppRoutes.navigateToUserUKM(context);
-          } else if (route == AppRoutes.userHistory) {
-            AppRoutes.navigateToUserHistory(context);
-          } else if (route == AppRoutes.userProfile) {
-            AppRoutes.navigateToUserProfile(context);
+          if (route == 'dashboard') {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const DashboardUser()),
+            );
+          } else if (route == 'event') {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const UserEventPage()),
+            );
+          } else if (route == 'ukm') {
+            // Already on UKM page
+          } else if (route == 'history') {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const HistoryPage()),
+            );
           }
         });
       },
@@ -681,7 +616,7 @@ class _UserUKMPageState extends State<UserUKMPage> {
   // ==================== FLOATING TOP BAR ====================
   Widget _buildFloatingTopBar({required bool isMobile}) {
     return Container(
-      margin: EdgeInsets.only(left: isMobile ? 0 : 8, right: 8, top: 8),
+      margin: const EdgeInsets.only(left: 8, right: 8, top: 8),
       padding: EdgeInsets.symmetric(
         horizontal: isMobile ? 12 : 20,
         vertical: 12,
@@ -697,276 +632,242 @@ class _UserUKMPageState extends State<UserUKMPage> {
           ),
         ],
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          // Hamburger menu for mobile
-          if (isMobile)
-            Builder(
-              builder: (context) => IconButton(
-                onPressed: () => Scaffold.of(context).openDrawer(),
-                icon: const Icon(Icons.menu),
-                tooltip: 'Menu',
-              ),
-            ),
-          const Spacer(),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              if (!isMobile)
-                IconButton(
-                  onPressed: () => Navigator.pushNamed(context, AppRoutes.home),
-                  icon: const Icon(Icons.home_outlined),
-                  tooltip: 'Home',
+      child: isMobile
+          ? Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                NotificationBellWidget(
+                  onViewAll: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const NotifikasiUserPage(),
+                      ),
+                    );
+                  },
                 ),
-              if (!isMobile) const SizedBox(width: 8),
-              IconButton(
-                onPressed: () {
-                  setState(() {
-                    _showQRScanner = !_showQRScanner;
-                  });
-                },
-                icon: const Icon(Icons.qr_code_2),
-                tooltip: 'Scan QR Code',
-                color: _showQRScanner ? Colors.blue[700] : Colors.grey[600],
-              ),
-              if (!isMobile) const SizedBox(width: 8),
-              IconButton(
-                onPressed: () {},
-                icon: const Icon(Icons.notifications_outlined),
-                tooltip: 'Notifications',
-              ),
-              if (!isMobile) const SizedBox(width: 8),
-              GestureDetector(
-                onTap: () =>
-                    Navigator.pushNamed(context, AppRoutes.userProfile),
-                child: Container(
-                  padding: const EdgeInsets.all(4),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ProfilePage(),
+                    ),
+                  ),
+                  child: const CircleAvatar(
+                    radius: 16,
+                    backgroundColor: Colors.blue,
+                    child: Icon(Icons.person, color: Colors.white, size: 20),
+                  ),
+                ),
+              ],
+            )
+          : Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                // QR Scanner Button
+                Container(
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(24),
+                    color: Colors.blue[50],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: IconButton(
+                    onPressed: () => openQRScannerDialog(
+                      onCodeScanned: _handleQRCodeScanned,
+                    ),
+                    icon: Icon(Icons.qr_code_scanner, color: Colors.blue[700]),
+                    tooltip: 'Scan QR Code',
+                  ),
+                ),
+                const SizedBox(width: 12),
+                NotificationBellWidget(
+                  onViewAll: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const NotifikasiUserPage(),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(width: 12),
+                GestureDetector(
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ProfilePage(),
+                    ),
+                  ),
+                  child: const CircleAvatar(
+                    radius: 16,
+                    backgroundColor: Colors.blue,
+                    child: Icon(Icons.person, color: Colors.white, size: 20),
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+
+  // ==================== QR SCANNER ====================
+  void _handleQRCodeScanned(String code) {
+    // Implementasi logika untuk menangani kode QR yang di-scan
+    // Bisa digunakan untuk check-in, verifikasi, dll
+    print('DEBUG: QR Code scanned: $code');
+  }
+
+  // ==================== BOTTOM NAVIGATION BAR ====================
+  Widget _buildBottomNavBar() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                // Dashboard
+                _buildNavItem(
+                  Icons.home_rounded,
+                  'Dashboard',
+                  _selectedMenu == 'Dashboard',
+                  () => _handleMenuSelected('Dashboard'),
+                ),
+                // Event
+                _buildNavItem(
+                  Icons.event_rounded,
+                  'Event',
+                  _selectedMenu == 'Event',
+                  () => _handleMenuSelected('Event'),
+                ),
+                // Center QR Scanner button
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.blue[600],
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.08),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
+                        color: Colors.blue.withOpacity(0.4),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
                       ),
                     ],
                   ),
-                  child: CircleAvatar(
-                    radius: isMobile ? 14 : 16,
-                    backgroundColor: Colors.blue[600],
-                    child: Icon(
-                      Icons.person,
-                      size: isMobile ? 16 : 20,
-                      color: Colors.white,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () => openQRScannerDialog(
+                        onCodeScanned: _handleQRCodeScanned,
+                      ),
+                      borderRadius: BorderRadius.circular(28),
+                      child: const Center(
+                        child: Icon(
+                          Icons.qr_code_2,
+                          color: Colors.white,
+                          size: 28,
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
-              if (!isMobile) const SizedBox(width: 8),
-              if (!isMobile)
-                GestureDetector(
-                  onTap: () =>
-                      Navigator.pushNamed(context, AppRoutes.userProfile),
-                  child: const Text(
-                    'Adam',
-                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                  ),
+                // UKM
+                _buildNavItem(
+                  Icons.school_rounded,
+                  'UKM',
+                  _selectedMenu == 'UKM',
+                  () => _handleMenuSelected('UKM'),
                 ),
-            ],
+                // History
+                _buildNavItem(
+                  Icons.history_rounded,
+                  'History',
+                  _selectedMenu == 'History',
+                  () => _handleMenuSelected('History'),
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  // ==================== QR SCANNER OVERLAY ====================
-  final TextEditingController _qrCodeController = TextEditingController();
-
-  Widget _buildQRScannerOverlay() {
-    return Positioned(
-      top: 70,
-      right: 8,
-      child: Container(
-        width: 350,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.2),
-              blurRadius: 20,
-              offset: const Offset(0, 10),
+  // ==================== NAV ITEM WIDGET ====================
+  Widget _buildNavItem(
+    IconData icon,
+    String label,
+    bool isSelected,
+    VoidCallback onTap,
+  ) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            color: isSelected ? Colors.blue[600] : Colors.grey[600],
+            size: 24,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              color: isSelected ? Colors.blue[600] : Colors.grey[600],
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
             ),
-          ],
-        ),
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Scan QR Code',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                ),
-                IconButton(
-                  onPressed: () {
-                    setState(() {
-                      _showQRScanner = false;
-                    });
-                  },
-                  icon: const Icon(Icons.close),
-                  iconSize: 20,
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey[300]!),
-              ),
-              child: Column(
-                children: [
-                  Icon(Icons.qr_code, size: 60, color: Colors.blue[400]),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.orange[50],
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.orange[200]!),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.laptop_mac,
-                          size: 18,
-                          color: Colors.orange[700],
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Kamera tidak tersedia di perangkat ini. Silakan masukkan kode QR secara manual.',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.orange[800],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _qrCodeController,
-                    decoration: InputDecoration(
-                      hintText: 'Masukkan kode QR',
-                      hintStyle: TextStyle(
-                        color: Colors.grey[400],
-                        fontSize: 14,
-                      ),
-                      prefixIcon: Icon(
-                        Icons.qr_code_scanner,
-                        color: Colors.grey[500],
-                      ),
-                      filled: true,
-                      fillColor: Colors.white,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(
-                          color: Colors.blue[700]!,
-                          width: 2,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        final code = _qrCodeController.text.trim();
-                        if (code.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: const Text('Silakan masukkan kode QR'),
-                              backgroundColor: Colors.orange[600],
-                              duration: const Duration(seconds: 2),
-                            ),
-                          );
-                          return;
-                        }
-                        // Process QR code
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'Check-in berhasil dengan kode: $code',
-                            ),
-                            backgroundColor: Colors.green[600],
-                            duration: const Duration(seconds: 2),
-                          ),
-                        );
-                        _qrCodeController.clear();
-                        setState(() {
-                          _showQRScanner = false;
-                        });
-                      },
-                      icon: const Icon(Icons.check_circle, size: 18),
-                      label: const Text('Submit Kode'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue[700],
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 12,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.blue[50],
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.info_outline, size: 18, color: Colors.blue[700]),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Masukkan kode dari QR untuk check-in ke event atau aktivitas',
-                      style: TextStyle(fontSize: 12, color: Colors.blue[700]),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
+  }
+
+  // ==================== MENU HANDLERS ====================
+  void _handleMenuSelected(String menu) {
+    if (_selectedMenu == menu) return;
+
+    setState(() {
+      _selectedMenu = menu;
+    });
+
+    switch (menu) {
+      case 'Dashboard':
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const DashboardUser()),
+        );
+        break;
+      case 'Event':
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const UserEventPage()),
+        );
+        break;
+      case 'UKM':
+        // Already on UKM page
+        break;
+      case 'History':
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const HistoryPage()),
+        );
+        break;
+    }
   }
 
   // ==================== UKM LIST VIEW - MOBILE ====================

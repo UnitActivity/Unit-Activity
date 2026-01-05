@@ -1,7 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:unit_activity/config/routes.dart';
 import 'package:unit_activity/widgets/user_sidebar.dart';
-import 'package:unit_activity/widgets/user_header.dart';
+import 'package:unit_activity/widgets/qr_scanner_mixin.dart';
+import 'package:unit_activity/widgets/notification_bell_widget.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:unit_activity/user/notifikasi_user.dart';
+import 'package:unit_activity/user/profile.dart';
+import 'package:unit_activity/user/dashboard_user.dart';
+import 'package:unit_activity/user/ukm.dart';
+import 'package:unit_activity/user/history.dart';
 
 class UserEventPage extends StatefulWidget {
   const UserEventPage({super.key});
@@ -10,8 +17,11 @@ class UserEventPage extends StatefulWidget {
   State<UserEventPage> createState() => _UserEventPageState();
 }
 
-class _UserEventPageState extends State<UserEventPage> {
+class _UserEventPageState extends State<UserEventPage> with QRScannerMixin {
   Map<String, dynamic>? _selectedEvent;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  String _selectedMenu = 'event';
+  final SupabaseClient _supabase = Supabase.instance.client;
 
   final List<Map<String, dynamic>> _allEvents = [
     {
@@ -97,41 +107,30 @@ class _UserEventPageState extends State<UserEventPage> {
   // ==================== MOBILE LAYOUT ====================
   Widget _buildMobileLayout() {
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: Colors.grey[50],
-      body: Column(
+      body: Stack(
         children: [
-          UserHeader(
-            userName: 'Adam',
-            onMenuPressed: () {
-              Scaffold.of(context).openDrawer();
-            },
-            onLogout: () => AppRoutes.logout(context),
-          ),
-          Expanded(
+          SingleChildScrollView(
+            padding: const EdgeInsets.only(
+              top: 70,
+              left: 12,
+              right: 12,
+              bottom: 80,
+            ),
             child: _selectedEvent == null
                 ? _buildEventListViewMobile()
                 : _buildEventDetailViewMobile(),
           ),
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: _buildFloatingTopBar(isMobile: true),
+          ),
         ],
       ),
-      drawer: Drawer(
-        child: UserSidebar(
-          selectedMenu: 'event',
-          onMenuSelected: (menu) {
-            Navigator.pop(context);
-            if (menu == 'dashboard') {
-              AppRoutes.navigateToUserDashboard(context);
-            } else if (menu == 'ukm') {
-              AppRoutes.navigateToUserUKM(context);
-            } else if (menu == 'histori') {
-              AppRoutes.navigateToUserHistory(context);
-            } else if (menu == 'profile') {
-              AppRoutes.navigateToUserProfile(context);
-            }
-          },
-          onLogout: () => AppRoutes.logout(context),
-        ),
-      ),
+      bottomNavigationBar: _buildBottomNavBar(),
     );
   }
 
@@ -139,37 +138,71 @@ class _UserEventPageState extends State<UserEventPage> {
   Widget _buildTabletLayout() {
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      body: Column(
+      body: Stack(
         children: [
-          UserHeader(
-            userName: 'Adam',
-            onLogout: () => AppRoutes.logout(context),
+          Row(
+            children: [
+              UserSidebar(
+                selectedMenu: 'event',
+                onMenuSelected: (menu) {
+                  if (menu == 'dashboard') {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const DashboardUser(),
+                      ),
+                    );
+                  } else if (menu == 'ukm') {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const UserUKMPage(),
+                      ),
+                    );
+                  } else if (menu == 'histori') {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const HistoryPage(),
+                      ),
+                    );
+                  } else if (menu == 'profile') {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ProfilePage(),
+                      ),
+                    );
+                  }
+                },
+                onLogout: () => Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  '/login',
+                  (route) => false,
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  children: [
+                    const SizedBox(height: 70),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(16),
+                        child: _selectedEvent == null
+                            ? _buildEventListViewTablet()
+                            : _buildEventDetailViewTablet(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          Expanded(
-            child: Row(
-              children: [
-                UserSidebar(
-                  selectedMenu: 'event',
-                  onMenuSelected: (menu) {
-                    if (menu == 'dashboard') {
-                      AppRoutes.navigateToUserDashboard(context);
-                    } else if (menu == 'ukm') {
-                      AppRoutes.navigateToUserUKM(context);
-                    } else if (menu == 'histori') {
-                      AppRoutes.navigateToUserHistory(context);
-                    } else if (menu == 'profile') {
-                      AppRoutes.navigateToUserProfile(context);
-                    }
-                  },
-                  onLogout: () => AppRoutes.logout(context),
-                ),
-                Expanded(
-                  child: _selectedEvent == null
-                      ? _buildEventListViewTablet()
-                      : _buildEventDetailViewTablet(),
-                ),
-              ],
-            ),
+          Positioned(
+            top: 0,
+            left: 260,
+            right: 0,
+            child: _buildFloatingTopBar(isMobile: false),
           ),
         ],
       ),
@@ -180,40 +213,170 @@ class _UserEventPageState extends State<UserEventPage> {
   Widget _buildDesktopLayout() {
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      body: Row(
+      body: Stack(
         children: [
-          UserSidebar(
-            selectedMenu: 'event',
-            onMenuSelected: (menu) {
-              if (menu == 'dashboard') {
-                AppRoutes.navigateToUserDashboard(context);
-              } else if (menu == 'ukm') {
-                AppRoutes.navigateToUserUKM(context);
-              } else if (menu == 'histori') {
-                AppRoutes.navigateToUserHistory(context);
-              } else if (menu == 'profile') {
-                AppRoutes.navigateToUserProfile(context);
-              }
-            },
-            onLogout: () => AppRoutes.logout(context),
+          Row(
+            children: [
+              UserSidebar(
+                selectedMenu: 'event',
+                onMenuSelected: (menu) {
+                  if (menu == 'dashboard') {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const DashboardUser(),
+                      ),
+                    );
+                  } else if (menu == 'ukm') {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const UserUKMPage(),
+                      ),
+                    );
+                  } else if (menu == 'histori') {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const HistoryPage(),
+                      ),
+                    );
+                  } else if (menu == 'profile') {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ProfilePage(),
+                      ),
+                    );
+                  }
+                },
+                onLogout: () => Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  '/login',
+                  (route) => false,
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  children: [
+                    const SizedBox(height: 70),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(24),
+                        child: _selectedEvent == null
+                            ? _buildEventListViewDesktop()
+                            : _buildEventDetailViewDesktop(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          Expanded(
-            child: Column(
-              children: [
-                UserHeader(
-                  userName: 'Adam',
-                  onLogout: () => AppRoutes.logout(context),
-                ),
-                Expanded(
-                  child: _selectedEvent == null
-                      ? _buildEventListViewDesktop()
-                      : _buildEventDetailViewDesktop(),
-                ),
-              ],
-            ),
+          Positioned(
+            top: 0,
+            left: 260,
+            right: 0,
+            child: _buildFloatingTopBar(isMobile: false),
           ),
         ],
       ),
+    );
+  }
+
+  // ==================== FLOATING TOP BAR ====================
+  Widget _buildFloatingTopBar({required bool isMobile}) {
+    return Container(
+      margin: const EdgeInsets.only(left: 8, right: 8, top: 8),
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 12 : 20,
+        vertical: 12,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: isMobile
+          ? Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                NotificationBellWidget(
+                  onViewAll: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const NotifikasiUserPage(),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ProfilePage(),
+                    ),
+                  ),
+                  child: const CircleAvatar(
+                    radius: 16,
+                    backgroundColor: Colors.blue,
+                    child: Icon(Icons.person, color: Colors.white, size: 20),
+                  ),
+                ),
+              ],
+            )
+          : Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                // QR Scanner Button
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.blue[50],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: IconButton(
+                    onPressed: () => openQRScannerDialog(
+                      onCodeScanned: _handleQRCodeScanned,
+                    ),
+                    icon: Icon(Icons.qr_code_scanner, color: Colors.blue[700]),
+                    tooltip: 'Scan QR Code',
+                  ),
+                ),
+                const SizedBox(width: 12),
+                NotificationBellWidget(
+                  onViewAll: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const NotifikasiUserPage(),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(width: 12),
+                GestureDetector(
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ProfilePage(),
+                    ),
+                  ),
+                  child: const CircleAvatar(
+                    radius: 16,
+                    backgroundColor: Colors.blue,
+                    child: Icon(Icons.person, color: Colors.white, size: 20),
+                  ),
+                ),
+              ],
+            ),
     );
   }
 
@@ -459,6 +622,160 @@ class _UserEventPageState extends State<UserEventPage> {
         ),
       ),
     );
+  }
+
+  // ==================== BOTTOM NAVIGATION BAR ====================
+  Widget _buildBottomNavBar() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                // Dashboard
+                _buildNavItem(
+                  Icons.home_rounded,
+                  'Dashboard',
+                  _selectedMenu == 'dashboard',
+                  () => _handleMenuSelected('dashboard'),
+                ),
+                // Event
+                _buildNavItem(
+                  Icons.event_rounded,
+                  'Event',
+                  _selectedMenu == 'event',
+                  () => _handleMenuSelected('event'),
+                ),
+                // Center QR Scanner button
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.blue[600],
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.blue.withOpacity(0.4),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () => openQRScannerDialog(
+                        onCodeScanned: _handleQRCodeScanned,
+                      ),
+                      borderRadius: BorderRadius.circular(28),
+                      child: const Center(
+                        child: Icon(
+                          Icons.qr_code_2,
+                          color: Colors.white,
+                          size: 28,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                // UKM
+                _buildNavItem(
+                  Icons.school_rounded,
+                  'UKM',
+                  _selectedMenu == 'ukm',
+                  () => _handleMenuSelected('ukm'),
+                ),
+                // History
+                _buildNavItem(
+                  Icons.history_rounded,
+                  'History',
+                  _selectedMenu == 'history',
+                  () => _handleMenuSelected('history'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==================== NAV ITEM WIDGET ====================
+  Widget _buildNavItem(
+    IconData icon,
+    String label,
+    bool isSelected,
+    VoidCallback onTap,
+  ) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            color: isSelected ? Colors.blue[600] : Colors.grey[600],
+            size: 24,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              color: isSelected ? Colors.blue[600] : Colors.grey[600],
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==================== MENU HANDLERS ====================
+  void _handleMenuSelected(String menu) {
+    if (_selectedMenu == menu) return;
+
+    setState(() {
+      _selectedMenu = menu;
+    });
+
+    switch (menu) {
+      case 'dashboard':
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const DashboardUser()),
+        );
+        break;
+      case 'event':
+        // Already on event page
+        break;
+      case 'ukm':
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const UserUKMPage()),
+        );
+        break;
+      case 'history':
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const HistoryPage()),
+        );
+        break;
+    }
   }
 
   // ==================== MOBILE DETAIL VIEW ====================
@@ -854,6 +1171,18 @@ class _UserEventPageState extends State<UserEventPage> {
         const SizedBox(width: 12),
         Expanded(child: Text(text, style: const TextStyle(fontSize: 14))),
       ],
+    );
+  }
+
+  // ==================== QR SCANNER HANDLER ====================
+  void _handleQRCodeScanned(String code) {
+    print('DEBUG: QR Code scanned: $code');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Event check-in berhasil dengan kode: $code'),
+        backgroundColor: Colors.green[600],
+        duration: const Duration(seconds: 2),
+      ),
     );
   }
 }
