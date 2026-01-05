@@ -175,6 +175,8 @@ class _AddInformasiPageState extends State<AddInformasiPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -191,12 +193,13 @@ class _AddInformasiPageState extends State<AddInformasiPage> {
           icon: Icon(
             _currentStep == 0 ? Icons.close : Icons.arrow_back,
             color: Colors.black87,
+            size: isMobile ? 20 : 24,
           ),
         ),
         title: Text(
           _currentStep == 0 ? 'Postingan baru' : 'Tambahkan keterangan',
           style: GoogleFonts.inter(
-            fontSize: 18,
+            fontSize: isMobile ? 16 : 18,
             fontWeight: FontWeight.w600,
             color: Colors.black87,
           ),
@@ -214,7 +217,7 @@ class _AddInformasiPageState extends State<AddInformasiPage> {
             child: Text(
               _currentStep == 0 ? 'Selanjutnya' : 'Bagikan',
               style: GoogleFonts.inter(
-                fontSize: 16,
+                fontSize: isMobile ? 14 : 16,
                 fontWeight: FontWeight.w600,
                 color:
                     ((_currentStep == 0 &&
@@ -226,7 +229,7 @@ class _AddInformasiPageState extends State<AddInformasiPage> {
               ),
             ),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: isMobile ? 4 : 8),
         ],
       ),
       body: _currentStep == 0 ? _buildImagePickerStep() : _buildDetailStep(),
@@ -234,6 +237,8 @@ class _AddInformasiPageState extends State<AddInformasiPage> {
   }
 
   Widget _buildImagePickerStep() {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
     if (_isUploadingImage) {
       return Center(
         child: Column(
@@ -242,10 +247,13 @@ class _AddInformasiPageState extends State<AddInformasiPage> {
             const CircularProgressIndicator(
               valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4169E1)),
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: isMobile ? 16 : 24),
             Text(
               'Mengupload gambar...',
-              style: GoogleFonts.inter(fontSize: 16, color: Colors.grey[600]),
+              style: GoogleFonts.inter(
+                fontSize: isMobile ? 14 : 16,
+                color: Colors.grey[600],
+              ),
             ),
           ],
         ),
@@ -269,16 +277,21 @@ class _AddInformasiPageState extends State<AddInformasiPage> {
             ),
           ),
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(isMobile ? 12 : 16),
             child: Row(
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: _pickAndUploadImage,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Ganti Gambar'),
+                    icon: Icon(Icons.refresh, size: isMobile ? 18 : 20),
+                    label: Text(
+                      'Ganti Gambar',
+                      style: GoogleFonts.inter(fontSize: isMobile ? 12 : 14),
+                    ),
                     style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      padding: EdgeInsets.symmetric(
+                        vertical: isMobile ? 10 : 12,
+                      ),
                     ),
                   ),
                 ),
@@ -299,18 +312,24 @@ class _AddInformasiPageState extends State<AddInformasiPage> {
             children: [
               Icon(
                 Icons.photo_library_outlined,
-                size: 80,
+                size: isMobile ? 60 : 80,
                 color: Colors.grey[400],
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: isMobile ? 12 : 16),
               Text(
                 'Pilih foto dari galeri',
-                style: GoogleFonts.inter(fontSize: 18, color: Colors.grey[600]),
+                style: GoogleFonts.inter(
+                  fontSize: isMobile ? 16 : 18,
+                  color: Colors.grey[600],
+                ),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: isMobile ? 6 : 8),
               Text(
                 'Tap untuk memilih gambar',
-                style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[500]),
+                style: GoogleFonts.inter(
+                  fontSize: isMobile ? 12 : 14,
+                  color: Colors.grey[500],
+                ),
               ),
             ],
           ),
@@ -320,13 +339,15 @@ class _AddInformasiPageState extends State<AddInformasiPage> {
   }
 
   Widget _buildDetailStep() {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
     return SingleChildScrollView(
       child: Column(
         children: [
           // Preview gambar
           if (_uploadedImagePath != null)
             Container(
-              height: 200,
+              height: isMobile ? 150 : 200,
               width: double.infinity,
               color: Colors.grey[200],
               child: Image.network(
@@ -339,7 +360,7 @@ class _AddInformasiPageState extends State<AddInformasiPage> {
 
           // Form
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(isMobile ? 12 : 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -348,22 +369,25 @@ class _AddInformasiPageState extends State<AddInformasiPage> {
                   _judulController,
                   'Masukkan judul postingan...',
                   maxLines: 1,
+                  isMobile: isMobile,
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: isMobile ? 12 : 16),
                 _buildTextField(
                   'Deskripsi',
                   _deskripsiController,
                   'Tambahkan deskripsi...',
                   maxLines: 4,
+                  isMobile: isMobile,
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: isMobile ? 12 : 16),
                 _buildDropdown(
                   'Status *',
                   _selectedStatus,
                   ['Draft', 'Aktif', 'Arsip'],
                   (val) => setState(() => _selectedStatus = val!),
+                  isMobile,
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: isMobile ? 12 : 16),
                 _buildDropdownFromList(
                   'UKM',
                   _selectedUkmId,
@@ -371,8 +395,9 @@ class _AddInformasiPageState extends State<AddInformasiPage> {
                   'id_ukm',
                   'nama_ukm',
                   (val) => setState(() => _selectedUkmId = val),
+                  isMobile,
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: isMobile ? 12 : 16),
                 _buildDropdownFromList(
                   'Periode',
                   _selectedPeriodeId,
@@ -380,8 +405,9 @@ class _AddInformasiPageState extends State<AddInformasiPage> {
                   'id_periode',
                   'nama_periode',
                   (val) => setState(() => _selectedPeriodeId = val),
+                  isMobile,
                 ),
-                const SizedBox(height: 24),
+                SizedBox(height: isMobile ? 16 : 24),
               ],
             ),
           ),
@@ -395,6 +421,7 @@ class _AddInformasiPageState extends State<AddInformasiPage> {
     TextEditingController controller,
     String hint, {
     int maxLines = 1,
+    bool isMobile = false,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -402,18 +429,21 @@ class _AddInformasiPageState extends State<AddInformasiPage> {
         Text(
           label,
           style: GoogleFonts.inter(
-            fontSize: 14,
+            fontSize: isMobile ? 12 : 14,
             fontWeight: FontWeight.w600,
             color: Colors.grey[700],
           ),
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: isMobile ? 6 : 8),
         TextField(
           controller: controller,
           maxLines: maxLines,
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: GoogleFonts.inter(fontSize: 14, color: Colors.grey[400]),
+            hintStyle: GoogleFonts.inter(
+              fontSize: isMobile ? 12 : 14,
+              color: Colors.grey[400],
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
               borderSide: BorderSide(color: Colors.grey[300]!),
@@ -426,7 +456,7 @@ class _AddInformasiPageState extends State<AddInformasiPage> {
               borderRadius: BorderRadius.circular(8),
               borderSide: const BorderSide(color: Color(0xFF4169E1), width: 2),
             ),
-            contentPadding: const EdgeInsets.all(12),
+            contentPadding: EdgeInsets.all(isMobile ? 10 : 12),
           ),
         ),
       ],
@@ -438,6 +468,7 @@ class _AddInformasiPageState extends State<AddInformasiPage> {
     String value,
     List<String> items,
     Function(String?) onChanged,
+    bool isMobile,
   ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -445,12 +476,12 @@ class _AddInformasiPageState extends State<AddInformasiPage> {
         Text(
           label,
           style: GoogleFonts.inter(
-            fontSize: 14,
+            fontSize: isMobile ? 12 : 14,
             fontWeight: FontWeight.w600,
             color: Colors.grey[700],
           ),
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: isMobile ? 6 : 8),
         DropdownButtonFormField<String>(
           initialValue: value,
           decoration: InputDecoration(
@@ -466,12 +497,15 @@ class _AddInformasiPageState extends State<AddInformasiPage> {
               borderRadius: BorderRadius.circular(8),
               borderSide: const BorderSide(color: Color(0xFF4169E1), width: 2),
             ),
-            contentPadding: const EdgeInsets.all(12),
+            contentPadding: EdgeInsets.all(isMobile ? 10 : 12),
           ),
           items: items.map((item) {
             return DropdownMenuItem<String>(
               value: item,
-              child: Text(item, style: GoogleFonts.inter(fontSize: 14)),
+              child: Text(
+                item,
+                style: GoogleFonts.inter(fontSize: isMobile ? 12 : 14),
+              ),
             );
           }).toList(),
           onChanged: onChanged,
@@ -487,6 +521,7 @@ class _AddInformasiPageState extends State<AddInformasiPage> {
     String idKey,
     String nameKey,
     Function(String?) onChanged,
+    bool isMobile,
   ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -494,17 +529,20 @@ class _AddInformasiPageState extends State<AddInformasiPage> {
         Text(
           label,
           style: GoogleFonts.inter(
-            fontSize: 14,
+            fontSize: isMobile ? 12 : 14,
             fontWeight: FontWeight.w600,
             color: Colors.grey[700],
           ),
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: isMobile ? 6 : 8),
         DropdownButtonFormField<String>(
           initialValue: value,
           decoration: InputDecoration(
             hintText: 'Pilih $label (optional)',
-            hintStyle: GoogleFonts.inter(color: Colors.grey[400]),
+            hintStyle: GoogleFonts.inter(
+              color: Colors.grey[400],
+              fontSize: isMobile ? 12 : 14,
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
               borderSide: BorderSide(color: Colors.grey[300]!),
@@ -517,14 +555,14 @@ class _AddInformasiPageState extends State<AddInformasiPage> {
               borderRadius: BorderRadius.circular(8),
               borderSide: const BorderSide(color: Color(0xFF4169E1), width: 2),
             ),
-            contentPadding: const EdgeInsets.all(12),
+            contentPadding: EdgeInsets.all(isMobile ? 10 : 12),
           ),
           items: items.map((item) {
             return DropdownMenuItem<String>(
               value: item[idKey].toString(),
               child: Text(
                 item[nameKey] ?? '',
-                style: GoogleFonts.inter(fontSize: 14),
+                style: GoogleFonts.inter(fontSize: isMobile ? 12 : 14),
               ),
             );
           }).toList(),

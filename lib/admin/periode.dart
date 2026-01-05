@@ -84,7 +84,7 @@ class _PeriodePageState extends State<PeriodePage> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // Modern Header with Gradient
-        SizedBox(height: isMobile ? 16 : 24),
+        SizedBox(height: isMobile ? 24 : 24),
         Container(
           padding: EdgeInsets.all(isMobile ? 16 : 24),
           decoration: BoxDecoration(
