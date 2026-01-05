@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:unit_activity/ukm/detail_pertemuan_ukm.dart';
 import 'package:unit_activity/services/pertemuan_service.dart';
+import 'package:unit_activity/services/ukm_dashboard_service.dart';
 import 'package:unit_activity/models/pertemuan_model.dart';
 import 'package:intl/intl.dart';
 
@@ -15,6 +16,7 @@ class PertemuanUKMPage extends StatefulWidget {
 class _PertemuanUKMPageState extends State<PertemuanUKMPage> {
   int _currentPage = 1;
   final PertemuanService _pertemuanService = PertemuanService();
+  final UkmDashboardService _dashboardService = UkmDashboardService();
 
   List<PertemuanModel> _pertemuanList = [];
   bool _isLoading = true;
@@ -366,6 +368,43 @@ class _PertemuanUKMPageState extends State<PertemuanUKMPage> {
     );
   }
 
+  // Send notification to all UKM members
+  Future<void> _sendPertemuanNotification(
+    String topik,
+    String tanggal,
+    String jamMulai,
+    String jamAkhir,
+    String lokasi,
+    String ukmId,
+  ) async {
+    try {
+      // Get all active UKM members
+      final members = await _dashboardService.getUkmMembers(ukmId);
+
+      if (members.isEmpty) return;
+
+      final now = DateTime.now().toIso8601String();
+      final notificationData = members.map((member) {
+        return {
+          'user_id': member['user_id'],
+          'judul': 'Pertemuan Baru: $topik',
+          'isi':
+              'Pertemuan baru dijadwalkan pada $tanggal pukul $jamMulai - $jamAkhir di $lokasi',
+          'tipe': 'info',
+          'is_read': false,
+          'created_at': now,
+        };
+      }).toList();
+
+      // Batch insert notifications
+      await _dashboardService.supabase
+          .from('notification_preference')
+          .insert(notificationData);
+    } catch (e) {
+      debugPrint('Error sending notification: $e');
+    }
+  }
+
   void _showAddPertemuanDialog() {
     final formKey = GlobalKey<FormState>();
     final topiController = TextEditingController();
@@ -373,233 +412,301 @@ class _PertemuanUKMPageState extends State<PertemuanUKMPage> {
     final jamMulaiController = TextEditingController();
     final jamAkhirController = TextEditingController();
     final lokasiController = TextEditingController();
+    bool sendNotification = true; // Auto-send notification checkbox
 
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Container(
-          width: 500,
-          constraints: const BoxConstraints(maxHeight: 600),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF4169E1),
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(12),
-                    topRight: Radius.circular(12),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Container(
+            width: 500,
+            constraints: const BoxConstraints(maxHeight: 600),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF4169E1),
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(12),
+                      topRight: Radius.circular(12),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Tambah Pertemuan Baru',
+                        style: GoogleFonts.inter(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.close, color: Colors.white),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
                   ),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Tambah Pertemuan Baru',
-                      style: GoogleFonts.inter(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(20),
+                    child: Form(
+                      key: formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildFormTextField(
+                            controller: topiController,
+                            label: 'Topik Pertemuan',
+                            hint: 'Pertemuan 1',
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Topik harus diisi';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          _buildFormTextField(
+                            controller: tanggalController,
+                            label: 'Tanggal',
+                            hint: 'DD-MM-YYYY',
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Tanggal harus diisi';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildFormTextField(
+                                  controller: jamMulaiController,
+                                  label: 'Jam Mulai',
+                                  hint: 'HH:MM',
+                                  validator: (value) {
+                                    if (value == null || value.isEmpty) {
+                                      return 'Required';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _buildFormTextField(
+                                  controller: jamAkhirController,
+                                  label: 'Jam Akhir',
+                                  hint: 'HH:MM',
+                                  validator: (value) {
+                                    if (value == null || value.isEmpty) {
+                                      return 'Required';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          _buildFormTextField(
+                            controller: lokasiController,
+                            label: 'Lokasi',
+                            hint: 'Ruang UKM',
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Lokasi harus diisi';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          CheckboxListTile(
+                            title: Text(
+                              'Kirim notifikasi ke anggota UKM',
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.grey[800],
+                              ),
+                            ),
+                            subtitle: Text(
+                              'Notifikasi otomatis akan dikirim ke semua anggota aktif',
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                            value: sendNotification,
+                            onChanged: (bool? value) {
+                              setDialogState(() {
+                                sendNotification = value ?? true;
+                              });
+                            },
+                            activeColor: const Color(0xFF4169E1),
+                            contentPadding: EdgeInsets.zero,
+                            controlAffinity: ListTileControlAffinity.leading,
+                          ),
+                          const SizedBox(height: 24),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              OutlinedButton(
+                                onPressed: () => Navigator.pop(context),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.grey[700],
+                                  side: BorderSide(color: Colors.grey[300]!),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                    vertical: 12,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                child: Text(
+                                  'Batal',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              ElevatedButton(
+                                onPressed: () async {
+                                  if (formKey.currentState!.validate()) {
+                                    try {
+                                      // Parse date string to DateTime
+                                      final parts = tanggalController.text
+                                          .split('-');
+                                      final tanggal = DateTime(
+                                        int.parse(parts[2]), // year
+                                        int.parse(parts[1]), // month
+                                        int.parse(parts[0]), // day
+                                      );
+
+                                      // Create pertemuan model
+                                      final newPertemuan = PertemuanModel(
+                                        topik: topiController.text,
+                                        tanggal: tanggal,
+                                        jamMulai: jamMulaiController.text,
+                                        jamAkhir: jamAkhirController.text,
+                                        lokasi: lokasiController.text,
+                                        // Note: idUkm and idPeriode should be set by database defaults/triggers
+                                        // or fetched from a proper source with valid UUIDs
+                                      );
+
+                                      // Save to database
+                                      await _pertemuanService.createPertemuan(
+                                        newPertemuan,
+                                      );
+
+                                      // Send notification if checkbox is checked
+                                      if (sendNotification) {
+                                        // Get UKM ID from session
+                                        final userId = _dashboardService
+                                            .supabase
+                                            .auth
+                                            .currentUser
+                                            ?.id;
+                                        if (userId != null) {
+                                          final userUkmResponse =
+                                              await _dashboardService.supabase
+                                                  .from('user_halaman_ukm')
+                                                  .select('ukm_id')
+                                                  .eq('user_id', userId)
+                                                  .eq('is_active', true)
+                                                  .maybeSingle();
+
+                                          if (userUkmResponse != null) {
+                                            final ukmId =
+                                                userUkmResponse['ukm_id']
+                                                    as String;
+                                            await _sendPertemuanNotification(
+                                              topiController.text,
+                                              tanggalController.text,
+                                              jamMulaiController.text,
+                                              jamAkhirController.text,
+                                              lokasiController.text,
+                                              ukmId,
+                                            );
+                                          }
+                                        }
+                                      }
+
+                                      if (!context.mounted) return;
+                                      Navigator.pop(context);
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            'Pertemuan "${topiController.text}" berhasil ditambahkan!',
+                                            style: GoogleFonts.inter(),
+                                          ),
+                                          backgroundColor: Colors.green,
+                                        ),
+                                      );
+
+                                      // Reload data
+                                      _loadPertemuan();
+                                    } catch (e) {
+                                      if (!context.mounted) return;
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            'Gagal menambahkan pertemuan: $e',
+                                          ),
+                                          backgroundColor: Colors.red,
+                                        ),
+                                      );
+                                    }
+                                  }
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF4169E1),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                    vertical: 12,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  elevation: 0,
+                                ),
+                                child: Text(
+                                  'Simpan',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close, color: Colors.white),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                  ],
-                ),
-              ),
-              Flexible(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
-                  child: Form(
-                    key: formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildFormTextField(
-                          controller: topiController,
-                          label: 'Topik Pertemuan',
-                          hint: 'Pertemuan 1',
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Topik harus diisi';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        _buildFormTextField(
-                          controller: tanggalController,
-                          label: 'Tanggal',
-                          hint: 'DD-MM-YYYY',
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Tanggal harus diisi';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildFormTextField(
-                                controller: jamMulaiController,
-                                label: 'Jam Mulai',
-                                hint: 'HH:MM',
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Required';
-                                  }
-                                  return null;
-                                },
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _buildFormTextField(
-                                controller: jamAkhirController,
-                                label: 'Jam Akhir',
-                                hint: 'HH:MM',
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Required';
-                                  }
-                                  return null;
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        _buildFormTextField(
-                          controller: lokasiController,
-                          label: 'Lokasi',
-                          hint: 'Ruang UKM',
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Lokasi harus diisi';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 24),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            OutlinedButton(
-                              onPressed: () => Navigator.pop(context),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.grey[700],
-                                side: BorderSide(color: Colors.grey[300]!),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 24,
-                                  vertical: 12,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                              child: Text(
-                                'Batal',
-                                style: GoogleFonts.inter(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            ElevatedButton(
-                              onPressed: () async {
-                                if (formKey.currentState!.validate()) {
-                                  try {
-                                    // Parse date string to DateTime
-                                    final parts = tanggalController.text.split(
-                                      '-',
-                                    );
-                                    final tanggal = DateTime(
-                                      int.parse(parts[2]), // year
-                                      int.parse(parts[1]), // month
-                                      int.parse(parts[0]), // day
-                                    );
-
-                                    // Create pertemuan model
-                                    final newPertemuan = PertemuanModel(
-                                      topik: topiController.text,
-                                      tanggal: tanggal,
-                                      jamMulai: jamMulaiController.text,
-                                      jamAkhir: jamAkhirController.text,
-                                      lokasi: lokasiController.text,
-                                      // Note: idUkm and idPeriode should be set by database defaults/triggers
-                                      // or fetched from a proper source with valid UUIDs
-                                    );
-
-                                    // Save to database
-                                    await _pertemuanService.createPertemuan(
-                                      newPertemuan,
-                                    );
-
-                                    if (!context.mounted) return;
-                                    Navigator.pop(context);
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          'Pertemuan "${topiController.text}" berhasil ditambahkan!',
-                                          style: GoogleFonts.inter(),
-                                        ),
-                                        backgroundColor: Colors.green,
-                                      ),
-                                    );
-
-                                    // Reload data
-                                    _loadPertemuan();
-                                  } catch (e) {
-                                    if (!context.mounted) return;
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          'Gagal menambahkan pertemuan: $e',
-                                        ),
-                                        backgroundColor: Colors.red,
-                                      ),
-                                    );
-                                  }
-                                }
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF4169E1),
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 24,
-                                  vertical: 12,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                elevation: 0,
-                              ),
-                              child: Text(
-                                'Simpan',
-                                style: GoogleFonts.inter(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

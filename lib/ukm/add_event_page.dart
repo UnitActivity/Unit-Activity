@@ -28,6 +28,7 @@ class _AddEventPageState extends State<AddEventPage> {
   String? _selectedTipeEvent;
   DateTime? _tanggalMulai;
   DateTime? _tanggalAkhir;
+  bool _sendNotification = true; // Auto-send notification checkbox
 
   // Multiple proposal files support
   final List<Map<String, dynamic>> _proposalFiles = [];
@@ -35,6 +36,37 @@ class _AddEventPageState extends State<AddEventPage> {
 
   bool _isLoading = false;
   bool _isUploadingFile = false;
+
+  // Send notification to all UKM members
+  Future<void> _sendEventNotification(String eventId, String ukmId) async {
+    try {
+      // Get all active UKM members
+      final members = await _dashboardService.getUkmMembers(ukmId);
+
+      if (members.isEmpty) return;
+
+      final now = DateTime.now().toIso8601String();
+      final notificationData = members.map((member) {
+        return {
+          'user_id': member['user_id'],
+          'judul': 'Event Baru: ${_namaEventController.text}',
+          'isi':
+              'Event baru telah dibuat. Deskripsi: ${_deskripsiController.text}',
+          'tipe': 'event',
+          'is_read': false,
+          'created_at': now,
+          'event_id': eventId,
+        };
+      }).toList();
+
+      // Batch insert notifications
+      await _dashboardService.supabase
+          .from('notification_preference')
+          .insert(notificationData);
+    } catch (e) {
+      debugPrint('Error sending notification: $e');
+    }
+  }
 
   final List<String> _tipeEventOptions = [
     'Internal',
@@ -199,6 +231,11 @@ class _AddEventPageState extends State<AddEventPage> {
       );
 
       final eventId = event['id_events'] as String;
+
+      // Send notification if checkbox is checked
+      if (_sendNotification && mounted) {
+        await _sendEventNotification(eventId, ukmId);
+      }
 
       // Check if there are files to submit
       if (_proposalFiles.isNotEmpty) {
@@ -518,6 +555,35 @@ class _AddEventPageState extends State<AddEventPage> {
                       }
                       return null;
                     },
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Send Notification Checkbox
+                  CheckboxListTile(
+                    title: Text(
+                      'Kirim notifikasi ke anggota UKM',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey[800],
+                      ),
+                    ),
+                    subtitle: Text(
+                      'Notifikasi otomatis akan dikirim ke semua anggota aktif',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                    value: _sendNotification,
+                    onChanged: (bool? value) {
+                      setState(() {
+                        _sendNotification = value ?? true;
+                      });
+                    },
+                    activeColor: const Color(0xFF4169E1),
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
                   ),
                   const SizedBox(height: 20),
 
