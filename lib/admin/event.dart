@@ -95,9 +95,36 @@ class _EventPageState extends State<EventPage> {
   @override
   Widget build(BuildContext context) {
     final isDesktop = MediaQuery.of(context).size.width >= 768;
+    final isMobile = MediaQuery.of(context).size.width < 600;
 
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return Center(
+        child: Padding(
+          padding: EdgeInsets.all(isMobile ? 20 : 40),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: isMobile ? 50 : 60,
+                height: isMobile ? 50 : 60,
+                child: const CircularProgressIndicator(
+                  strokeWidth: 4,
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4169E1)),
+                ),
+              ),
+              SizedBox(height: isMobile ? 16 : 24),
+              Text(
+                'Memuat data event...',
+                style: GoogleFonts.inter(
+                  fontSize: isMobile ? 16 : 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[700],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
     }
 
     return SingleChildScrollView(
@@ -111,7 +138,7 @@ class _EventPageState extends State<EventPage> {
 
           // Modern Search Bar with Add Button
           _buildModernSearchBar(isDesktop),
-          const SizedBox(height: 24),
+          const SizedBox(height: 8),
 
           // Event Cards
           if (_filteredEvents.isEmpty)
@@ -132,8 +159,10 @@ class _EventPageState extends State<EventPage> {
   }
 
   Widget _buildModernHeader(bool isDesktop) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
     return Container(
-      padding: EdgeInsets.all(isDesktop ? 32 : 24),
+      padding: EdgeInsets.all(isMobile ? 16 : (isDesktop ? 32 : 24)),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -152,7 +181,7 @@ class _EventPageState extends State<EventPage> {
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(isMobile ? 12 : 16),
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.2),
               borderRadius: BorderRadius.circular(12),
@@ -160,7 +189,7 @@ class _EventPageState extends State<EventPage> {
             child: Icon(
               Icons.event_rounded,
               color: Colors.white,
-              size: isDesktop ? 32 : 28,
+              size: isMobile ? 24 : (isDesktop ? 32 : 28),
             ),
           ),
           const SizedBox(width: 20),
@@ -500,8 +529,10 @@ class _EventPageState extends State<EventPage> {
   Widget _buildModernPagination() {
     if (_totalPages <= 1) return const SizedBox.shrink();
 
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(isMobile ? 12 : 20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -513,79 +544,158 @@ class _EventPageState extends State<EventPage> {
           ),
         ],
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          // Results Info
-          Text(
-            'Menampilkan ${(_currentPage - 1) * _itemsPerPage + 1} - ${(_currentPage * _itemsPerPage) > _filteredEvents.length ? _filteredEvents.length : (_currentPage * _itemsPerPage)} dari ${_filteredEvents.length} Event',
-            style: GoogleFonts.inter(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: Colors.grey[700],
-            ),
-          ),
-
-          // Page Navigation
-          Row(
-            children: [
-              // Previous Button
-              _buildPageButton(
-                icon: Icons.chevron_left_rounded,
-                enabled: _currentPage > 1,
-                onPressed: () {
-                  setState(() {
-                    _currentPage--;
-                  });
-                },
-              ),
-
-              const SizedBox(width: 12),
-
-              // Page Numbers
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      const Color(0xFF4169E1).withOpacity(0.1),
-                      const Color(0xFF4169E1).withOpacity(0.05),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: const Color(0xFF4169E1).withOpacity(0.3),
-                  ),
-                ),
-                child: Text(
-                  '$_currentPage / $_totalPages',
+      child: isMobile
+          ? Column(
+              children: [
+                // Results Info - mobile
+                Text(
+                  'Halaman $_currentPage dari $_totalPages',
                   style: GoogleFonts.inter(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF4169E1),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey[700],
                   ),
                 ),
-              ),
+                const SizedBox(height: 12),
+                // Page Navigation
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Previous Button
+                    _buildPageButton(
+                      icon: Icons.chevron_left_rounded,
+                      enabled: _currentPage > 1,
+                      onPressed: () {
+                        setState(() {
+                          _currentPage--;
+                        });
+                      },
+                    ),
+                    const SizedBox(width: 12),
+                    // Page Numbers
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            const Color(0xFF4169E1).withOpacity(0.1),
+                            const Color(0xFF4169E1).withOpacity(0.05),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: const Color(0xFF4169E1).withOpacity(0.3),
+                        ),
+                      ),
+                      child: Text(
+                        '$_currentPage / $_totalPages',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF4169E1),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Next Button
+                    _buildPageButton(
+                      icon: Icons.chevron_right_rounded,
+                      enabled: _currentPage < _totalPages,
+                      onPressed: () {
+                        setState(() {
+                          _currentPage++;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                // Total events info
+                Text(
+                  '${(_currentPage - 1) * _itemsPerPage + 1}-${(_currentPage * _itemsPerPage) > _filteredEvents.length ? _filteredEvents.length : (_currentPage * _itemsPerPage)} dari ${_filteredEvents.length}',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            )
+          : Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // Results Info
+                Text(
+                  'Menampilkan ${(_currentPage - 1) * _itemsPerPage + 1} - ${(_currentPage * _itemsPerPage) > _filteredEvents.length ? _filteredEvents.length : (_currentPage * _itemsPerPage)} dari ${_filteredEvents.length} Event',
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey[700],
+                  ),
+                ),
 
-              const SizedBox(width: 12),
+                // Page Navigation
+                Row(
+                  children: [
+                    // Previous Button
+                    _buildPageButton(
+                      icon: Icons.chevron_left_rounded,
+                      enabled: _currentPage > 1,
+                      onPressed: () {
+                        setState(() {
+                          _currentPage--;
+                        });
+                      },
+                    ),
 
-              // Next Button
-              _buildPageButton(
-                icon: Icons.chevron_right_rounded,
-                enabled: _currentPage < _totalPages,
-                onPressed: () {
-                  setState(() {
-                    _currentPage++;
-                  });
-                },
-              ),
-            ],
-          ),
-        ],
-      ),
+                    const SizedBox(width: 12),
+
+                    // Page Numbers
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            const Color(0xFF4169E1).withOpacity(0.1),
+                            const Color(0xFF4169E1).withOpacity(0.05),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: const Color(0xFF4169E1).withOpacity(0.3),
+                        ),
+                      ),
+                      child: Text(
+                        '$_currentPage / $_totalPages',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF4169E1),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(width: 12),
+
+                    // Next Button
+                    _buildPageButton(
+                      icon: Icons.chevron_right_rounded,
+                      enabled: _currentPage < _totalPages,
+                      onPressed: () {
+                        setState(() {
+                          _currentPage++;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
     );
   }
 

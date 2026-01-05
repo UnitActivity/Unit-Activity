@@ -253,7 +253,7 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
             constraints: BoxConstraints(
               maxWidth: isDesktop ? 900 : double.infinity,
             ),
-            padding: const EdgeInsets.all(24),
+            padding: EdgeInsets.all(isDesktop ? 24 : 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -272,8 +272,10 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
   }
 
   Widget _buildProfileInfoCard(bool isDesktop) {
+    final isMobile = !isDesktop && MediaQuery.of(context).size.width < 600;
+
     return Container(
-      padding: const EdgeInsets.all(32),
+      padding: EdgeInsets.all(isDesktop ? 32 : (isMobile ? 16 : 24)),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -289,7 +291,7 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
         children: [
           // Profile Picture - Centered
           CircleAvatar(
-            radius: isDesktop ? 60 : 50,
+            radius: isDesktop ? 60 : (isMobile ? 45 : 50),
             backgroundImage:
                 widget.user['picture'] != null &&
                     widget.user['picture'].isNotEmpty
@@ -301,7 +303,7 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
                 ? Text(
                     _getInitials(_usernameController.text),
                     style: GoogleFonts.inter(
-                      fontSize: isDesktop ? 32 : 28,
+                      fontSize: isDesktop ? 32 : (isMobile ? 22 : 28),
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
                     ),
@@ -318,7 +320,7 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
                 controller: _usernameController,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(
-                  fontSize: isDesktop ? 24 : 20,
+                  fontSize: isDesktop ? 24 : (isMobile ? 16 : 20),
                   fontWeight: FontWeight.bold,
                   color: Colors.black87,
                 ),
@@ -350,7 +352,7 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
             Text(
               _usernameController.text,
               style: GoogleFonts.inter(
-                fontSize: isDesktop ? 24 : 20,
+                fontSize: isDesktop ? 24 : (isMobile ? 16 : 20),
                 fontWeight: FontWeight.bold,
                 color: Colors.black87,
               ),
@@ -359,7 +361,10 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
 
           // Role Badge - Centered
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            padding: EdgeInsets.symmetric(
+              horizontal: isMobile ? 12 : 16,
+              vertical: isMobile ? 5 : 6,
+            ),
             decoration: BoxDecoration(
               color: const Color(0xFF4169E1).withOpacity(0.1),
               borderRadius: BorderRadius.circular(20),
@@ -367,19 +372,19 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
             child: Text(
               'Mahasiswa',
               style: GoogleFonts.inter(
-                fontSize: 14,
+                fontSize: isMobile ? 12 : 14,
                 fontWeight: FontWeight.w600,
                 color: const Color(0xFF4169E1),
               ),
             ),
           ),
 
-          const SizedBox(height: 32),
+          SizedBox(height: isMobile ? 20 : 32),
 
           // Divider
           Divider(color: Colors.grey[300]),
 
-          const SizedBox(height: 24),
+          SizedBox(height: isMobile ? 16 : 24),
 
           // Information Section Title
           Align(
@@ -387,7 +392,7 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
             child: Text(
               'Informasi Pengguna',
               style: GoogleFonts.inter(
-                fontSize: 18,
+                fontSize: isMobile ? 15 : 18,
                 fontWeight: FontWeight.bold,
                 color: Colors.black87,
               ),
@@ -619,8 +624,10 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
   }
 
   Widget _buildActivityCard(bool isDesktop) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
     return DefaultTabController(
-      length: 3,
+      length: 4,
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
@@ -663,11 +670,19 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
                     ),
-                    tabs: const [
-                      Tab(text: 'Event'),
-                      Tab(text: 'Pertemuan'),
-                      Tab(text: 'Log Aktivitas'),
-                    ],
+                    tabs: isMobile
+                        ? const [
+                            Tab(icon: Icon(Icons.event, size: 20)),
+                            Tab(icon: Icon(Icons.meeting_room, size: 20)),
+                            Tab(icon: Icon(Icons.groups, size: 20)),
+                            Tab(icon: Icon(Icons.history, size: 20)),
+                          ]
+                        : const [
+                            Tab(text: 'Event'),
+                            Tab(text: 'Pertemuan'),
+                            Tab(text: 'UKM'),
+                            Tab(text: 'Log Aktivitas'),
+                          ],
                   ),
                 ],
               ),
@@ -680,6 +695,7 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
                 children: [
                   _buildEventsTab(),
                   _buildMeetingsTab(),
+                  _buildUKMTab(),
                   _buildActivityLogTab(),
                 ],
               ),
@@ -724,21 +740,30 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.grey[50],
+            color: isPresent
+                ? Colors.green.withOpacity(0.1)
+                : Colors.red.withOpacity(0.1),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.grey[200]!),
+            border: Border.all(
+              color: isPresent
+                  ? Colors.green.withOpacity(0.3)
+                  : Colors.red.withOpacity(0.3),
+              width: 1.5,
+            ),
           ),
           child: Row(
             children: [
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF4169E1).withOpacity(0.1),
+                  color: isPresent
+                      ? Colors.green.withOpacity(0.2)
+                      : Colors.red.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.event,
-                  color: Color(0xFF4169E1),
+                  color: isPresent ? Colors.green[700] : Colors.red[700],
                   size: 20,
                 ),
               ),
@@ -762,46 +787,26 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
                           event['ukm']!,
                           style: GoogleFonts.inter(
                             fontSize: 12,
-                            color: Colors.grey[600],
+                            color: Colors.grey[700],
                           ),
                         ),
                         Text(
                           ' • ',
                           style: GoogleFonts.inter(
                             fontSize: 12,
-                            color: Colors.grey[600],
+                            color: Colors.grey[700],
                           ),
                         ),
                         Text(
                           event['tanggal']!,
                           style: GoogleFonts.inter(
                             fontSize: 12,
-                            color: Colors.grey[600],
+                            color: Colors.grey[700],
                           ),
                         ),
                       ],
                     ),
                   ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: isPresent
-                      ? Colors.green.withOpacity(0.1)
-                      : Colors.red.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  event['status']!,
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: isPresent ? Colors.green : Colors.red,
-                  ),
                 ),
               ),
             ],
@@ -909,21 +914,30 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
                 margin: const EdgeInsets.only(bottom: 12),
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.grey[50],
+                  color: isPresent
+                      ? Colors.green.withOpacity(0.1)
+                      : Colors.red.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey[200]!),
+                  border: Border.all(
+                    color: isPresent
+                        ? Colors.green.withOpacity(0.3)
+                        : Colors.red.withOpacity(0.3),
+                    width: 1.5,
+                  ),
                 ),
                 child: Row(
                   children: [
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Colors.orange.withOpacity(0.1),
+                        color: isPresent
+                            ? Colors.green.withOpacity(0.2)
+                            : Colors.red.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.meeting_room,
-                        color: Colors.orange,
+                        color: isPresent ? Colors.green[700] : Colors.red[700],
                         size: 20,
                       ),
                     ),
@@ -945,30 +959,10 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
                             '${meeting['tanggal']} • ${meeting['waktu']}',
                             style: GoogleFonts.inter(
                               fontSize: 12,
-                              color: Colors.grey[600],
+                              color: Colors.grey[700],
                             ),
                           ),
                         ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isPresent
-                            ? Colors.green.withOpacity(0.1)
-                            : Colors.red.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        meeting['status']!,
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: isPresent ? Colors.green : Colors.red,
-                        ),
                       ),
                     ),
                   ],
@@ -978,6 +972,136 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildUKMTab() {
+    // Dummy UKM data
+    final ukmList = [
+      {
+        'nama': 'UKM Basket',
+        'status': 'Aktif',
+        'bergabung': '20 Nov 2024',
+        'posisi': 'Anggota',
+        'icon': Icons.sports_basketball,
+        'color': Colors.orange,
+      },
+      {
+        'nama': 'UKM Futsal',
+        'status': 'Aktif',
+        'bergabung': '15 Nov 2024',
+        'posisi': 'Anggota',
+        'icon': Icons.sports_soccer,
+        'color': Colors.green,
+      },
+      {
+        'nama': 'UKM Badminton',
+        'status': 'Tidak Aktif',
+        'bergabung': '10 Nov 2024',
+        'posisi': 'Anggota',
+        'icon': Icons.sports_tennis,
+        'color': Colors.blue,
+      },
+    ];
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(24),
+      itemCount: ukmList.length,
+      itemBuilder: (context, index) {
+        final ukm = ukmList[index];
+        final isActive = ukm['status'] == 'Aktif';
+        final color = ukm['color'] as Color;
+        final icon = ukm['icon'] as IconData;
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: isActive
+                ? Colors.green.withOpacity(0.1)
+                : Colors.red.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: isActive
+                  ? Colors.green.withOpacity(0.3)
+                  : Colors.red.withOpacity(0.3),
+              width: 1.5,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isActive
+                      ? Colors.green.withOpacity(0.2)
+                      : Colors.red.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  icon,
+                  color: isActive ? Colors.green[700] : Colors.red[700],
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      ukm['nama'].toString(),
+                      style: GoogleFonts.inter(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.person_outline,
+                          size: 14,
+                          color: Colors.grey[600],
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          ukm['posisi'].toString(),
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        Text(
+                          ' • ',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        Icon(
+                          Icons.calendar_today_outlined,
+                          size: 14,
+                          color: Colors.grey[600],
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          ukm['bergabung'].toString(),
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

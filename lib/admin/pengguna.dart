@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'add_pengguna_page.dart';
 import 'edit_pengguna_page.dart';
+import 'detail_pengguna_page.dart';
 
 class PenggunaPage extends StatefulWidget {
   const PenggunaPage({super.key});
@@ -259,6 +260,29 @@ class _PenggunaPageState extends State<PenggunaPage> {
   }
 
   Widget _buildStatsCards(bool isDesktop) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
+    // Format periode value untuk mobile
+    String getPeriodeValue() {
+      if (_activePeriode == null) return 'Tidak Ada Periode Aktif';
+
+      if (isMobile) {
+        // Format mobile: tahun.semester (misal: 2025.1)
+        final tahun = _activePeriode!['tahun']?.toString() ?? '';
+        final semester =
+            _activePeriode!['semester']?.toString().toLowerCase() ?? '';
+        final semesterNum = semester.contains('ganjil') || semester == '1'
+            ? '1'
+            : '2';
+        return tahun.isNotEmpty ? '$tahun.$semesterNum' : 'N/A';
+      } else {
+        // Format desktop: nama lengkap atau semester tahun
+        return (_activePeriode!['nama_periode']?.toString() ??
+                '${_activePeriode!['semester'] ?? ''} ${_activePeriode!['tahun'] ?? ''}')
+            .trim();
+      }
+    }
+
     return Row(
       children: [
         Expanded(
@@ -276,11 +300,7 @@ class _PenggunaPageState extends State<PenggunaPage> {
         Expanded(
           child: _buildStatCard(
             title: 'Periode',
-            value: _activePeriode != null
-                ? (_activePeriode!['nama_periode']?.toString() ??
-                          '${_activePeriode!['semester'] ?? ''} ${_activePeriode!['tahun'] ?? ''}')
-                      .trim()
-                : 'Tidak Ada Periode Aktif',
+            value: getPeriodeValue(),
             icon: Icons.calendar_today_outlined,
             gradient: const LinearGradient(
               colors: [Color(0xFFF59E0B), Color(0xFFFBBF24)],
@@ -299,8 +319,10 @@ class _PenggunaPageState extends State<PenggunaPage> {
     required Gradient gradient,
     required bool isDesktop,
   }) {
+    final isMobile = !isDesktop && MediaQuery.of(context).size.width < 600;
+
     return Container(
-      padding: EdgeInsets.all(isDesktop ? 20 : 16),
+      padding: EdgeInsets.all(isDesktop ? 20 : (isMobile ? 12 : 16)),
       decoration: BoxDecoration(
         gradient: gradient,
         borderRadius: BorderRadius.circular(12),
@@ -315,14 +337,14 @@ class _PenggunaPageState extends State<PenggunaPage> {
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(10),
+            padding: EdgeInsets.all(isMobile ? 8 : 10),
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.25),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, color: Colors.white, size: 24),
+            child: Icon(icon, color: Colors.white, size: isMobile ? 20 : 24),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: isMobile ? 10 : 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -330,19 +352,21 @@ class _PenggunaPageState extends State<PenggunaPage> {
                 Text(
                   title,
                   style: GoogleFonts.inter(
-                    fontSize: 12,
+                    fontSize: isMobile ? 11 : 12,
                     fontWeight: FontWeight.w500,
                     color: Colors.white.withOpacity(0.9),
                   ),
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: isMobile ? 3 : 4),
                 Text(
                   value,
                   style: GoogleFonts.inter(
-                    fontSize: isDesktop ? 24 : 20,
+                    fontSize: isDesktop ? 24 : (isMobile ? 16 : 20),
                     fontWeight: FontWeight.w800,
                     color: Colors.white,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -357,13 +381,14 @@ class _PenggunaPageState extends State<PenggunaPage> {
       return const SizedBox.shrink();
     }
 
+    final isMobile = !isDesktop && MediaQuery.of(context).size.width < 600;
     final maxValue = _growthData
         .map((e) => e['count']!)
         .reduce((a, b) => a > b ? a : b)
         .toDouble();
 
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(isDesktop ? 24 : (isMobile ? 12 : 16)),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -381,33 +406,33 @@ class _PenggunaPageState extends State<PenggunaPage> {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: EdgeInsets.all(isMobile ? 6 : 8),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     colors: [Color(0xFF4169E1), Color(0xFF5B7FE8)],
                   ),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.trending_up_rounded,
                   color: Colors.white,
-                  size: 20,
+                  size: isMobile ? 16 : 20,
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: isMobile ? 8 : 12),
               Text(
                 'Pertumbuhan Anggota',
                 style: GoogleFonts.inter(
-                  fontSize: 16,
+                  fontSize: isMobile ? 13 : 16,
                   fontWeight: FontWeight.w700,
                   color: Colors.black87,
                 ),
               ),
               const Spacer(),
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
+                padding: EdgeInsets.symmetric(
+                  horizontal: isMobile ? 8 : 12,
+                  vertical: isMobile ? 4 : 6,
                 ),
                 decoration: BoxDecoration(
                   color: const Color(0xFF4169E1).withOpacity(0.1),
@@ -416,7 +441,7 @@ class _PenggunaPageState extends State<PenggunaPage> {
                 child: Text(
                   '6 Bulan Terakhir',
                   style: GoogleFonts.inter(
-                    fontSize: 12,
+                    fontSize: isMobile ? 10 : 12,
                     fontWeight: FontWeight.w600,
                     color: const Color(0xFF4169E1),
                   ),
@@ -424,7 +449,7 @@ class _PenggunaPageState extends State<PenggunaPage> {
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: isMobile ? 16 : 24),
 
           // Line Chart
           SizedBox(
@@ -440,8 +465,10 @@ class _PenggunaPageState extends State<PenggunaPage> {
   }
 
   Widget _buildLoadingState() {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
     return Container(
-      height: 400,
+      height: isMobile ? 300 : 400,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -457,19 +484,19 @@ class _PenggunaPageState extends State<PenggunaPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const SizedBox(
-              width: 50,
-              height: 50,
-              child: CircularProgressIndicator(
+            SizedBox(
+              width: isMobile ? 40 : 50,
+              height: isMobile ? 40 : 50,
+              child: const CircularProgressIndicator(
                 strokeWidth: 3,
                 valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4169E1)),
               ),
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: isMobile ? 14 : 20),
             Text(
               'Memuat data pengguna...',
               style: GoogleFonts.inter(
-                fontSize: 16,
+                fontSize: isMobile ? 14 : 16,
                 fontWeight: FontWeight.w600,
                 color: Colors.grey[700],
               ),
@@ -481,8 +508,10 @@ class _PenggunaPageState extends State<PenggunaPage> {
   }
 
   Widget _buildEmptyState() {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
     return Container(
-      height: 400,
+      height: isMobile ? 300 : 400,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -499,32 +528,35 @@ class _PenggunaPageState extends State<PenggunaPage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              padding: const EdgeInsets.all(24),
+              padding: EdgeInsets.all(isMobile ? 18 : 24),
               decoration: BoxDecoration(
                 color: Colors.grey[100],
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 Icons.people_outline,
-                size: 64,
+                size: isMobile ? 48 : 64,
                 color: Colors.grey[400],
               ),
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: isMobile ? 14 : 20),
             Text(
               _searchQuery.isEmpty ? 'Belum Ada Pengguna' : 'Tidak Ada Hasil',
               style: GoogleFonts.inter(
-                fontSize: 18,
+                fontSize: isMobile ? 15 : 18,
                 fontWeight: FontWeight.w600,
                 color: Colors.grey[800],
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: isMobile ? 6 : 8),
             Text(
               _searchQuery.isEmpty
                   ? 'Klik tombol Tambah untuk menambah pengguna baru'
                   : 'Coba kata kunci lain untuk pencarian',
-              style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
+              style: GoogleFonts.inter(
+                fontSize: isMobile ? 12 : 14,
+                color: Colors.grey[600],
+              ),
               textAlign: TextAlign.center,
             ),
           ],
@@ -534,8 +566,10 @@ class _PenggunaPageState extends State<PenggunaPage> {
   }
 
   Widget _buildSearchAndFilterBar(bool isDesktop) {
+    final isMobile = !isDesktop && MediaQuery.of(context).size.width < 600;
+
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(isDesktop ? 20 : (isMobile ? 12 : 16)),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -567,13 +601,13 @@ class _PenggunaPageState extends State<PenggunaPage> {
                 decoration: InputDecoration(
                   hintText: 'Cari NIM, Username atau Email...',
                   hintStyle: GoogleFonts.inter(
-                    fontSize: 14,
+                    fontSize: isMobile ? 12 : 14,
                     color: Colors.grey[500],
                   ),
                   prefixIcon: Icon(
                     Icons.search_rounded,
                     color: Colors.grey[600],
-                    size: 22,
+                    size: isMobile ? 20 : 22,
                   ),
                   suffixIcon: _searchQuery.isNotEmpty
                       ? IconButton(
@@ -588,9 +622,9 @@ class _PenggunaPageState extends State<PenggunaPage> {
                         )
                       : null,
                   border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: isMobile ? 12 : 16,
+                    vertical: isMobile ? 12 : 14,
                   ),
                 ),
               ),
@@ -637,7 +671,7 @@ class _PenggunaPageState extends State<PenggunaPage> {
             label: Text(
               isDesktop ? 'Tambah Pengguna' : 'Tambah',
               style: GoogleFonts.inter(
-                fontSize: 14,
+                fontSize: isMobile ? 12 : 14,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -1014,198 +1048,216 @@ class _PenggunaPageState extends State<PenggunaPage> {
   Widget _buildMobileCard(Map<String, dynamic> user) {
     final userId = user['id_user'].toString();
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
+    return GestureDetector(
+      onTap: () async {
+        // Navigate to detail page
+        final result = await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => DetailPenggunaPage(user: user),
           ),
-        ],
-      ),
-      child: Column(
-        children: [
-          // Header Section
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  const Color(0xFF4169E1).withOpacity(0.03),
-                  Colors.transparent,
-                ],
-              ),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
-              ),
+        );
+
+        // Reload if data changed
+        if (result == true) {
+          _loadUsers();
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
             ),
-            child: Row(
-              children: [
-                // Avatar
-                Container(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF4169E1).withOpacity(0.2),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: CircleAvatar(
-                    radius: 28,
-                    backgroundColor: const Color(0xFF4169E1).withOpacity(0.12),
-                    backgroundImage:
-                        user['picture'] != null &&
-                            user['picture'].toString().isNotEmpty
-                        ? NetworkImage(user['picture'])
-                        : null,
-                    child:
-                        user['picture'] == null ||
-                            user['picture'].toString().isEmpty
-                        ? Text(
-                            (user['username'] ?? 'U')
-                                .toString()[0]
-                                .toUpperCase(),
-                            style: GoogleFonts.inter(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFF4169E1),
-                            ),
-                          )
-                        : null,
-                  ),
-                ),
-                const SizedBox(width: 14),
-
-                // User Info
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              user['username'] ?? '-',
-                              style: GoogleFonts.inter(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.black87,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.badge_outlined,
-                            size: 14,
-                            color: Colors.grey[600],
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            user['nim'] ?? '-',
-                            style: GoogleFonts.inter(
-                              fontSize: 13,
-                              color: Colors.grey[600],
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Details Section
-          Container(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                // Email
-                _buildInfoRow(
-                  Icons.email_outlined,
-                  'Email',
-                  user['email'] ?? '-',
-                ),
-                const SizedBox(height: 12),
-
-                // Create Date
-                _buildInfoRow(
-                  Icons.calendar_today_outlined,
-                  'Bergabung',
-                  _formatDate(user['create_at']),
-                ),
-
-                const SizedBox(height: 16),
-
-                // Actions
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => _showEditUserDialog(user),
-                        icon: const Icon(Icons.edit_rounded, size: 18),
-                        label: Text(
-                          'Edit',
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.blue,
-                          side: const BorderSide(color: Colors.blue),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => _showDeleteDialog(user),
-                        icon: const Icon(Icons.delete_rounded, size: 18),
-                        label: Text(
-                          'Hapus',
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.red,
-                          side: const BorderSide(color: Colors.red),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                      ),
-                    ),
+          ],
+        ),
+        child: Column(
+          children: [
+            // Header Section
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    const Color(0xFF4169E1).withOpacity(0.03),
+                    Colors.transparent,
                   ],
                 ),
-              ],
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
+                ),
+              ),
+              child: Row(
+                children: [
+                  // Avatar
+                  Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF4169E1).withOpacity(0.2),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: CircleAvatar(
+                      radius: 28,
+                      backgroundColor: const Color(
+                        0xFF4169E1,
+                      ).withOpacity(0.12),
+                      backgroundImage:
+                          user['picture'] != null &&
+                              user['picture'].toString().isNotEmpty
+                          ? NetworkImage(user['picture'])
+                          : null,
+                      child:
+                          user['picture'] == null ||
+                              user['picture'].toString().isEmpty
+                          ? Text(
+                              (user['username'] ?? 'U')
+                                  .toString()[0]
+                                  .toUpperCase(),
+                              style: GoogleFonts.inter(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF4169E1),
+                              ),
+                            )
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+
+                  // User Info
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                user['username'] ?? '-',
+                                style: GoogleFonts.inter(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.black87,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.badge_outlined,
+                              size: 14,
+                              color: Colors.grey[600],
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              user['nim'] ?? '-',
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                color: Colors.grey[600],
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+
+            // Details Section
+            Container(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  // Email
+                  _buildInfoRow(
+                    Icons.email_outlined,
+                    'Email',
+                    user['email'] ?? '-',
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Create Date
+                  _buildInfoRow(
+                    Icons.calendar_today_outlined,
+                    'Bergabung',
+                    _formatDate(user['create_at']),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Actions
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _showEditUserDialog(user),
+                          icon: const Icon(Icons.edit_rounded, size: 18),
+                          label: Text(
+                            'Edit',
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.blue,
+                            side: const BorderSide(color: Colors.blue),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _showDeleteDialog(user),
+                          icon: const Icon(Icons.delete_rounded, size: 18),
+                          label: Text(
+                            'Hapus',
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.red,
+                            side: const BorderSide(color: Colors.red),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1252,8 +1304,10 @@ class _PenggunaPageState extends State<PenggunaPage> {
   }
 
   Widget _buildPagination() {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(isMobile ? 12 : 20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -1265,81 +1319,162 @@ class _PenggunaPageState extends State<PenggunaPage> {
           ),
         ],
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          // Results Info
-          Text(
-            'Menampilkan ${(_currentPage - 1) * _itemsPerPage + 1} - ${(_currentPage * _itemsPerPage) > _totalUsers ? _totalUsers : (_currentPage * _itemsPerPage)} dari $_totalUsers pengguna',
-            style: GoogleFonts.inter(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: Colors.grey[700],
-            ),
-          ),
-
-          // Page Navigation
-          Row(
-            children: [
-              // Previous Button
-              _buildPageButton(
-                icon: Icons.chevron_left_rounded,
-                enabled: _currentPage > 1,
-                onPressed: () {
-                  setState(() {
-                    _currentPage--;
-                  });
-                  _loadUsers();
-                },
-              ),
-
-              const SizedBox(width: 12),
-
-              // Page Numbers
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      const Color(0xFF4169E1).withOpacity(0.1),
-                      const Color(0xFF4169E1).withOpacity(0.05),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: const Color(0xFF4169E1).withOpacity(0.3),
-                  ),
-                ),
-                child: Text(
-                  '$_currentPage / $_totalPages',
+      child: isMobile
+          ? Column(
+              children: [
+                // Results Info - mobile
+                Text(
+                  'Halaman $_currentPage dari $_totalPages',
                   style: GoogleFonts.inter(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF4169E1),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey[700],
                   ),
                 ),
-              ),
+                const SizedBox(height: 12),
+                // Page Navigation
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Previous Button
+                    _buildPageButton(
+                      icon: Icons.chevron_left_rounded,
+                      enabled: _currentPage > 1,
+                      onPressed: () {
+                        setState(() {
+                          _currentPage--;
+                        });
+                        _loadUsers();
+                      },
+                    ),
+                    const SizedBox(width: 12),
+                    // Page Numbers
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            const Color(0xFF4169E1).withOpacity(0.1),
+                            const Color(0xFF4169E1).withOpacity(0.05),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: const Color(0xFF4169E1).withOpacity(0.3),
+                        ),
+                      ),
+                      child: Text(
+                        '$_currentPage / $_totalPages',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF4169E1),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Next Button
+                    _buildPageButton(
+                      icon: Icons.chevron_right_rounded,
+                      enabled: _currentPage < _totalPages,
+                      onPressed: () {
+                        setState(() {
+                          _currentPage++;
+                        });
+                        _loadUsers();
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                // Total users info
+                Text(
+                  '${(_currentPage - 1) * _itemsPerPage + 1}-${(_currentPage * _itemsPerPage) > _totalUsers ? _totalUsers : (_currentPage * _itemsPerPage)} dari $_totalUsers',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            )
+          : Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // Results Info
+                Text(
+                  'Menampilkan ${(_currentPage - 1) * _itemsPerPage + 1} - ${(_currentPage * _itemsPerPage) > _totalUsers ? _totalUsers : (_currentPage * _itemsPerPage)} dari $_totalUsers pengguna',
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey[700],
+                  ),
+                ),
 
-              const SizedBox(width: 12),
+                // Page Navigation
+                Row(
+                  children: [
+                    // Previous Button
+                    _buildPageButton(
+                      icon: Icons.chevron_left_rounded,
+                      enabled: _currentPage > 1,
+                      onPressed: () {
+                        setState(() {
+                          _currentPage--;
+                        });
+                        _loadUsers();
+                      },
+                    ),
 
-              // Next Button
-              _buildPageButton(
-                icon: Icons.chevron_right_rounded,
-                enabled: _currentPage < _totalPages,
-                onPressed: () {
-                  setState(() {
-                    _currentPage++;
-                  });
-                  _loadUsers();
-                },
-              ),
-            ],
-          ),
-        ],
-      ),
+                    const SizedBox(width: 12),
+
+                    // Page Numbers
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            const Color(0xFF4169E1).withOpacity(0.1),
+                            const Color(0xFF4169E1).withOpacity(0.05),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: const Color(0xFF4169E1).withOpacity(0.3),
+                        ),
+                      ),
+                      child: Text(
+                        '$_currentPage / $_totalPages',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF4169E1),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(width: 12),
+
+                    // Next Button
+                    _buildPageButton(
+                      icon: Icons.chevron_right_rounded,
+                      enabled: _currentPage < _totalPages,
+                      onPressed: () {
+                        setState(() {
+                          _currentPage++;
+                        });
+                        _loadUsers();
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
     );
   }
 

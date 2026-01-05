@@ -94,6 +94,7 @@ class _DetailEventPageState extends State<DetailEventPage> {
   @override
   Widget build(BuildContext context) {
     final isDesktop = MediaQuery.of(context).size.width >= 768;
+    final isMobile = MediaQuery.of(context).size.width < 600;
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
@@ -226,24 +227,24 @@ class _DetailEventPageState extends State<DetailEventPage> {
           // Content
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.all(24),
+              padding: EdgeInsets.all(isMobile ? 16 : 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Event Header Card
-                  _buildEventHeaderCard(isDesktop),
+                  _buildEventHeaderCard(isDesktop, isMobile),
                   const SizedBox(height: 20),
 
                   // Stats Cards
-                  _buildStatsCards(isDesktop),
+                  _buildStatsCards(isDesktop, isMobile),
                   const SizedBox(height: 20),
 
                   // Event Information
-                  _buildEventInfoCard(isDesktop),
+                  _buildEventInfoCard(isDesktop, isMobile),
                   const SizedBox(height: 20),
 
                   // Documents
-                  _buildDocumentsCard(context, isDesktop),
+                  _buildDocumentsCard(context, isDesktop, isMobile),
                 ],
               ),
             ),
@@ -253,9 +254,9 @@ class _DetailEventPageState extends State<DetailEventPage> {
     );
   }
 
-  Widget _buildEventHeaderCard(bool isDesktop) {
+  Widget _buildEventHeaderCard(bool isDesktop, bool isMobile) {
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(isMobile ? 16 : 24),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -274,7 +275,7 @@ class _DetailEventPageState extends State<DetailEventPage> {
             children: [
               // Event Icon
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: EdgeInsets.all(isMobile ? 12 : 16),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     colors: [Color(0xFF4169E1), Color(0xFF5B7FE8)],
@@ -288,13 +289,13 @@ class _DetailEventPageState extends State<DetailEventPage> {
                     ),
                   ],
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.event_rounded,
-                  size: 32,
+                  size: isMobile ? 24 : 32,
                   color: Colors.white,
                 ),
               ),
-              const SizedBox(width: 16),
+              SizedBox(width: isMobile ? 12 : 16),
 
               // Event Info
               Expanded(
@@ -350,7 +351,7 @@ class _DetailEventPageState extends State<DetailEventPage> {
     );
   }
 
-  Widget _buildStatsCards(bool isDesktop) {
+  Widget _buildStatsCards(bool isDesktop, bool isMobile) {
     final status = widget.event['status_event'] ?? 'Aktif';
     final totalDokumen = _dokumenProposal.length + _dokumenLpj.length;
 
@@ -365,9 +366,10 @@ class _DetailEventPageState extends State<DetailEventPage> {
               colors: [Color(0xFF4169E1), Color(0xFF5B7FE8)],
             ),
             isDesktop: isDesktop,
+            isMobile: isMobile,
           ),
         ),
-        const SizedBox(width: 12),
+        SizedBox(width: isMobile ? 8 : 12),
         Expanded(
           child: _buildStatCard(
             icon: Icons.calendar_today_rounded,
@@ -379,9 +381,10 @@ class _DetailEventPageState extends State<DetailEventPage> {
                   : [const Color(0xFF10B981), const Color(0xFF34D399)],
             ),
             isDesktop: isDesktop,
+            isMobile: isMobile,
           ),
         ),
-        const SizedBox(width: 12),
+        SizedBox(width: isMobile ? 8 : 12),
         Expanded(
           child: _buildStatCard(
             icon: Icons.bookmark_outline,
@@ -391,6 +394,7 @@ class _DetailEventPageState extends State<DetailEventPage> {
               colors: [Color(0xFFF59E0B), Color(0xFFFBBF24)],
             ),
             isDesktop: isDesktop,
+            isMobile: isMobile,
           ),
         ),
       ],
@@ -403,9 +407,10 @@ class _DetailEventPageState extends State<DetailEventPage> {
     required String value,
     required Gradient gradient,
     required bool isDesktop,
+    required bool isMobile,
   }) {
     return Container(
-      padding: EdgeInsets.all(isDesktop ? 20 : 16),
+      padding: EdgeInsets.all(isMobile ? 12 : (isDesktop ? 20 : 16)),
       decoration: BoxDecoration(
         gradient: gradient,
         borderRadius: BorderRadius.circular(12),
@@ -420,18 +425,18 @@ class _DetailEventPageState extends State<DetailEventPage> {
       child: Column(
         children: [
           Container(
-            padding: const EdgeInsets.all(10),
+            padding: EdgeInsets.all(isMobile ? 8 : 10),
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.25),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, color: Colors.white, size: 24),
+            child: Icon(icon, color: Colors.white, size: isMobile ? 20 : 24),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: isMobile ? 8 : 12),
           Text(
             value,
             style: GoogleFonts.inter(
-              fontSize: isDesktop ? 24 : 20,
+              fontSize: isMobile ? 16 : (isDesktop ? 24 : 20),
               fontWeight: FontWeight.w800,
               color: Colors.white,
             ),
@@ -440,7 +445,7 @@ class _DetailEventPageState extends State<DetailEventPage> {
           Text(
             label,
             style: GoogleFonts.inter(
-              fontSize: 12,
+              fontSize: isMobile ? 10 : 12,
               fontWeight: FontWeight.w500,
               color: Colors.white.withOpacity(0.9),
             ),
@@ -450,9 +455,9 @@ class _DetailEventPageState extends State<DetailEventPage> {
     );
   }
 
-  Widget _buildEventInfoCard(bool isDesktop) {
+  Widget _buildEventInfoCard(bool isDesktop, bool isMobile) {
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(isMobile ? 16 : 24),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -470,22 +475,22 @@ class _DetailEventPageState extends State<DetailEventPage> {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(10),
+                padding: EdgeInsets.all(isMobile ? 8 : 10),
                 decoration: BoxDecoration(
                   color: const Color(0xFF4169E1).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.info_outline_rounded,
-                  color: Color(0xFF4169E1),
-                  size: 24,
+                  color: const Color(0xFF4169E1),
+                  size: isMobile ? 20 : 24,
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: isMobile ? 8 : 12),
               Text(
                 'Informasi Event',
                 style: GoogleFonts.inter(
-                  fontSize: 18,
+                  fontSize: isMobile ? 16 : 18,
                   fontWeight: FontWeight.w700,
                   color: Colors.black87,
                 ),
@@ -615,7 +620,11 @@ class _DetailEventPageState extends State<DetailEventPage> {
     );
   }
 
-  Widget _buildDocumentsCard(BuildContext context, bool isDesktop) {
+  Widget _buildDocumentsCard(
+    BuildContext context,
+    bool isDesktop,
+    bool isMobile,
+  ) {
     // Combine proposal and LPJ documents
     final documents = [
       ..._dokumenProposal.map(
@@ -649,7 +658,7 @@ class _DetailEventPageState extends State<DetailEventPage> {
     ];
 
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(isMobile ? 16 : 24),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -667,22 +676,22 @@ class _DetailEventPageState extends State<DetailEventPage> {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(10),
+                padding: EdgeInsets.all(isMobile ? 8 : 10),
                 decoration: BoxDecoration(
                   color: const Color(0xFF4169E1).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.folder_open_rounded,
-                  color: Color(0xFF4169E1),
-                  size: 24,
+                  color: const Color(0xFF4169E1),
+                  size: isMobile ? 20 : 24,
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: isMobile ? 8 : 12),
               Text(
                 'Dokumen Event',
                 style: GoogleFonts.inter(
-                  fontSize: 18,
+                  fontSize: isMobile ? 16 : 18,
                   fontWeight: FontWeight.w700,
                   color: Colors.black87,
                 ),
@@ -709,13 +718,19 @@ class _DetailEventPageState extends State<DetailEventPage> {
             ],
           ),
           const SizedBox(height: 20),
-          ...documents.map((doc) => _buildDocumentItem(context, doc)).toList(),
+          ...documents
+              .map((doc) => _buildDocumentItem(context, doc, isMobile))
+              .toList(),
         ],
       ),
     );
   }
 
-  Widget _buildDocumentItem(BuildContext context, Map<String, dynamic> doc) {
+  Widget _buildDocumentItem(
+    BuildContext context,
+    Map<String, dynamic> doc,
+    bool isMobile,
+  ) {
     final status = doc['status'] as String;
     Color statusColor;
     switch (status) {
@@ -733,8 +748,8 @@ class _DetailEventPageState extends State<DetailEventPage> {
     }
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(18),
+      margin: EdgeInsets.only(bottom: isMobile ? 8 : 12),
+      padding: EdgeInsets.all(isMobile ? 12 : 18),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [Colors.grey[50]!, Colors.white],
@@ -758,7 +773,7 @@ class _DetailEventPageState extends State<DetailEventPage> {
             children: [
               // Icon
               Container(
-                padding: const EdgeInsets.all(14),
+                padding: EdgeInsets.all(isMobile ? 10 : 14),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
@@ -771,10 +786,10 @@ class _DetailEventPageState extends State<DetailEventPage> {
                 child: Icon(
                   doc['icon'] as IconData,
                   color: doc['color'] as Color,
-                  size: 28,
+                  size: isMobile ? 22 : 28,
                 ),
               ),
-              const SizedBox(width: 16),
+              SizedBox(width: isMobile ? 10 : 16),
 
               // Info
               Expanded(
@@ -784,7 +799,7 @@ class _DetailEventPageState extends State<DetailEventPage> {
                     Text(
                       doc['name'],
                       style: GoogleFonts.inter(
-                        fontSize: 15,
+                        fontSize: isMobile ? 13 : 15,
                         fontWeight: FontWeight.w700,
                         color: Colors.black87,
                       ),

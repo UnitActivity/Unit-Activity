@@ -300,6 +300,7 @@ class _AddUkmPageState extends State<AddUkmPage> {
   @override
   Widget build(BuildContext context) {
     final isDesktop = MediaQuery.of(context).size.width >= 900;
+    final isMobile = MediaQuery.of(context).size.width < 600;
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
@@ -314,8 +315,8 @@ class _AddUkmPageState extends State<AddUkmPage> {
       ),
       body: SingleChildScrollView(
         padding: EdgeInsets.symmetric(
-          horizontal: isDesktop ? 48 : 24,
-          vertical: 24,
+          horizontal: isMobile ? 16 : (isDesktop ? 48 : 24),
+          vertical: isMobile ? 16 : 24,
         ),
         child: Form(
           key: _formKey,
@@ -324,7 +325,7 @@ class _AddUkmPageState extends State<AddUkmPage> {
             children: [
               // Info Banner
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: EdgeInsets.all(isMobile ? 12 : 16),
                 decoration: BoxDecoration(
                   color: Colors.blue[50],
                   borderRadius: BorderRadius.circular(12),
@@ -332,13 +333,17 @@ class _AddUkmPageState extends State<AddUkmPage> {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.info_outline, color: Colors.blue[700]),
-                    const SizedBox(width: 12),
+                    Icon(
+                      Icons.info_outline,
+                      color: Colors.blue[700],
+                      size: isMobile ? 18 : 20,
+                    ),
+                    SizedBox(width: isMobile ? 8 : 12),
                     Expanded(
                       child: Text(
                         'Lengkapi form di bawah untuk menambahkan UKM baru',
                         style: GoogleFonts.inter(
-                          fontSize: 14,
+                          fontSize: isMobile ? 12 : 14,
                           color: Colors.blue[900],
                         ),
                       ),
@@ -346,7 +351,7 @@ class _AddUkmPageState extends State<AddUkmPage> {
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
+              SizedBox(height: isMobile ? 16 : 24),
 
               // Logo UKM Section
               _buildSectionCard(
@@ -448,11 +453,11 @@ class _AddUkmPageState extends State<AddUkmPage> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: isMobile ? 12 : 16),
 
                   // Password Requirements
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: EdgeInsets.all(isMobile ? 10 : 12),
                     decoration: BoxDecoration(
                       color: Colors.grey[50],
                       borderRadius: BorderRadius.circular(8),
@@ -463,7 +468,7 @@ class _AddUkmPageState extends State<AddUkmPage> {
                         Text(
                           'Password harus mengandung:',
                           style: GoogleFonts.inter(
-                            fontSize: 12,
+                            fontSize: isMobile ? 11 : 12,
                             fontWeight: FontWeight.w600,
                             color: Colors.grey[700],
                           ),

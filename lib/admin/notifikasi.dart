@@ -106,6 +106,7 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
     final isDesktop = MediaQuery.of(context).size.width >= 768;
     final unreadCount = _allNotifications
         .where((n) => n['is_read'] == false)
@@ -115,15 +116,15 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(height: 24),
+          SizedBox(height: isMobile ? 16 : 24),
 
           // Modern Header with Gradient
-          _buildModernHeader(isDesktop, unreadCount),
-          const SizedBox(height: 24),
+          _buildModernHeader(isMobile, isDesktop, unreadCount),
+          SizedBox(height: isMobile ? 16 : 24),
 
           // Filter Tabs
-          _buildFilterTabs(),
-          const SizedBox(height: 24),
+          _buildFilterTabs(isMobile),
+          SizedBox(height: isMobile ? 16 : 24),
 
           // Notifications List
           if (_isLoading)
@@ -142,7 +143,7 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
               itemCount: _allNotifications.length,
               itemBuilder: (context, index) {
                 final notification = _allNotifications[index];
-                return _buildNotificationCard(notification);
+                return _buildNotificationCard(notification, isMobile);
               },
             ),
           const SizedBox(height: 24),
@@ -151,9 +152,9 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
     );
   }
 
-  Widget _buildModernHeader(bool isDesktop, int unreadCount) {
+  Widget _buildModernHeader(bool isMobile, bool isDesktop, int unreadCount) {
     return Container(
-      padding: EdgeInsets.all(isDesktop ? 32 : 24),
+      padding: EdgeInsets.all(isMobile ? 16 : (isDesktop ? 32 : 24)),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
@@ -203,7 +204,7 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(16),
+                    padding: EdgeInsets.all(isMobile ? 12 : 16),
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(12),
@@ -211,10 +212,10 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
                     child: Icon(
                       Icons.notifications_rounded,
                       color: Colors.white,
-                      size: isDesktop ? 32 : 28,
+                      size: isMobile ? 24 : (isDesktop ? 32 : 28),
                     ),
                   ),
-                  const SizedBox(width: 20),
+                  SizedBox(width: isMobile ? 12 : 20),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -222,7 +223,7 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
                         Text(
                           'Notifikasi',
                           style: GoogleFonts.inter(
-                            fontSize: isDesktop ? 28 : 24,
+                            fontSize: isMobile ? 18 : (isDesktop ? 28 : 24),
                             fontWeight: FontWeight.w700,
                             color: Colors.white,
                           ),
@@ -268,25 +269,27 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
                   ),
                 ],
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: isMobile ? 12 : 20),
               Row(
                 children: [
                   if (unreadCount > 0)
                     Expanded(
                       child: ElevatedButton.icon(
                         onPressed: _markAllAsRead,
-                        icon: const Icon(Icons.done_all, size: 18),
+                        icon: Icon(Icons.done_all, size: isMobile ? 16 : 18),
                         label: Text(
                           'Tandai Semua Dibaca',
                           style: GoogleFonts.inter(
-                            fontSize: 14,
+                            fontSize: isMobile ? 12 : 14,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.white,
                           foregroundColor: const Color(0xFF4169E1),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          padding: EdgeInsets.symmetric(
+                            vertical: isMobile ? 10 : 14,
+                          ),
                           elevation: 0,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
@@ -294,22 +297,24 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
                         ),
                       ),
                     ),
-                  if (unreadCount > 0) const SizedBox(width: 12),
+                  if (unreadCount > 0) SizedBox(width: isMobile ? 8 : 12),
                   Expanded(
                     child: ElevatedButton.icon(
                       onPressed: () => _showSendNotificationDialog(context),
-                      icon: const Icon(Icons.send, size: 18),
+                      icon: Icon(Icons.send, size: isMobile ? 16 : 18),
                       label: Text(
                         'Kirim Notifikasi',
                         style: GoogleFonts.inter(
-                          fontSize: 14,
+                          fontSize: isMobile ? 12 : 14,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
                         foregroundColor: const Color(0xFF4169E1),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        padding: EdgeInsets.symmetric(
+                          vertical: isMobile ? 10 : 14,
+                        ),
                         elevation: 0,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10),
@@ -326,9 +331,9 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
     );
   }
 
-  Widget _buildFilterTabs() {
+  Widget _buildFilterTabs(bool isMobile) {
     return Container(
-      padding: const EdgeInsets.all(6),
+      padding: EdgeInsets.all(isMobile ? 4 : 6),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -343,17 +348,17 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
       ),
       child: Row(
         children: [
-          _buildFilterTab('Semua'),
-          const SizedBox(width: 6),
-          _buildFilterTab('Belum Dibaca'),
-          const SizedBox(width: 6),
-          _buildFilterTab('Sudah Dibaca'),
+          _buildFilterTab('Semua', isMobile),
+          SizedBox(width: isMobile ? 4 : 6),
+          _buildFilterTab('Belum Dibaca', isMobile),
+          SizedBox(width: isMobile ? 4 : 6),
+          _buildFilterTab('Sudah Dibaca', isMobile),
         ],
       ),
     );
   }
 
-  Widget _buildFilterTab(String label) {
+  Widget _buildFilterTab(String label, bool isMobile) {
     final isSelected = _filterStatus == label;
 
     return Expanded(
@@ -364,7 +369,7 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
         },
         borderRadius: BorderRadius.circular(10),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 14),
+          padding: EdgeInsets.symmetric(vertical: isMobile ? 10 : 14),
           decoration: BoxDecoration(
             gradient: isSelected
                 ? const LinearGradient(
@@ -392,15 +397,15 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
                     : label == 'Belum Dibaca'
                     ? Icons.mark_email_unread_rounded
                     : Icons.mark_email_read_rounded,
-                size: 18,
+                size: isMobile ? 16 : 18,
                 color: isSelected ? Colors.white : Colors.grey[600],
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: isMobile ? 6 : 8),
               Text(
                 label,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(
-                  fontSize: 14,
+                  fontSize: isMobile ? 11 : 14,
                   fontWeight: FontWeight.w600,
                   color: isSelected ? Colors.white : Colors.grey[700],
                 ),
@@ -412,7 +417,10 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
     );
   }
 
-  Widget _buildNotificationCard(Map<String, dynamic> notification) {
+  Widget _buildNotificationCard(
+    Map<String, dynamic> notification,
+    bool isMobile,
+  ) {
     final isRead = notification['is_read'] ?? false;
     final type = notification['type'] ?? 'info';
 
@@ -511,7 +519,7 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
         _deleteNotification(notification['id_notifikasi'].toString());
       },
       child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
+        margin: EdgeInsets.only(bottom: isMobile ? 8 : 12),
         decoration: BoxDecoration(
           gradient: isRead
               ? LinearGradient(
@@ -552,13 +560,13 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
           },
           borderRadius: BorderRadius.circular(12),
           child: Padding(
-            padding: const EdgeInsets.all(18),
+            padding: EdgeInsets.all(isMobile ? 12 : 18),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Icon with gradient background
                 Container(
-                  padding: const EdgeInsets.all(14),
+                  padding: EdgeInsets.all(isMobile ? 10 : 14),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
@@ -578,10 +586,10 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
                   child: Icon(
                     _getNotificationIcon(type),
                     color: Colors.white,
-                    size: 26,
+                    size: isMobile ? 20 : 26,
                   ),
                 ),
-                const SizedBox(width: 16),
+                SizedBox(width: isMobile ? 10 : 16),
 
                 // Content
                 Expanded(
@@ -594,7 +602,7 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
                             child: Text(
                               notification['title'] ?? 'Notifikasi',
                               style: GoogleFonts.inter(
-                                fontSize: 16,
+                                fontSize: isMobile ? 14 : 16,
                                 fontWeight: FontWeight.w700,
                                 color: Colors.black87,
                               ),
@@ -602,9 +610,9 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
                           ),
                           if (!isRead)
                             Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 5,
+                              padding: EdgeInsets.symmetric(
+                                horizontal: isMobile ? 8 : 10,
+                                vertical: isMobile ? 3 : 5,
                               ),
                               decoration: BoxDecoration(
                                 gradient: const LinearGradient(
@@ -618,7 +626,7 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
                               child: Text(
                                 'BARU',
                                 style: GoogleFonts.inter(
-                                  fontSize: 10,
+                                  fontSize: isMobile ? 8 : 10,
                                   fontWeight: FontWeight.w700,
                                   color: Colors.white,
                                   letterSpacing: 0.5,
@@ -627,11 +635,11 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
                             ),
                         ],
                       ),
-                      const SizedBox(height: 8),
+                      SizedBox(height: isMobile ? 6 : 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 5,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isMobile ? 8 : 10,
+                          vertical: isMobile ? 3 : 5,
                         ),
                         decoration: BoxDecoration(
                           color: _getNotificationColor(type).withOpacity(0.1),
@@ -640,25 +648,25 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
                         child: Text(
                           _getNotificationTypeName(type),
                           style: GoogleFonts.inter(
-                            fontSize: 11,
+                            fontSize: isMobile ? 10 : 11,
                             fontWeight: FontWeight.w700,
                             color: _getNotificationColor(type),
                             letterSpacing: 0.3,
                           ),
                         ),
                       ),
-                      const SizedBox(height: 10),
+                      SizedBox(height: isMobile ? 8 : 10),
                       Text(
                         notification['message'] ?? '',
                         style: GoogleFonts.inter(
-                          fontSize: 14,
+                          fontSize: isMobile ? 12 : 14,
                           color: Colors.grey[700],
                           height: 1.6,
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: isMobile ? 8 : 12),
                       Container(
-                        padding: const EdgeInsets.all(10),
+                        padding: EdgeInsets.all(isMobile ? 8 : 10),
                         decoration: BoxDecoration(
                           color: Colors.grey[100],
                           borderRadius: BorderRadius.circular(8),
@@ -668,14 +676,14 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
                           children: [
                             Icon(
                               Icons.access_time_rounded,
-                              size: 14,
+                              size: isMobile ? 12 : 14,
                               color: Colors.grey[600],
                             ),
-                            const SizedBox(width: 6),
+                            SizedBox(width: isMobile ? 4 : 6),
                             Text(
                               _formatDateTime(notification['created_at']),
                               style: GoogleFonts.inter(
-                                fontSize: 12,
+                                fontSize: isMobile ? 10 : 12,
                                 fontWeight: FontWeight.w500,
                                 color: Colors.grey[700],
                               ),

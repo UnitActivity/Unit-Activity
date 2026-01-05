@@ -565,6 +565,7 @@ class _DetailUkmPageState extends State<DetailUkmPage>
     required String label,
     required int index,
   }) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
     final isSelected = _tabController.index == index;
 
     return InkWell(
@@ -575,7 +576,10 @@ class _DetailUkmPageState extends State<DetailUkmPage>
       },
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+        padding: EdgeInsets.symmetric(
+          vertical: isMobile ? 10 : 12,
+          horizontal: isMobile ? 10 : 20,
+        ),
         decoration: BoxDecoration(
           gradient: isSelected
               ? const LinearGradient(
@@ -594,44 +598,53 @@ class _DetailUkmPageState extends State<DetailUkmPage>
                 ]
               : null,
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              color: isSelected ? Colors.white : Colors.grey[600],
-              size: 20,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                color: isSelected ? Colors.white : Colors.grey[700],
+        child: isMobile
+            ? Icon(
+                icon,
+                color: isSelected ? Colors.white : Colors.grey[600],
+                size: 20,
+              )
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    icon,
+                    color: isSelected ? Colors.white : Colors.grey[600],
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    label,
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: isSelected
+                          ? FontWeight.w600
+                          : FontWeight.w500,
+                      color: isSelected ? Colors.white : Colors.grey[700],
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
-        ),
       ),
     );
   }
 
   Widget _buildModernInfoUkmTab(bool isDesktop) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
     final logoUrl = _newLogoUrl ?? widget.ukm['logo'];
 
     return SingleChildScrollView(
       padding: EdgeInsets.symmetric(
-        horizontal: isDesktop ? 48 : 24,
-        vertical: 24,
+        horizontal: isMobile ? 16 : (isDesktop ? 48 : 24),
+        vertical: isMobile ? 16 : 24,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Header Card with Logo and Basic Info
           Container(
-            padding: const EdgeInsets.all(32),
+            padding: EdgeInsets.all(isMobile ? 20 : 32),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
@@ -652,8 +665,8 @@ class _DetailUkmPageState extends State<DetailUkmPage>
                 Stack(
                   children: [
                     Container(
-                      width: isDesktop ? 140 : 120,
-                      height: isDesktop ? 140 : 120,
+                      width: isMobile ? 100 : (isDesktop ? 140 : 120),
+                      height: isMobile ? 100 : (isDesktop ? 140 : 120),
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: Colors.white,
@@ -674,7 +687,7 @@ class _DetailUkmPageState extends State<DetailUkmPage>
                       child: logoUrl == null
                           ? Icon(
                               Icons.groups_rounded,
-                              size: isDesktop ? 70 : 60,
+                              size: isMobile ? 50 : (isDesktop ? 70 : 60),
                               color: Colors.grey[400],
                             )
                           : null,
@@ -1244,10 +1257,11 @@ class _DetailUkmPageState extends State<DetailUkmPage>
   }
 
   Widget _buildCombinedProfileCard(bool isDesktop) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
     final logoUrl = _newLogoUrl ?? widget.ukm['logo'];
 
     return Container(
-      padding: EdgeInsets.all(isDesktop ? 32 : 24),
+      padding: EdgeInsets.all(isMobile ? 16 : (isDesktop ? 32 : 24)),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
