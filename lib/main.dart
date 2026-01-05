@@ -43,7 +43,7 @@ Future<void> main() async {
 
   runApp(
     DevicePreview(
-      enabled: false, // Set to false untuk disable device preview
+      enabled: true, // Set to false untuk disable device preview
       builder: (context) => const MyApp(),
     ),
   );

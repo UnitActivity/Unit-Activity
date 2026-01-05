@@ -52,13 +52,24 @@ class PasswordResetService {
       final trimmedEmail = email.trim().toLowerCase();
 
       // ========== CEK APAKAH EMAIL TERDAFTAR ==========
+      // Cek di tabel users
       final user = await _supabase
           .from('users')
           .select('email')
           .eq('email', trimmedEmail)
           .maybeSingle();
 
-      if (user == null) {
+      // Cek di tabel admin jika tidak ditemukan di users
+      final admin = user == null
+          ? await _supabase
+                .from('admin')
+                .select('email_admin')
+                .eq('email_admin', trimmedEmail)
+                .maybeSingle()
+          : null;
+
+      // Jika tidak ditemukan di kedua tabel
+      if (user == null && admin == null) {
         return {
           'success': false,
           'error': 'Email tidak terdaftar',
