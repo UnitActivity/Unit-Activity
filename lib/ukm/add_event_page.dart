@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:file_picker/file_picker.dart';
-import 'dart:typed_data';
 import 'package:unit_activity/services/event_service_new.dart';
 import 'package:unit_activity/services/file_upload_service.dart';
-import 'package:unit_activity/services/custom_auth_service.dart';
 import 'package:unit_activity/services/ukm_dashboard_service.dart';
 
 class AddEventPage extends StatefulWidget {
@@ -18,7 +16,6 @@ class _AddEventPageState extends State<AddEventPage> {
   final _formKey = GlobalKey<FormState>();
   final EventService _eventService = EventService();
   final FileUploadService _fileUploadService = FileUploadService();
-  final CustomAuthService _authService = CustomAuthService();
   final UkmDashboardService _dashboardService = UkmDashboardService();
 
   // Form controllers
@@ -31,13 +28,45 @@ class _AddEventPageState extends State<AddEventPage> {
   String? _selectedTipeEvent;
   DateTime? _tanggalMulai;
   DateTime? _tanggalAkhir;
+  bool _sendNotification = true; // Auto-send notification checkbox
 
   // Multiple proposal files support
-  List<Map<String, dynamic>> _proposalFiles = [];
+  final List<Map<String, dynamic>> _proposalFiles = [];
   // Each item: {bytes: Uint8List, name: String, isSubmitted: bool}
 
   bool _isLoading = false;
   bool _isUploadingFile = false;
+
+  // Send notification to all UKM members
+  Future<void> _sendEventNotification(String eventId, String ukmId) async {
+    try {
+      // Get all active UKM members
+      final members = await _dashboardService.getUkmMembers(ukmId);
+
+      if (members.isEmpty) return;
+
+      final now = DateTime.now().toIso8601String();
+      final notificationData = members.map((member) {
+        return {
+          'user_id': member['user_id'],
+          'judul': 'Event Baru: ${_namaEventController.text}',
+          'isi':
+              'Event baru telah dibuat. Deskripsi: ${_deskripsiController.text}',
+          'tipe': 'event',
+          'is_read': false,
+          'created_at': now,
+          'event_id': eventId,
+        };
+      }).toList();
+
+      // Batch insert notifications
+      await _dashboardService.supabase
+          .from('notification_preference')
+          .insert(notificationData);
+    } catch (e) {
+      debugPrint('Error sending notification: $e');
+    }
+  }
 
   final List<String> _tipeEventOptions = [
     'Internal',
@@ -147,128 +176,6 @@ class _AddEventPageState extends State<AddEventPage> {
     });
   }
 
-  Future<void> _submitFile(int index, String eventId) async {
-    final file = _proposalFiles[index];
-
-    // Show confirmation dialog
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        title: Row(
-          children: [
-            const Icon(Icons.send, color: Color(0xFF4169E1)),
-            const SizedBox(width: 12),
-            Text(
-              'Konfirmasi Pengajuan',
-              style: GoogleFonts.inter(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Apakah Anda yakin ingin mengajukan dokumen ini kepada admin untuk diverifikasi?',
-              style: GoogleFonts.inter(fontSize: 14),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.blue[50],
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.description, color: Colors.blue[700], size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      file['name'],
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(
-              'Batal',
-              style: GoogleFonts.inter(
-                color: Colors.grey[600],
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF4169E1),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              elevation: 0,
-            ),
-            child: Text(
-              'Ya, Ajukan',
-              style: GoogleFonts.inter(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      try {
-        // Upload file
-        await _fileUploadService.uploadProposalFromBytes(
-          fileBytes: file['bytes'],
-          fileName: file['name'],
-          eventId: eventId,
-        );
-
-        setState(() {
-          _proposalFiles[index]['isSubmitted'] = true;
-        });
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Dokumen ${file['name']} berhasil diajukan'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
-      } catch (e) {
-        print('Error uploading file: $e');
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Gagal mengajukan dokumen: $e'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-    }
-  }
-
   Future<void> _saveEvent() async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -324,6 +231,11 @@ class _AddEventPageState extends State<AddEventPage> {
       );
 
       final eventId = event['id_events'] as String;
+
+      // Send notification if checkbox is checked
+      if (_sendNotification && mounted) {
+        await _sendEventNotification(eventId, ukmId);
+      }
 
       // Check if there are files to submit
       if (_proposalFiles.isNotEmpty) {
@@ -646,6 +558,35 @@ class _AddEventPageState extends State<AddEventPage> {
                   ),
                   const SizedBox(height: 20),
 
+                  // Send Notification Checkbox
+                  CheckboxListTile(
+                    title: Text(
+                      'Kirim notifikasi ke anggota UKM',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey[800],
+                      ),
+                    ),
+                    subtitle: Text(
+                      'Notifikasi otomatis akan dikirim ke semua anggota aktif',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                    value: _sendNotification,
+                    onChanged: (bool? value) {
+                      setState(() {
+                        _sendNotification = value ?? true;
+                      });
+                    },
+                    activeColor: const Color(0xFF4169E1),
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                  ),
+                  const SizedBox(height: 20),
+
                   // Upload Proposal
                   _buildFileUpload(),
                   const SizedBox(height: 32),
@@ -795,7 +736,7 @@ class _AddEventPageState extends State<AddEventPage> {
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          value: _selectedTipeEvent,
+          initialValue: _selectedTipeEvent,
           decoration: InputDecoration(
             hintText: 'Pilih tipe event',
             hintStyle: GoogleFonts.inter(fontSize: 14, color: Colors.grey[400]),

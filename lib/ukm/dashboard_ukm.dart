@@ -1,7 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:unit_activity/components/ukm_sidebar.dart';
-import 'package:unit_activity/components/ukm_header.dart';
+import 'package:unit_activity/widgets/ukm_header.dart';
 import 'package:unit_activity/ukm/peserta_ukm.dart';
 import 'package:unit_activity/ukm/event_ukm.dart';
 import 'package:unit_activity/ukm/pertemuan_ukm.dart';
@@ -23,6 +24,8 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final UkmDashboardService _dashboardService = UkmDashboardService();
   final CustomAuthService _authService = CustomAuthService();
+  final PageController _pageController = PageController();
+  Timer? _carouselTimer;
 
   // Dashboard data
   String _ukmName = 'UKM Dashboard';
@@ -36,11 +39,19 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
   bool _isLoadingStats = true;
   bool _isLoadingInformasi = true;
   String? _errorMessage;
+  int _currentCarouselIndex = 0;
 
   @override
   void initState() {
     super.initState();
     _checkAuthAndLoadData();
+  }
+
+  @override
+  void dispose() {
+    _carouselTimer?.cancel();
+    _pageController.dispose();
+    super.dispose();
   }
 
   Future<void> _checkAuthAndLoadData() async {
@@ -124,6 +135,10 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
           // Update informasi
           if (results[1]['success'] == true) {
             _informasiList = results[1]['data'] ?? [];
+            // Start carousel auto-play if there are multiple items
+            if (_informasiList.length > 1) {
+              _startCarouselAutoPlay();
+            }
           }
 
           _isLoadingStats = false;
@@ -142,7 +157,22 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
     }
   }
 
-  int _currentCarouselIndex = 0;
+  void _startCarouselAutoPlay() {
+    _carouselTimer?.cancel();
+    _carouselTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      if (_informasiList.isEmpty || !mounted) {
+        timer.cancel();
+        return;
+      }
+
+      final nextIndex = (_currentCarouselIndex + 1) % _informasiList.length;
+      _pageController.animateToPage(
+        nextIndex,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
+      );
+    });
+  }
 
   void _handleMenuSelected(String menu) {
     setState(() {
@@ -208,18 +238,18 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: Colors.grey[100],
-      drawer: isDesktop
-          ? null
-          : Drawer(
+      drawer: !isDesktop
+          ? Drawer(
               child: UKMSidebar(
                 selectedMenu: _selectedMenu,
                 onMenuSelected: _handleMenuSelected,
                 onLogout: _handleLogout,
               ),
-            ),
+            )
+          : null,
       body: Row(
         children: [
-          // Sidebar - Desktop only
+          // Desktop Sidebar
           if (isDesktop)
             UKMSidebar(
               selectedMenu: _selectedMenu,
@@ -229,25 +259,34 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
 
           // Main Content
           Expanded(
-            child: Column(
+            child: Stack(
               children: [
-                // Header
-                UKMHeader(
-                  onMenuPressed: isDesktop
-                      ? null
-                      : () {
-                          _scaffoldKey.currentState?.openDrawer();
-                        },
-                  onLogout: _handleLogout,
-                  ukmName: _ukmName,
-                  periode: _periode,
+                // Content Area
+                Positioned.fill(
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.only(
+                      left: isDesktop ? 20 : 14,
+                      right: isDesktop ? 20 : 14,
+                      top: isDesktop ? 95 : 75,
+                      bottom: isDesktop ? 20 : 16,
+                    ),
+                    child: _buildContent(isDesktop),
+                  ),
                 ),
 
-                // Content Area
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(24),
-                    child: _buildContent(isDesktop),
+                // Floating Header
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: UKMHeader(
+                    onMenuPressed: () {
+                      _scaffoldKey.currentState?.openDrawer();
+                    },
+                    onLogout: _handleLogout,
+                    onMenuSelected: _handleMenuSelected,
+                    ukmName: _ukmName,
+                    periode: _periode,
                   ),
                 ),
               ],
@@ -466,130 +505,86 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
       );
     }
 
-    // Ensure current index is valid
-    if (_currentCarouselIndex >= _informasiList.length) {
-      _currentCarouselIndex = 0;
-    }
-
-    final currentInfo = _informasiList[_currentCarouselIndex];
-
     return Column(
       children: [
-        // Carousel
-        Container(
+        // Carousel with PageView
+        SizedBox(
           height: isDesktop ? 300 : 250,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
+          child: Stack(
+            children: [
+              PageView.builder(
+                controller: _pageController,
+                onPageChanged: (index) {
+                  setState(() {
+                    _currentCarouselIndex = index;
+                  });
+                },
+                itemCount: _informasiList.length,
+                itemBuilder: (context, index) {
+                  final info = _informasiList[index];
+                  return _buildCarouselItem(info, isDesktop);
+                },
               ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Stack(
-              children: [
-                // Image or placeholder
-                if (currentInfo['gambar'] != null &&
-                    currentInfo['gambar'].toString().isNotEmpty)
-                  Image.network(
-                    currentInfo['gambar'],
-                    width: double.infinity,
-                    height: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return _buildImagePlaceholder();
-                    },
-                  )
-                else
-                  _buildImagePlaceholder(),
 
-                // Content overlay
+              // Navigation Arrows (only show on desktop and when multiple items)
+              if (isDesktop && _informasiList.length > 1) ...[
+                // Left Arrow
                 Positioned(
+                  left: 16,
+                  top: 0,
                   bottom: 0,
-                  left: 0,
-                  right: 0,
-                  child: Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          Colors.black.withOpacity(0.7),
-                        ],
+                  child: Center(
+                    child: IconButton(
+                      onPressed: () {
+                        final prevIndex =
+                            (_currentCarouselIndex - 1) % _informasiList.length;
+                        _pageController.animateToPage(
+                          prevIndex,
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeInOut,
+                        );
+                      },
+                      icon: const Icon(
+                        Icons.arrow_back_ios,
+                        color: Colors.white,
+                      ),
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.black.withOpacity(0.5),
+                        padding: const EdgeInsets.all(12),
                       ),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          currentInfo['judul'] ?? 'Tanpa Judul',
-                          style: GoogleFonts.inter(
-                            fontSize: isDesktop ? 18 : 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        if (currentInfo['deskripsi'] != null) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            currentInfo['deskripsi'],
-                            style: GoogleFonts.inter(
-                              fontSize: 14,
-                              color: Colors.white.withOpacity(0.9),
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                        const SizedBox(height: 8),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const SizedBox(),
-                            TextButton.icon(
-                              onPressed: () {
-                                setState(() {
-                                  _selectedMenu = 'informasi';
-                                });
-                              },
-                              icon: const Icon(
-                                Icons.arrow_forward,
-                                size: 16,
-                                color: Colors.white,
-                              ),
-                              label: Text(
-                                'Lihat Detail',
-                                style: GoogleFonts.inter(
-                                  fontSize: 14,
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              style: TextButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 8,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+                  ),
+                ),
+
+                // Right Arrow
+                Positioned(
+                  right: 16,
+                  top: 0,
+                  bottom: 0,
+                  child: Center(
+                    child: IconButton(
+                      onPressed: () {
+                        final nextIndex =
+                            (_currentCarouselIndex + 1) % _informasiList.length;
+                        _pageController.animateToPage(
+                          nextIndex,
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeInOut,
+                        );
+                      },
+                      icon: const Icon(
+                        Icons.arrow_forward_ios,
+                        color: Colors.white,
+                      ),
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.black.withOpacity(0.5),
+                        padding: const EdgeInsets.all(12),
+                      ),
                     ),
                   ),
                 ),
               ],
-            ),
+            ],
           ),
         ),
 
@@ -603,9 +598,11 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
               _informasiList.length,
               (index) => GestureDetector(
                 onTap: () {
-                  setState(() {
-                    _currentCarouselIndex = index;
-                  });
+                  _pageController.animateToPage(
+                    index,
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                  );
                 },
                 child: Container(
                   margin: const EdgeInsets.symmetric(horizontal: 4),
@@ -622,6 +619,121 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
             ),
           ),
       ],
+    );
+  }
+
+  Widget _buildCarouselItem(Map<String, dynamic> info, bool isDesktop) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Stack(
+          children: [
+            // Image or placeholder
+            if (info['gambar'] != null && info['gambar'].toString().isNotEmpty)
+              Image.network(
+                info['gambar'],
+                width: double.infinity,
+                height: double.infinity,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return _buildImagePlaceholder();
+                },
+              )
+            else
+              _buildImagePlaceholder(),
+
+            // Content overlay
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Colors.transparent, Colors.black.withOpacity(0.7)],
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      info['judul'] ?? 'Tanpa Judul',
+                      style: GoogleFonts.inter(
+                        fontSize: isDesktop ? 18 : 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (info['deskripsi'] != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        info['deskripsi'],
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          color: Colors.white.withOpacity(0.9),
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const SizedBox(),
+                        TextButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              _selectedMenu = 'informasi';
+                            });
+                          },
+                          icon: const Icon(
+                            Icons.arrow_forward,
+                            size: 16,
+                            color: Colors.white,
+                          ),
+                          label: Text(
+                            'Lihat Detail',
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

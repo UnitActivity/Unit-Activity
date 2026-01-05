@@ -13,7 +13,6 @@ class CustomAuthService {
   String? _currentUserId;
   String? _currentUserRole;
   Map<String, dynamic>? _currentUserData;
-  bool _isInitialized = false;
 
   // SharedPreferences keys
   static const String _keyUserId = 'user_id';
@@ -212,11 +211,8 @@ class CustomAuthService {
       } else {
         print('ℹ️ No saved session found');
       }
-
-      _isInitialized = true;
     } catch (e) {
       print('❌ Error restoring session: $e');
-      _isInitialized = true;
     }
   }
 

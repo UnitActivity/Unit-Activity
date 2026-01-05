@@ -82,13 +82,6 @@ class UKMSidebar extends StatelessWidget {
                   isSelected: selectedMenu == 'notifikasi',
                   onTap: () => onMenuSelected('notifikasi'),
                 ),
-                _buildMenuItem(
-                  icon: Icons.person_outline,
-                  title: 'Akun',
-                  value: 'akun',
-                  isSelected: selectedMenu == 'akun',
-                  onTap: () => onMenuSelected('akun'),
-                ),
               ],
             ),
           ),
@@ -120,7 +113,7 @@ class UKMSidebar extends StatelessWidget {
         ),
         title: Text(
           title,
-          style: TextStyle(
+          style: GoogleFonts.inter(
             fontSize: 15,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
             color: isSelected ? const Color(0xFF4169E1) : Colors.grey[800],

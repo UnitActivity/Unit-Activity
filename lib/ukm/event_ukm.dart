@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:unit_activity/services/event_service_new.dart';
-import 'package:unit_activity/services/custom_auth_service.dart';
 import 'package:unit_activity/services/ukm_dashboard_service.dart';
 import 'package:unit_activity/ukm/add_event_page.dart';
 import 'package:unit_activity/ukm/detail_event_ukm.dart';
@@ -16,7 +15,6 @@ class EventUKMPage extends StatefulWidget {
 
 class _EventUKMPageState extends State<EventUKMPage> {
   final EventService _eventService = EventService();
-  final CustomAuthService _authService = CustomAuthService();
   final UkmDashboardService _dashboardService = UkmDashboardService();
 
   List<Map<String, dynamic>> _eventList = [];
@@ -296,7 +294,7 @@ class _EventUKMPageState extends State<EventUKMPage> {
                   ),
                 ),
               );
-            }).toList(),
+            }),
           ],
         ),
         const SizedBox(height: 16),

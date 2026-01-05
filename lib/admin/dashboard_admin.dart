@@ -8,7 +8,6 @@ import 'package:unit_activity/admin/event.dart';
 import 'package:unit_activity/admin/periode.dart';
 import 'package:unit_activity/admin/notifikasi.dart';
 import 'package:unit_activity/admin/informasi.dart';
-import 'package:unit_activity/admin/profile_admin.dart';
 import 'package:unit_activity/services/dashboard_service.dart';
 
 class DashboardAdminPage extends StatefulWidget {
@@ -126,7 +125,6 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
   }
 
   void _handleMenuSelected(String menu) {
-    print('Menu selected: $menu');
     setState(() {
       _selectedMenu = menu;
     });
@@ -215,7 +213,6 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
                       _scaffoldKey.currentState?.openDrawer();
                     },
                     onLogout: _handleLogout,
-                    onProfilePressed: _handleMenuSelected,
                   ),
                 ),
               ],
@@ -227,7 +224,6 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
   }
 
   Widget _buildContent() {
-    print('Building content for menu: $_selectedMenu');
     switch (_selectedMenu) {
       case 'dashboard':
         return _buildDashboardContent();
@@ -243,9 +239,6 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
         return const NotifikasiPage();
       case 'informasi':
         return const InformasiPage();
-      case 'profile':
-        print('Returning ProfileAdminPage');
-        return const ProfileAdminPage();
       default:
         return _buildDashboardContent();
     }

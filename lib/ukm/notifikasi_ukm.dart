@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:unit_activity/ukm/send_notifikasi_ukm_page.dart';
 
 class NotifikasiUKMPage extends StatefulWidget {
   const NotifikasiUKMPage({super.key});
@@ -56,7 +57,14 @@ class _NotifikasiUKMPageState extends State<NotifikasiUKMPage> {
               ),
             ),
             ElevatedButton.icon(
-              onPressed: _showAddNotificationDialog,
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const SendNotifikasiUKMPage(),
+                  ),
+                );
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF4169E1),
                 foregroundColor: Colors.white,
@@ -69,9 +77,9 @@ class _NotifikasiUKMPageState extends State<NotifikasiUKMPage> {
                 ),
                 elevation: 0,
               ),
-              icon: const Icon(Icons.add, size: 20),
+              icon: const Icon(Icons.send, size: 20),
               label: Text(
-                'Tambah Notifikasi',
+                'Kirim Notifikasi',
                 style: GoogleFonts.inter(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,

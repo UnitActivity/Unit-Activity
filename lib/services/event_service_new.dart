@@ -87,6 +87,7 @@ class EventService {
     required String tipevent,
     required String ukmId,
     required String periodeId,
+    String? gambar,
   }) async {
     try {
       print('========== CREATE EVENT ==========');
@@ -94,22 +95,28 @@ class EventService {
       print('UKM ID: $ukmId');
       print('Periode ID: $periodeId');
 
+      final Map<String, dynamic> eventData = {
+        'nama_event': namaEvent,
+        'deskripsi': deskripsi,
+        'tanggal_mulai': tanggalMulai.toIso8601String(),
+        'tanggal_akhir': tanggalAkhir.toIso8601String(),
+        'lokasi': lokasi,
+        'max_participant': maxParticipant,
+        'tipevent': tipevent,
+        'status': true,
+        'status_proposal': 'belum_ajukan',
+        'status_lpj': 'belum_ajukan',
+        'id_ukm': ukmId,
+        'id_periode': periodeId,
+      };
+
+      if (gambar != null) {
+        eventData['gambar'] = gambar;
+      }
+
       final response = await _supabase
           .from('events')
-          .insert({
-            'nama_event': namaEvent,
-            'deskripsi': deskripsi,
-            'tanggal_mulai': tanggalMulai.toIso8601String(),
-            'tanggal_akhir': tanggalAkhir.toIso8601String(),
-            'lokasi': lokasi,
-            'max_participant': maxParticipant,
-            'tipevent': tipevent,
-            'status': true,
-            'status_proposal': 'belum_ajukan',
-            'status_lpj': 'belum_ajukan',
-            'id_ukm': ukmId,
-            'id_periode': periodeId,
-          })
+          .insert(eventData)
           .select()
           .single();
 
@@ -228,6 +235,145 @@ class EventService {
       print('✅ LPJ status updated: $status');
     } catch (e) {
       print('❌ Error updating LPJ status: $e');
+      rethrow;
+    }
+  }
+
+  /// Generate QR code for event attendance (valid for 10 seconds)
+  Future<Map<String, dynamic>> generateAttendanceQR(String eventId) async {
+    try {
+      print('========== GENERATE ATTENDANCE QR ==========');
+      print('Event ID: $eventId');
+
+      final qrCode = '${eventId}_${DateTime.now().millisecondsSinceEpoch}';
+      final qrTime = DateTime.now().toIso8601String();
+
+      await _supabase
+          .from('events')
+          .update({'qr_code': qrCode, 'qr_time': qrTime})
+          .eq('id_events', eventId);
+
+      print('✅ QR Code generated: $qrCode');
+      return {
+        'qr_code': qrCode,
+        'qr_time': qrTime,
+        'expires_at': DateTime.now()
+            .add(const Duration(seconds: 10))
+            .toIso8601String(),
+      };
+    } catch (e) {
+      print('❌ Error generating QR code: $e');
+      rethrow;
+    }
+  }
+
+  /// Verify QR code and record attendance
+  Future<bool> recordAttendance({
+    required String eventId,
+    required String userId,
+    required String qrCode,
+  }) async {
+    try {
+      print('========== RECORD ATTENDANCE ==========');
+      print('Event ID: $eventId, User ID: $userId');
+
+      // Get event QR data
+      final event = await _supabase
+          .from('events')
+          .select('qr_code, qr_time')
+          .eq('id_events', eventId)
+          .maybeSingle();
+
+      if (event == null) {
+        throw Exception('Event tidak ditemukan');
+      }
+
+      // Verify QR code matches
+      if (event['qr_code'] != qrCode) {
+        throw Exception('QR Code tidak valid');
+      }
+
+      // Check if QR code is still valid (within 10 seconds)
+      final qrTime = DateTime.parse(event['qr_time']);
+      final now = DateTime.now();
+      final difference = now.difference(qrTime).inSeconds;
+
+      if (difference > 10) {
+        throw Exception('QR Code sudah kadaluarsa');
+      }
+
+      // Check if already recorded
+      final existing = await _supabase
+          .from('absen_event')
+          .select('id_absen_event')
+          .eq('id_event', eventId)
+          .eq('id_user', userId)
+          .maybeSingle();
+
+      if (existing != null) {
+        throw Exception('Anda sudah melakukan absensi');
+      }
+
+      // Record attendance
+      await _supabase.from('absen_event').insert({
+        'id_event': eventId,
+        'id_user': userId,
+        'tanggal': now.toIso8601String(),
+        'status': 'hadir',
+      });
+
+      print('✅ Attendance recorded');
+      return true;
+    } catch (e) {
+      print('❌ Error recording attendance: $e');
+      rethrow;
+    }
+  }
+
+  /// Get pending participants (status: pending)
+  Future<List<Map<String, dynamic>>> getPendingParticipants(
+    String eventId,
+  ) async {
+    try {
+      final response = await _supabase
+          .from('absen_event')
+          .select('*, users(username, email, nim)')
+          .eq('id_event', eventId)
+          .eq('status', 'pending');
+
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      print('❌ Error getting pending participants: $e');
+      rethrow;
+    }
+  }
+
+  /// Accept participant
+  Future<void> acceptParticipant(String absenEventId) async {
+    try {
+      await _supabase
+          .from('absen_event')
+          .update({'status': 'diterima'})
+          .eq('id_absen_event', absenEventId);
+
+      print('✅ Participant accepted');
+    } catch (e) {
+      print('❌ Error accepting participant: $e');
+      rethrow;
+    }
+  }
+
+  /// Reject participant
+  Future<void> rejectParticipant(String absenEventId, String reason) async {
+    try {
+      await _supabase
+          .from('absen_event')
+          .update({'status': 'ditolak', 'reject_reason': reason})
+          .eq('id_absen_event', absenEventId);
+
+      print('✅ Participant rejected');
+    } catch (e) {
+      print('❌ Error rejecting participant: $e');
       rethrow;
     }
   }
