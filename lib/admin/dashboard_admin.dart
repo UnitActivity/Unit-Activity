@@ -8,7 +8,6 @@ import 'package:unit_activity/admin/event.dart';
 import 'package:unit_activity/admin/periode.dart';
 import 'package:unit_activity/admin/notifikasi.dart';
 import 'package:unit_activity/admin/informasi.dart';
-import 'package:unit_activity/admin/profile_admin.dart';
 import 'package:unit_activity/services/dashboard_service.dart';
 
 class DashboardAdminPage extends StatefulWidget {
@@ -126,7 +125,6 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
   }
 
   void _handleMenuSelected(String menu) {
-    print('Menu selected: $menu');
     setState(() {
       _selectedMenu = menu;
     });
@@ -215,7 +213,6 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
                       _scaffoldKey.currentState?.openDrawer();
                     },
                     onLogout: _handleLogout,
-                    onProfilePressed: _handleMenuSelected,
                   ),
                 ),
               ],
@@ -227,7 +224,6 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
   }
 
   Widget _buildContent() {
-    print('Building content for menu: $_selectedMenu');
     switch (_selectedMenu) {
       case 'dashboard':
         return _buildDashboardContent();
@@ -243,9 +239,6 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
         return const NotifikasiPage();
       case 'informasi':
         return const InformasiPage();
-      case 'profile':
-        print('Returning ProfileAdminPage');
-        return const ProfileAdminPage();
       default:
         return _buildDashboardContent();
     }
@@ -680,6 +673,70 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
                   ),
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatCard({
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color color,
+    required bool isMobile,
+  }) {
+    return Container(
+      padding: EdgeInsets.all(isMobile ? 14 : 18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: GoogleFonts.inter(
+                    fontSize: isMobile ? 12 : 14,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: EdgeInsets.all(isMobile ? 8 : 10),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: color, size: isMobile ? 20 : 24),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: GoogleFonts.inter(
+              fontSize: isMobile ? 24 : 32,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
             ),
           ),
         ],
