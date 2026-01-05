@@ -5,8 +5,14 @@ import 'dart:ui';
 class AdminHeader extends StatelessWidget {
   final VoidCallback? onMenuPressed;
   final VoidCallback? onLogout;
+  final Function(String)? onProfilePressed;
 
-  const AdminHeader({super.key, this.onMenuPressed, this.onLogout});
+  const AdminHeader({
+    super.key,
+    this.onMenuPressed,
+    this.onLogout,
+    this.onProfilePressed,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -128,7 +134,9 @@ class AdminHeader extends StatelessWidget {
         if (value == 'logout' && onLogout != null) {
           onLogout!();
         } else if (value == 'profile') {
-          // TODO: Navigate to profile
+          if (onProfilePressed != null) {
+            onProfilePressed!('profile');
+          }
         }
       },
     );
