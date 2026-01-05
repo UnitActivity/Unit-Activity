@@ -62,9 +62,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
           .select('id_ukm, nama_ukm, email, logo');
 
       print('DEBUG: Response: $response');
-      print(
-        'DEBUG: Response length: ${response.length}',
-      );
+      print('DEBUG: Response length: ${response.length}');
 
       // Load user's registered UKMs (baik login maupun anonymous)
       final registeredUKMIds = <String>{};
@@ -84,7 +82,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
           // Set default attendance, will be updated later from database
           attendanceMap[item['id_ukm']?.toString() ?? ''] = 0;
         }
-            } catch (e) {
+      } catch (e) {
         print('DEBUG: Error loading user UKMs: $e');
       }
 
@@ -143,7 +141,8 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
         filtered = _allUKMs
             .where(
               (ukm) =>
-                  ukm['isRegistered'] == true && (ukm['attendance'] as int? ?? 0) > 0,
+                  ukm['isRegistered'] == true &&
+                  (ukm['attendance'] as int? ?? 0) > 0,
             )
             .toList();
         break;
@@ -328,7 +327,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Berhasil keluar dari ${ukm['name']}'),
-          backgroundColor: Colors.green[600],
+          backgroundColor: Colors.blue[600],
         ),
       );
 
@@ -454,7 +453,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                                   'Berhasil mendaftar ${ukm['name']}!',
                                   style: const TextStyle(color: Colors.white),
                                 ),
-                                backgroundColor: Colors.green[600],
+                                backgroundColor: Colors.blue[600],
                                 duration: const Duration(seconds: 2),
                                 behavior: SnackBarBehavior.floating,
                                 margin: const EdgeInsets.all(12),
@@ -1246,13 +1245,13 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
             end: Alignment.bottomRight,
             colors: [
               Colors.white,
-              isRegistered ? Colors.green[50]! : Colors.grey[50]!,
+              isRegistered ? Colors.blue[50]! : Colors.grey[50]!,
             ],
           ),
           boxShadow: [
             BoxShadow(
               color: isRegistered
-                  ? Colors.green.withOpacity(0.15)
+                  ? Colors.blue.withOpacity(0.15)
                   : Colors.black.withOpacity(0.08),
               blurRadius: 12,
               offset: const Offset(0, 4),
@@ -1261,7 +1260,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
           ],
           border: Border.all(
             color: isRegistered
-                ? Colors.green.withOpacity(0.3)
+                ? Colors.blue.withOpacity(0.3)
                 : Colors.grey.withOpacity(0.2),
             width: 1.5,
           ),
@@ -1277,8 +1276,8 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      isRegistered ? Colors.green[100]! : Colors.grey[200]!,
-                      isRegistered ? Colors.green[50]! : Colors.grey[100]!,
+                      isRegistered ? Colors.blue[100]! : Colors.grey[200]!,
+                      isRegistered ? Colors.blue[50]! : Colors.grey[100]!,
                     ],
                   ),
                   borderRadius: const BorderRadius.vertical(
@@ -1374,10 +1373,10 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: Colors.green[50],
+                        color: Colors.blue[50],
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
-                          color: Colors.green.withOpacity(0.2),
+                          color: Colors.blue.withOpacity(0.2),
                           width: 1,
                         ),
                       ),
@@ -1389,7 +1388,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                               Icon(
                                 Icons.event_available,
                                 size: isMobile ? 12 : 14,
-                                color: Colors.green[700],
+                                color: Colors.blue[700],
                               ),
                               const SizedBox(width: 6),
                               Text(
@@ -1397,7 +1396,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                                 style: GoogleFonts.poppins(
                                   fontSize: isMobile ? 11 : 12,
                                   fontWeight: FontWeight.w600,
-                                  color: Colors.green[800],
+                                  color: Colors.blue[800],
                                 ),
                               ),
                             ],
@@ -1408,7 +1407,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                               Container(
                                 height: 8,
                                 decoration: BoxDecoration(
-                                  color: Colors.green[100],
+                                  color: Colors.blue[100],
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                               ),
@@ -1501,13 +1500,13 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: isRegistered
-                            ? [Colors.green[500]!, Colors.green[600]!]
+                            ? [Colors.blue[500]!, Colors.blue[600]!]
                             : [Colors.grey[400]!, Colors.grey[500]!],
                       ),
                       borderRadius: BorderRadius.circular(8),
                       boxShadow: [
                         BoxShadow(
-                          color: (isRegistered ? Colors.green : Colors.grey)
+                          color: (isRegistered ? Colors.blue : Colors.grey)
                               .withOpacity(0.3),
                           blurRadius: 6,
                           offset: const Offset(0, 2),
@@ -1955,8 +1954,8 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                         vertical: isMobile ? 4 : 6,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.green[50],
-                        border: Border.all(color: Colors.green[700]!),
+                        color: Colors.blue[50],
+                        border: Border.all(color: Colors.blue[700]!),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
@@ -1964,7 +1963,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                         style: TextStyle(
                           fontSize: isMobile ? 10 : 12,
                           fontWeight: FontWeight.w600,
-                          color: Colors.green[700],
+                          color: Colors.blue[700],
                         ),
                       ),
                     ),
