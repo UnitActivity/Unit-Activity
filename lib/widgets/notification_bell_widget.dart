@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:unit_activity/services/user_notification_service.dart';
@@ -21,16 +22,25 @@ class NotificationBellWidget extends StatefulWidget {
 class _NotificationBellWidgetState extends State<NotificationBellWidget> {
   final UserNotificationService _notificationService =
       UserNotificationService();
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
     _notificationService.addListener(_onNotificationUpdate);
     _notificationService.loadNotifications();
+
+    // Auto-refresh notifikasi setiap 30 detik
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      if (mounted) {
+        _notificationService.loadNotifications();
+      }
+    });
   }
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     _notificationService.removeListener(_onNotificationUpdate);
     super.dispose();
   }

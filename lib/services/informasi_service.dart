@@ -63,7 +63,42 @@ class InformasiService {
           .select()
           .single();
 
-      return InformasiModel.fromJson(response);
+      final createdInformasi = InformasiModel.fromJson(response);
+
+      // Create notification for UKM members if id_ukm is present
+      if (createdInformasi.idUkm != null &&
+          createdInformasi.statusAktif == true) {
+        try {
+          // Get UKM name
+          final ukmData = await _supabase
+              .from('ukm')
+              .select('nama_ukm')
+              .eq('id_ukm', createdInformasi.idUkm!)
+              .single();
+
+          final ukmName = ukmData['nama_ukm'] ?? 'UKM';
+
+          // Create notification for UKM members
+          await _supabase.from('notifikasi_ukm_member').insert({
+            'id_ukm': createdInformasi.idUkm,
+            'judul': '📢 Informasi Baru dari $ukmName',
+            'pesan':
+                createdInformasi.deskripsi?.isNotEmpty == true &&
+                    createdInformasi.deskripsi!.length > 100
+                ? '${createdInformasi.deskripsi!.substring(0, 100)}...'
+                : createdInformasi.deskripsi ??
+                      'Informasi baru telah ditambahkan',
+            'tipe': 'info',
+            'id_informasi': response['id_informasi'],
+            'pengirim': ukmName,
+          });
+        } catch (e) {
+          print('Error creating UKM notification: $e');
+          // Continue even if notification fails
+        }
+      }
+
+      return createdInformasi;
     } catch (e) {
       throw Exception('Failed to create informasi: $e');
     }
@@ -71,7 +106,9 @@ class InformasiService {
 
   // Update informasi
   Future<InformasiModel> updateInformasi(
-      String idInformasi, InformasiModel informasi) async {
+    String idInformasi,
+    InformasiModel informasi,
+  ) async {
     try {
       final response = await _supabase
           .from('informasi')

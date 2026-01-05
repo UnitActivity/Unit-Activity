@@ -185,7 +185,7 @@ class _EditInformasiPageState extends State<EditInformasiPage> {
       }
 
       // Update informasi
-      await _supabase
+      final response = await _supabase
           .from('informasi')
           .update({
             'judul': _judulController.text.trim(),
@@ -198,7 +198,29 @@ class _EditInformasiPageState extends State<EditInformasiPage> {
                 : null,
             'update_at': DateTime.now().toIso8601String(),
           })
-          .eq('id_informasi', widget.informasi['id_informasi']);
+          .eq('id_informasi', widget.informasi['id_informasi'])
+          .select()
+          .single();
+
+      // Create notification if status changed to Aktif
+      final oldStatus = widget.informasi['status'] ?? 'Draft';
+      if (_selectedStatus == 'Aktif' && oldStatus != 'Aktif') {
+        final String title = _judulController.text.trim();
+        final String desc = _deskripsiController.text.trim();
+        final notifMessage = desc.isNotEmpty && desc.length > 100
+            ? '${desc.substring(0, 100)}...'
+            : desc.isNotEmpty
+            ? desc
+            : 'Informasi telah diperbarui';
+
+        await _supabase.from('notifikasi_broadcast').insert({
+          'judul': '📢 Informasi Diperbarui: $title',
+          'pesan': notifMessage,
+          'tipe': 'announcement',
+          'id_informasi': response['id_informasi'],
+          'pengirim': 'Admin',
+        });
+      }
 
       if (mounted) {
         Navigator.pop(context, true); // Return true to indicate success

@@ -1,0 +1,387 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+class AttendanceService {
+  final SupabaseClient _supabase = Supabase.instance.client;
+
+  /// Get current user ID
+  String? get currentUserId => _supabase.auth.currentUser?.id;
+
+  /// Record attendance for event via QR scan
+  Future<Map<String, dynamic>> recordEventAttendance({
+    required String eventId,
+    required String qrCode,
+  }) async {
+    try {
+      print('========== RECORD EVENT ATTENDANCE ==========');
+      print('Event ID: $eventId');
+      print('QR Code: $qrCode');
+
+      final userId = currentUserId;
+      if (userId == null) {
+        return {
+          'success': false,
+          'message':
+              'User tidak terautentikasi. Silakan login terlebih dahulu.',
+        };
+      }
+
+      // Validate QR code format
+      if (!_validateQRCode(qrCode, 'EVENT')) {
+        return {
+          'success': false,
+          'message': 'QR Code tidak valid untuk event ini.',
+        };
+      }
+
+      // Extract event ID from QR code if needed
+      final extractedEventId = _extractIdFromQRCode(qrCode) ?? eventId;
+
+      // Check if event exists
+      final eventResponse = await _supabase
+          .from('events')
+          .select('id_events, nama_event, status, tanggal_mulai, tanggal_akhir')
+          .eq('id_events', extractedEventId)
+          .maybeSingle();
+
+      if (eventResponse == null) {
+        return {'success': false, 'message': 'Event tidak ditemukan.'};
+      }
+
+      if (eventResponse['status'] == false) {
+        return {'success': false, 'message': 'Event sudah tidak aktif.'};
+      }
+
+      // Check if already attended
+      final existingAttendance = await _supabase
+          .from('absen_event')
+          .select('id_absen')
+          .eq('id_event', extractedEventId)
+          .eq('id_user', userId)
+          .maybeSingle();
+
+      if (existingAttendance != null) {
+        return {
+          'success': false,
+          'message':
+              'Anda sudah tercatat hadir di event "${eventResponse['nama_event']}".',
+        };
+      }
+
+      // Record attendance
+      final now = DateTime.now();
+      await _supabase.from('absen_event').insert({
+        'id_event': extractedEventId,
+        'id_user': userId,
+        'jam':
+            '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
+        'status': 'hadir',
+        'created_at': now.toIso8601String(),
+      });
+
+      print('✅ Attendance recorded successfully');
+
+      return {
+        'success': true,
+        'message': 'Berhasil absen di event "${eventResponse['nama_event']}"!',
+        'event_name': eventResponse['nama_event'],
+        'event_id': extractedEventId,
+        'time':
+            '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
+      };
+    } catch (e) {
+      print('❌ Error recording event attendance: $e');
+      return {
+        'success': false,
+        'message': 'Gagal mencatat kehadiran: ${e.toString()}',
+      };
+    }
+  }
+
+  /// Record attendance for pertemuan (meeting) via QR scan
+  Future<Map<String, dynamic>> recordPertemuanAttendance({
+    required String pertemuanId,
+    required String qrCode,
+  }) async {
+    try {
+      print('========== RECORD PERTEMUAN ATTENDANCE ==========');
+      print('Pertemuan ID: $pertemuanId');
+      print('QR Code: $qrCode');
+
+      final userId = currentUserId;
+      if (userId == null) {
+        return {
+          'success': false,
+          'message':
+              'User tidak terautentikasi. Silakan login terlebih dahulu.',
+        };
+      }
+
+      // Validate QR code format
+      if (!_validateQRCode(qrCode, 'MEETING')) {
+        return {
+          'success': false,
+          'message': 'QR Code tidak valid untuk pertemuan ini.',
+        };
+      }
+
+      // Extract pertemuan ID from QR code if needed
+      final extractedPertemuanId = _extractIdFromQRCode(qrCode) ?? pertemuanId;
+
+      // Check if pertemuan exists
+      final pertemuanResponse = await _supabase
+          .from('pertemuan')
+          .select('id_pertemuan, topik, id_ukm, tanggal')
+          .eq('id_pertemuan', extractedPertemuanId)
+          .maybeSingle();
+
+      if (pertemuanResponse == null) {
+        return {'success': false, 'message': 'Pertemuan tidak ditemukan.'};
+      }
+
+      // Check if user is member of the UKM
+      final ukmId = pertemuanResponse['id_ukm'];
+      final isMember = await _isUserMemberOfUkm(userId, ukmId);
+
+      if (!isMember) {
+        return {
+          'success': false,
+          'message':
+              'Anda bukan anggota UKM ini. Hanya anggota yang dapat absen.',
+        };
+      }
+
+      // Check if already attended
+      final existingAttendance = await _supabase
+          .from('absen_pertemuan')
+          .select('id_absen')
+          .eq('id_pertemuan', extractedPertemuanId)
+          .eq('id_user', userId)
+          .maybeSingle();
+
+      if (existingAttendance != null) {
+        return {
+          'success': false,
+          'message':
+              'Anda sudah tercatat hadir di pertemuan "${pertemuanResponse['topik']}".',
+        };
+      }
+
+      // Record attendance
+      final now = DateTime.now();
+      await _supabase.from('absen_pertemuan').insert({
+        'id_pertemuan': extractedPertemuanId,
+        'id_user': userId,
+        'jam':
+            '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
+        'status': 'hadir',
+        'created_at': now.toIso8601String(),
+      });
+
+      print('✅ Pertemuan attendance recorded successfully');
+
+      return {
+        'success': true,
+        'message':
+            'Berhasil absen di pertemuan "${pertemuanResponse['topik']}"!',
+        'pertemuan_name': pertemuanResponse['topik'],
+        'pertemuan_id': extractedPertemuanId,
+        'time':
+            '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
+      };
+    } catch (e) {
+      print('❌ Error recording pertemuan attendance: $e');
+      return {
+        'success': false,
+        'message': 'Gagal mencatat kehadiran: ${e.toString()}',
+      };
+    }
+  }
+
+  /// Process QR code and record attendance (auto-detect event or pertemuan)
+  Future<Map<String, dynamic>> processQRCodeAttendance(String qrCode) async {
+    try {
+      print('========== PROCESS QR CODE ==========');
+      print('QR Code: $qrCode');
+
+      // Parse QR code format: TYPE:ID:TOKEN
+      // e.g., EVENT_ATTENDANCE:event-uuid-here:timestamp-random
+      // e.g., MEETING_ATTENDANCE:pertemuan-uuid-here:timestamp-random
+
+      final parts = qrCode.split(':');
+
+      if (parts.isEmpty) {
+        return {'success': false, 'message': 'Format QR Code tidak valid.'};
+      }
+
+      final type = parts[0].toUpperCase();
+      final id = parts.length > 1 ? parts[1] : '';
+
+      if (type.contains('EVENT')) {
+        return await recordEventAttendance(eventId: id, qrCode: qrCode);
+      } else if (type.contains('MEETING') || type.contains('PERTEMUAN')) {
+        return await recordPertemuanAttendance(pertemuanId: id, qrCode: qrCode);
+      } else {
+        // Try to determine type by checking database
+        return await _autoDetectAndRecordAttendance(qrCode, id);
+      }
+    } catch (e) {
+      print('❌ Error processing QR code: $e');
+      return {
+        'success': false,
+        'message': 'Gagal memproses QR Code: ${e.toString()}',
+      };
+    }
+  }
+
+  /// Auto-detect attendance type and record
+  Future<Map<String, dynamic>> _autoDetectAndRecordAttendance(
+    String qrCode,
+    String id,
+  ) async {
+    // Try event first
+    final eventResponse = await _supabase
+        .from('events')
+        .select('id_events')
+        .eq('id_events', id)
+        .maybeSingle();
+
+    if (eventResponse != null) {
+      return await recordEventAttendance(eventId: id, qrCode: qrCode);
+    }
+
+    // Try pertemuan
+    final pertemuanResponse = await _supabase
+        .from('pertemuan')
+        .select('id_pertemuan')
+        .eq('id_pertemuan', id)
+        .maybeSingle();
+
+    if (pertemuanResponse != null) {
+      return await recordPertemuanAttendance(pertemuanId: id, qrCode: qrCode);
+    }
+
+    return {
+      'success': false,
+      'message':
+          'QR Code tidak terkait dengan event atau pertemuan yang valid.',
+    };
+  }
+
+  /// Validate QR code format
+  bool _validateQRCode(String qrCode, String expectedType) {
+    // Check if QR code contains the expected type
+    final upperCode = qrCode.toUpperCase();
+
+    if (expectedType == 'EVENT') {
+      return upperCode.contains('EVENT') ||
+          !upperCode.contains(
+            'MEETING',
+          ); // Default to event if no type specified
+    } else if (expectedType == 'MEETING') {
+      return upperCode.contains('MEETING') || upperCode.contains('PERTEMUAN');
+    }
+
+    return true; // Allow if no specific type check needed
+  }
+
+  /// Extract ID from QR code
+  String? _extractIdFromQRCode(String qrCode) {
+    final parts = qrCode.split(':');
+    if (parts.length >= 2) {
+      return parts[1];
+    }
+    return null;
+  }
+
+  /// Check if user is member of UKM
+  Future<bool> _isUserMemberOfUkm(String userId, String ukmId) async {
+    try {
+      final response = await _supabase
+          .from('user_halaman_ukm')
+          .select('id_user')
+          .eq('id_user', userId)
+          .eq('id_ukm', ukmId)
+          .maybeSingle();
+
+      return response != null;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Get user's attendance history
+  Future<List<Map<String, dynamic>>> getUserAttendanceHistory() async {
+    try {
+      final userId = currentUserId;
+      if (userId == null) return [];
+
+      List<Map<String, dynamic>> history = [];
+
+      // Get event attendance
+      final eventAttendance = await _supabase
+          .from('absen_event')
+          .select('''
+            id_absen,
+            jam,
+            status,
+            created_at,
+            events(id_events, nama_event, lokasi, tanggal_mulai)
+          ''')
+          .eq('id_user', userId)
+          .order('created_at', ascending: false);
+
+      for (var item in eventAttendance) {
+        history.add({
+          'type': 'event',
+          'id': item['id_absen'],
+          'name': item['events']?['nama_event'] ?? 'Event',
+          'location': item['events']?['lokasi'],
+          'date': item['events']?['tanggal_mulai'],
+          'time': item['jam'],
+          'status': item['status'],
+          'recorded_at': item['created_at'],
+        });
+      }
+
+      // Get pertemuan attendance
+      final pertemuanAttendance = await _supabase
+          .from('absen_pertemuan')
+          .select('''
+            id_absen,
+            jam,
+            status,
+            created_at,
+            pertemuan(id_pertemuan, topik, lokasi, tanggal)
+          ''')
+          .eq('id_user', userId)
+          .order('created_at', ascending: false);
+
+      for (var item in pertemuanAttendance) {
+        history.add({
+          'type': 'pertemuan',
+          'id': item['id_absen'],
+          'name': item['pertemuan']?['topik'] ?? 'Pertemuan',
+          'location': item['pertemuan']?['lokasi'],
+          'date': item['pertemuan']?['tanggal'],
+          'time': item['jam'],
+          'status': item['status'],
+          'recorded_at': item['created_at'],
+        });
+      }
+
+      // Sort by recorded_at descending
+      history.sort((a, b) {
+        final dateA =
+            DateTime.tryParse(a['recorded_at'] ?? '') ?? DateTime.now();
+        final dateB =
+            DateTime.tryParse(b['recorded_at'] ?? '') ?? DateTime.now();
+        return dateB.compareTo(dateA);
+      });
+
+      return history;
+    } catch (e) {
+      print('Error loading attendance history: $e');
+      return [];
+    }
+  }
+}

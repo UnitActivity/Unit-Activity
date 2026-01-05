@@ -9,6 +9,9 @@ import 'package:unit_activity/user/profile.dart';
 import 'package:unit_activity/user/event.dart';
 import 'package:unit_activity/user/ukm.dart';
 import 'package:unit_activity/user/history.dart';
+import 'package:unit_activity/services/user_dashboard_service.dart';
+import 'package:unit_activity/services/attendance_service.dart';
+import 'dart:async';
 
 class DashboardUser extends StatefulWidget {
   const DashboardUser({super.key});
@@ -22,36 +25,14 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
   String _selectedMenu = 'dashboard';
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final SupabaseClient _supabase = Supabase.instance.client;
+  final UserDashboardService _dashboardService = UserDashboardService();
+  final AttendanceService _attendanceService = AttendanceService();
+  Timer? _autoSlideTimer;
 
   bool _isLoadingEvents = true;
+  bool _isLoadingSchedule = true;
   List<Map<String, dynamic>> _sliderEvents = [];
-
-  final List<Map<String, dynamic>> _ukmSchedule = [
-    {
-      'title': 'UKM Badminton',
-      'date': 'Sabtu, 01 November 2025',
-      'time': '10:00 - 13:00 WIB',
-      'location': 'Lapangan MERR Court',
-      'icon': Icons.sports_tennis,
-      'color': Colors.orange,
-    },
-    {
-      'title': 'UKM E-Sports',
-      'date': 'Jumat, 07 November 2025',
-      'time': '16:00 - 18:00 WIB',
-      'location': 'Ruang A - Universitas Katolik Darma Cendika',
-      'icon': Icons.sports_esports,
-      'color': Colors.blue,
-    },
-    {
-      'title': 'UKM E-Sports',
-      'date': 'Jumat, 07 November 2025',
-      'time': '16:00 - 18:00 WIB',
-      'location': 'Kampus C - Universitas Katolik Darma Cendika',
-      'icon': Icons.sports_esports,
-      'color': Colors.purple,
-    },
-  ];
+  List<Map<String, dynamic>> _ukmSchedule = [];
 
   final List<int> eSportsData = [4, 4, 4, 4, 6, 7, 8, 7, 6, 5, 5, 5];
   final List<int> badmintonData = [5, 5, 4, 3, 3, 4, 4, 5, 4, 4, 5, 5];
@@ -81,6 +62,228 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
     super.initState();
     _loadSliderEvents();
     _loadStatisticsData();
+    _loadScheduleData();
+    _startAutoSlide();
+  }
+
+  @override
+  void dispose() {
+    _autoSlideTimer?.cancel();
+    super.dispose();
+  }
+
+  /// Start auto-slide timer for slider
+  void _startAutoSlide() {
+    _autoSlideTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      if (_sliderEvents.isNotEmpty && mounted) {
+        setState(() {
+          _currentSlideIndex = (_currentSlideIndex + 1) % _sliderEvents.length;
+        });
+      }
+    });
+  }
+
+  /// Load schedule data from database
+  Future<void> _loadScheduleData() async {
+    try {
+      setState(() => _isLoadingSchedule = true);
+
+      final schedules = await _dashboardService.getUpcomingSchedules(limit: 10);
+
+      // Convert to UI format with icons and colors
+      final colors = [
+        Colors.orange,
+        Colors.blue,
+        Colors.purple,
+        Colors.green,
+        Colors.red,
+      ];
+      final icons = {'event': Icons.event, 'pertemuan': Icons.groups};
+
+      if (mounted) {
+        setState(() {
+          _ukmSchedule = schedules.asMap().entries.map((entry) {
+            final item = entry.value;
+            final index = entry.key;
+            return {
+              'id': item['id'],
+              'type': item['type'],
+              'title': item['title'] ?? 'UKM',
+              'subtitle': item['subtitle'] ?? '',
+              'date': _formatDate(item['date']),
+              'time': item['time'] ?? '',
+              'location': item['location'] ?? 'Lokasi belum ditentukan',
+              'icon': icons[item['type']] ?? Icons.event,
+              'color': colors[index % colors.length],
+            };
+          }).toList();
+
+          _isLoadingSchedule = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading schedule: $e');
+      if (mounted) {
+        setState(() {
+          _ukmSchedule = [];
+          _isLoadingSchedule = false;
+        });
+      }
+    }
+  }
+
+  /// Format date string
+  String _formatDate(String? dateStr) {
+    if (dateStr == null) return '';
+    try {
+      final date = DateTime.parse(dateStr);
+      final days = [
+        'Minggu',
+        'Senin',
+        'Selasa',
+        'Rabu',
+        'Kamis',
+        'Jumat',
+        'Sabtu',
+      ];
+      final months = [
+        'Januari',
+        'Februari',
+        'Maret',
+        'April',
+        'Mei',
+        'Juni',
+        'Juli',
+        'Agustus',
+        'September',
+        'Oktober',
+        'November',
+        'Desember',
+      ];
+      return '${days[date.weekday % 7]}, ${date.day.toString().padLeft(2, '0')} ${months[date.month - 1]} ${date.year}';
+    } catch (e) {
+      return dateStr;
+    }
+  }
+
+  /// Handle QR Code scanned - records attendance to database
+  void _handleQRCodeScanned(String code) async {
+    print('========== QR CODE SCANNED ==========');
+    print('Code: $code');
+
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        content: Row(
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(width: 20),
+            Text('Memproses absensi...', style: GoogleFonts.inter()),
+          ],
+        ),
+      ),
+    );
+
+    // Process attendance
+    final result = await _attendanceService.processQRCodeAttendance(code);
+
+    // Close loading dialog
+    if (mounted) Navigator.of(context).pop();
+
+    // Show result
+    if (mounted) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: result['success']
+                      ? Colors.green.withOpacity(0.1)
+                      : Colors.red.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  result['success'] ? Icons.check_circle : Icons.error,
+                  color: result['success'] ? Colors.green : Colors.red,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  result['success'] ? 'Berhasil!' : 'Gagal',
+                  style: GoogleFonts.inter(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                result['message'] ?? 'Terjadi kesalahan',
+                style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[700]),
+              ),
+              if (result['success'] && result['time'] != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.access_time,
+                        color: Colors.grey[600],
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Jam: ${result['time']}',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: result['success'] ? Colors.green : Colors.blue,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: Text(
+                'OK',
+                style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   Future<void> _loadStatisticsData() async {
@@ -964,30 +1167,148 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Jadwal UKM',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.blue[400]!, Colors.blue[600]!],
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.calendar_month,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Jadwal UKM',
+                    style: GoogleFonts.poppins(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
               ),
-              TextButton(
-                onPressed: () {},
-                child: const Row(
-                  children: [
-                    Text('Lihat Semua'),
-                    SizedBox(width: 4),
-                    Icon(Icons.arrow_forward, size: 16),
-                  ],
+              if (_ukmSchedule.isNotEmpty)
+                TextButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const UserUKMPage(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.arrow_forward, size: 16),
+                  label: const Text('Lihat Semua'),
                 ),
-              ),
             ],
           )
         else
-          const Text(
-            'Jadwal UKM',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.blue[400]!, Colors.blue[600]!],
+                  ),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Icon(
+                  Icons.calendar_month,
+                  color: Colors.white,
+                  size: 16,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Jadwal UKM',
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
           ),
         const SizedBox(height: 12),
-        isMobile ? _buildJadwalMobileList() : _buildJadwalDesktopList(),
+        _isLoadingSchedule
+            ? const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(20),
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            : _ukmSchedule.isEmpty
+            ? _buildEmptySchedule(isMobile)
+            : isMobile
+            ? _buildJadwalMobileList()
+            : _buildJadwalDesktopList(),
       ],
+    );
+  }
+
+  Widget _buildEmptySchedule(bool isMobile) {
+    return Container(
+      padding: EdgeInsets.all(isMobile ? 20 : 32),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.event_busy,
+            size: isMobile ? 48 : 64,
+            color: Colors.grey[400],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Belum ada jadwal',
+            style: GoogleFonts.poppins(
+              fontSize: isMobile ? 14 : 16,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[700],
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Jadwal akan muncul setelah kamu bergabung dengan UKM',
+            style: GoogleFonts.poppins(
+              fontSize: isMobile ? 12 : 14,
+              color: Colors.grey[600],
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const UserUKMPage()),
+              );
+            },
+            icon: const Icon(Icons.groups, size: 18),
+            label: const Text('Lihat UKM'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue[600],
+              foregroundColor: Colors.white,
+              padding: EdgeInsets.symmetric(
+                horizontal: isMobile ? 16 : 20,
+                vertical: isMobile ? 10 : 12,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1016,128 +1337,260 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
     return isMobile
         ? Container(
             margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.white,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.white,
+                  (item['color'] as Color).withOpacity(0.05),
+                ],
+              ),
               borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: (item['color'] as Color).withOpacity(0.3),
+                width: 1.5,
+              ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
+                  color: (item['color'] as Color).withOpacity(0.15),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
                 ),
               ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: (item['color'] as Color).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Icon(
-                        item['icon'] as IconData,
-                        color: item['color'] as Color,
-                        size: 18,
-                      ),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        (item['color'] as Color).withOpacity(0.1),
+                        (item['color'] as Color).withOpacity(0.05),
+                      ],
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        item['title'],
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(11),
+                      topRight: Radius.circular(11),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              (item['color'] as Color),
+                              (item['color'] as Color).withOpacity(0.7),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(8),
+                          boxShadow: [
+                            BoxShadow(
+                              color: (item['color'] as Color).withOpacity(0.4),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Icon(
+                          item['icon'] as IconData,
+                          color: Colors.white,
+                          size: 20,
                         ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          item['title'],
+                          style: GoogleFonts.poppins(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey[800],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 8),
-                _buildJadwalInfo(Icons.calendar_today, item['date'], isMobile),
-                const SizedBox(height: 4),
-                _buildJadwalInfo(Icons.access_time, item['time'], isMobile),
-                const SizedBox(height: 4),
-                _buildJadwalInfo(Icons.location_on, item['location'], isMobile),
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    children: [
+                      _buildJadwalInfo(
+                        Icons.calendar_today,
+                        item['date'],
+                        isMobile,
+                        item['color'] as Color,
+                      ),
+                      const SizedBox(height: 8),
+                      _buildJadwalInfo(
+                        Icons.access_time,
+                        item['time'],
+                        isMobile,
+                        item['color'] as Color,
+                      ),
+                      const SizedBox(height: 8),
+                      _buildJadwalInfo(
+                        Icons.location_on,
+                        item['location'],
+                        isMobile,
+                        item['color'] as Color,
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           )
         : Container(
             width: 320,
             margin: const EdgeInsets.only(right: 16),
-            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.white,
+                  (item['color'] as Color).withOpacity(0.05),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: (item['color'] as Color).withOpacity(0.3),
+                width: 2,
+              ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
+                  color: (item['color'] as Color).withOpacity(0.2),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
                 ),
               ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: (item['color'] as Color).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        item['icon'] as IconData,
-                        color: item['color'] as Color,
-                        size: 24,
-                      ),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        (item['color'] as Color).withOpacity(0.15),
+                        (item['color'] as Color).withOpacity(0.08),
+                      ],
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        item['title'],
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(14),
+                      topRight: Radius.circular(14),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              (item['color'] as Color),
+                              (item['color'] as Color).withOpacity(0.7),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(10),
+                          boxShadow: [
+                            BoxShadow(
+                              color: (item['color'] as Color).withOpacity(0.4),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Icon(
+                          item['icon'] as IconData,
+                          color: Colors.white,
+                          size: 24,
                         ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          item['title'],
+                          style: GoogleFonts.poppins(
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey[800],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 16),
-                _buildJadwalInfo(Icons.calendar_today, item['date'], isMobile),
-                const SizedBox(height: 8),
-                _buildJadwalInfo(Icons.access_time, item['time'], isMobile),
-                const SizedBox(height: 8),
-                _buildJadwalInfo(Icons.location_on, item['location'], isMobile),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        _buildJadwalInfo(
+                          Icons.calendar_today,
+                          item['date'],
+                          isMobile,
+                          item['color'] as Color,
+                        ),
+                        _buildJadwalInfo(
+                          Icons.access_time,
+                          item['time'],
+                          isMobile,
+                          item['color'] as Color,
+                        ),
+                        _buildJadwalInfo(
+                          Icons.location_on,
+                          item['location'],
+                          isMobile,
+                          item['color'] as Color,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ),
           );
   }
 
-  Widget _buildJadwalInfo(IconData icon, String text, bool isMobile) {
-    return Row(
-      children: [
-        Icon(icon, size: isMobile ? 12 : 14, color: Colors.grey),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            text,
-            style: TextStyle(
-              fontSize: isMobile ? 11 : 12,
-              color: Colors.grey[600],
+  Widget _buildJadwalInfo(
+    IconData icon,
+    String text,
+    bool isMobile,
+    Color color,
+  ) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: isMobile ? 14 : 16, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: GoogleFonts.poppins(
+                fontSize: isMobile ? 11 : 12,
+                color: Colors.grey[700],
+                fontWeight: FontWeight.w500,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -1264,18 +1717,6 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
           ),
         ),
       ],
-    );
-  }
-
-  // ==================== QR SCANNER HANDLER ====================
-  void _handleQRCodeScanned(String code) {
-    print('DEBUG: QR Code scanned: $code');
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Dashboard check-in berhasil dengan kode: $code'),
-        backgroundColor: Colors.green[600],
-        duration: const Duration(seconds: 2),
-      ),
     );
   }
 }

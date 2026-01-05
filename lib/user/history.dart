@@ -4,11 +4,14 @@ import 'package:unit_activity/widgets/qr_scanner_mixin.dart';
 import 'package:unit_activity/widgets/notification_bell_widget.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import 'package:unit_activity/user/notifikasi_user.dart';
 import 'package:unit_activity/user/profile.dart';
 import 'package:unit_activity/user/dashboard_user.dart';
 import 'package:unit_activity/user/event.dart';
 import 'package:unit_activity/user/ukm.dart';
+import 'package:unit_activity/services/user_dashboard_service.dart';
+import 'package:unit_activity/services/attendance_service.dart';
 
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
@@ -21,30 +24,109 @@ class _HistoryPageState extends State<HistoryPage> with QRScannerMixin {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   String _selectedMenu = 'history';
   final SupabaseClient _supabase = Supabase.instance.client;
-  final Map<String, List<Map<String, dynamic>>> _historyData = {
-    '2025.1': [
-      {
-        'id': '1',
-        'title': 'UKM Live In',
-        'icon': Icons.local_fire_department,
-        'illustration': 'person_camping',
-      },
-    ],
-    '2024.3': [
-      {
-        'id': '2',
-        'title': 'UKM Badminton Sparing',
-        'icon': Icons.sports_tennis,
-        'illustration': 'person_badminton',
-      },
-      {
-        'id': '3',
-        'title': 'UKM E-Sport 2024',
-        'icon': Icons.sports_esports,
-        'illustration': 'person_gaming',
-      },
-    ],
-  };
+  final UserDashboardService _dashboardService = UserDashboardService();
+  final AttendanceService _attendanceService = AttendanceService();
+
+  bool _isLoading = true;
+  Map<String, List<Map<String, dynamic>>> _historyData = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHistoryData();
+  }
+
+  Future<void> _loadHistoryData() async {
+    setState(() => _isLoading = true);
+
+    try {
+      // getUserHistory returns Map<String, List<Map<String, dynamic>>>
+      final historyData = await _dashboardService.getUserHistory();
+
+      // Transform the data to include additional fields
+      final Map<String, List<Map<String, dynamic>>> groupedData = {};
+
+      for (var entry in historyData.entries) {
+        final periodKey = entry.key;
+        groupedData[periodKey] = [];
+
+        for (var event in entry.value) {
+          groupedData[periodKey]!.add({
+            'id': event['id']?.toString() ?? '',
+            'title': event['title'] ?? event['nama_event'] ?? 'Unnamed Event',
+            'description': event['description'] ?? event['deskripsi'] ?? '',
+            'tanggal_mulai': event['date_start'] ?? event['tanggal_mulai'],
+            'tanggal_selesai': event['date_end'] ?? event['tanggal_selesai'],
+            'lokasi': event['location'] ?? event['lokasi'] ?? '',
+            'biaya': event['biaya'],
+            'gambar': event['image'] ?? event['gambar'],
+            'ukm_name': event['ukm_name'] ?? '',
+            'status': event['status'] ?? 'selesai',
+            'logbook_url': event['logbook'] ?? event['logbook_url'],
+            'illustration':
+                event['illustration'] ?? _getIllustrationByType(null),
+          });
+        }
+      }
+
+      // Sort periods descending (newest first)
+      final sortedKeys = groupedData.keys.toList()
+        ..sort((a, b) => b.compareTo(a));
+
+      final sortedData = <String, List<Map<String, dynamic>>>{};
+      for (var key in sortedKeys) {
+        sortedData[key] = groupedData[key]!;
+      }
+
+      setState(() {
+        _historyData = sortedData;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error loading history: $e');
+      setState(() => _isLoading = false);
+    }
+  }
+
+  String _getIllustrationByType(String? kategori) {
+    switch (kategori?.toLowerCase()) {
+      case 'olahraga':
+        return 'person_badminton';
+      case 'esport':
+      case 'gaming':
+        return 'person_gaming';
+      case 'alam':
+      case 'camping':
+        return 'person_camping';
+      default:
+        return 'person_camping';
+    }
+  }
+
+  String _formatDate(String? dateString) {
+    if (dateString == null) return '-';
+    try {
+      final date = DateTime.parse(dateString);
+      return DateFormat('d MMMM yyyy', 'id_ID').format(date);
+    } catch (e) {
+      return dateString;
+    }
+  }
+
+  String _formatCurrency(dynamic amount) {
+    if (amount == null) return 'Gratis';
+    try {
+      final value = double.parse(amount.toString());
+      if (value == 0) return 'Gratis';
+      return NumberFormat.currency(
+        locale: 'id_ID',
+        symbol: 'Rp ',
+        decimalDigits: 0,
+      ).format(value);
+    } catch (e) {
+      return amount.toString();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -64,25 +146,62 @@ class _HistoryPageState extends State<HistoryPage> with QRScannerMixin {
       backgroundColor: Colors.grey[50],
       body: Stack(
         children: [
-          SingleChildScrollView(
-            padding: const EdgeInsets.only(
-              top: 70,
-              left: 12,
-              right: 12,
-              bottom: 80,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Histori Aktivitas',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : RefreshIndicator(
+                  onRefresh: _loadHistoryData,
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.only(
+                      top: 70,
+                      left: 12,
+                      right: 12,
+                      bottom: 80,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.blue[50],
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Icon(
+                                Icons.history,
+                                color: Colors.blue[700],
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              'Histori Aktivitas',
+                              style: GoogleFonts.poppins(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Riwayat event yang pernah kamu ikuti',
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        if (_historyData.isEmpty)
+                          _buildEmptyState()
+                        else
+                          ..._buildHistoryList(),
+                      ],
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 16),
-                ..._buildHistoryList(),
-              ],
-            ),
-          ),
           Positioned(
             top: 0,
             left: 0,
@@ -150,23 +269,64 @@ class _HistoryPageState extends State<HistoryPage> with QRScannerMixin {
                   children: [
                     const SizedBox(height: 70),
                     Expanded(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.all(24),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Histori Aktivitas',
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
+                      child: _isLoading
+                          ? const Center(child: CircularProgressIndicator())
+                          : RefreshIndicator(
+                              onRefresh: _loadHistoryData,
+                              child: SingleChildScrollView(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                padding: const EdgeInsets.all(24),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(12),
+                                          decoration: BoxDecoration(
+                                            color: Colors.blue[50],
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                          child: Icon(
+                                            Icons.history,
+                                            color: Colors.blue[700],
+                                            size: 28,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 16),
+                                        Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'Histori Aktivitas',
+                                              style: GoogleFonts.poppins(
+                                                fontSize: 24,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                            Text(
+                                              'Riwayat event yang pernah kamu ikuti',
+                                              style: GoogleFonts.poppins(
+                                                fontSize: 14,
+                                                color: Colors.grey[600],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 24),
+                                    if (_historyData.isEmpty)
+                                      _buildEmptyState()
+                                    else
+                                      ..._buildHistoryList(),
+                                  ],
+                                ),
                               ),
                             ),
-                            const SizedBox(height: 24),
-                            ..._buildHistoryList(),
-                          ],
-                        ),
-                      ),
                     ),
                   ],
                 ),
@@ -178,6 +338,69 @@ class _HistoryPageState extends State<HistoryPage> with QRScannerMixin {
             left: 260,
             right: 0,
             child: _buildFloatingTopBar(isMobile: false),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Container(
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.history, size: 48, color: Colors.grey[400]),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Belum Ada Riwayat',
+            style: GoogleFonts.poppins(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[700],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Kamu belum mengikuti event apapun.\nAyo ikuti event yang tersedia!',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[500]),
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => const UserEventPage()),
+              );
+            },
+            icon: const Icon(Icons.event),
+            label: const Text('Lihat Event'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue[600],
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
           ),
         ],
       ),
@@ -285,17 +508,22 @@ class _HistoryPageState extends State<HistoryPage> with QRScannerMixin {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.blue[50],
+              borderRadius: BorderRadius.circular(20),
+            ),
             child: Text(
-              entry.key,
-              style: TextStyle(
-                fontSize: 14,
+              'Periode ${entry.key}',
+              style: GoogleFonts.poppins(
+                fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: Colors.grey[700],
+                color: Colors.blue[700],
               ),
             ),
           ),
+          const SizedBox(height: 12),
           ...entry.value.map((activity) {
             return _buildActivityCard(activity);
           }),
@@ -314,51 +542,140 @@ class _HistoryPageState extends State<HistoryPage> with QRScannerMixin {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => HistoryDetailPage(activity: activity),
+            builder: (context) => HistoryDetailPage(
+              activity: activity,
+              onRefresh: _loadHistoryData,
+            ),
           ),
         );
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
-        padding: EdgeInsets.all(isMobile ? 12 : 24),
+        padding: EdgeInsets.all(isMobile ? 12 : 20),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
         child: Row(
           children: [
+            // Event Image or Illustration
             Container(
-              width: isMobile ? 60 : 80,
-              height: isMobile ? 60 : 80,
+              width: isMobile ? 70 : 100,
+              height: isMobile ? 70 : 100,
               decoration: BoxDecoration(
                 color: Colors.grey[100],
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(12),
+                image: activity['gambar'] != null
+                    ? DecorationImage(
+                        image: NetworkImage(activity['gambar']),
+                        fit: BoxFit.cover,
+                      )
+                    : null,
               ),
-              child: _buildIllustration(activity['illustration']),
+              child: activity['gambar'] == null
+                  ? _buildIllustration(activity['illustration'])
+                  : null,
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 16),
             Expanded(
-              child: Text(
-                activity['title'],
-                style: TextStyle(
-                  fontSize: isMobile ? 14 : 24,
-                  fontWeight: FontWeight.w600,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // UKM Badge
+                  if (activity['ukm_name'] != null &&
+                      activity['ukm_name'].isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      margin: const EdgeInsets.only(bottom: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.blue[50],
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        activity['ukm_name'],
+                        style: GoogleFonts.poppins(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.blue[700],
+                        ),
+                      ),
+                    ),
+                  Text(
+                    activity['title'],
+                    style: GoogleFonts.poppins(
+                      fontSize: isMobile ? 14 : 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.calendar_today,
+                        size: 12,
+                        color: Colors.grey[500],
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          _formatDate(activity['tanggal_selesai']),
+                          style: GoogleFonts.poppins(
+                            fontSize: 11,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  // Status Badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.green[50],
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.check_circle,
+                          size: 12,
+                          color: Colors.green[700],
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Selesai',
+                          style: GoogleFonts.poppins(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.green[700],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(width: 8),
             Icon(
               Icons.arrow_forward_ios,
-              size: isMobile ? 14 : 20,
+              size: isMobile ? 14 : 18,
               color: Colors.grey[400],
             ),
           ],
@@ -372,15 +689,43 @@ class _HistoryPageState extends State<HistoryPage> with QRScannerMixin {
   }
 
   // ==================== QR SCANNER HANDLER ====================
-  void _handleQRCodeScanned(String code) {
+  Future<void> _handleQRCodeScanned(String code) async {
     print('DEBUG: QR Code scanned: $code');
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('History check-in berhasil dengan kode: $code'),
-        backgroundColor: Colors.green[600],
-        duration: const Duration(seconds: 2),
-      ),
-    );
+
+    try {
+      final result = await _attendanceService.processQRCodeAttendance(code);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(
+                result['success'] ? Icons.check_circle : Icons.error,
+                color: Colors.white,
+              ),
+              const SizedBox(width: 8),
+              Expanded(child: Text(result['message'])),
+            ],
+          ),
+          backgroundColor: result['success']
+              ? Colors.green[600]
+              : Colors.red[600],
+          duration: const Duration(seconds: 3),
+        ),
+      );
+
+      // Refresh data after successful attendance
+      if (result['success']) {
+        _loadHistoryData();
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: ${e.toString()}'),
+          backgroundColor: Colors.red[600],
+        ),
+      );
+    }
   }
 
   // ==================== BOTTOM NAVIGATION BAR ====================
@@ -601,10 +946,129 @@ class IllustrationPainter extends CustomPainter {
 }
 
 // ==================== HISTORY DETAIL PAGE ====================
-class HistoryDetailPage extends StatelessWidget {
+class HistoryDetailPage extends StatefulWidget {
   final Map<String, dynamic> activity;
+  final VoidCallback? onRefresh;
 
-  const HistoryDetailPage({super.key, required this.activity});
+  const HistoryDetailPage({super.key, required this.activity, this.onRefresh});
+
+  @override
+  State<HistoryDetailPage> createState() => _HistoryDetailPageState();
+}
+
+class _HistoryDetailPageState extends State<HistoryDetailPage>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  final UserDashboardService _dashboardService = UserDashboardService();
+
+  List<Map<String, dynamic>> _participants = [];
+  bool _isLoadingParticipants = true;
+  bool _isDownloading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _loadParticipants();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadParticipants() async {
+    setState(() => _isLoadingParticipants = true);
+
+    try {
+      final participants = await _dashboardService.getEventParticipants(
+        widget.activity['id']?.toString() ?? '',
+      );
+      setState(() {
+        _participants = participants;
+        _isLoadingParticipants = false;
+      });
+    } catch (e) {
+      print('Error loading participants: $e');
+      setState(() => _isLoadingParticipants = false);
+    }
+  }
+
+  String _formatDate(String? dateString) {
+    if (dateString == null) return '-';
+    try {
+      final date = DateTime.parse(dateString);
+      return DateFormat('d MMMM yyyy', 'id_ID').format(date);
+    } catch (e) {
+      return dateString;
+    }
+  }
+
+  String _formatCurrency(dynamic amount) {
+    if (amount == null) return 'Gratis';
+    try {
+      final value = double.parse(amount.toString());
+      if (value == 0) return 'Gratis';
+      return NumberFormat.currency(
+        locale: 'id_ID',
+        symbol: 'Rp ',
+        decimalDigits: 0,
+      ).format(value);
+    } catch (e) {
+      return amount.toString();
+    }
+  }
+
+  Future<void> _downloadLogbook() async {
+    setState(() => _isDownloading = true);
+
+    try {
+      final logbookUrl = widget.activity['logbook_url'];
+
+      if (logbookUrl != null && logbookUrl.isNotEmpty) {
+        // In a real implementation, you would use url_launcher or download the file
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.download_done, color: Colors.white),
+                const SizedBox(width: 8),
+                const Expanded(child: Text('Logbook berhasil didownload!')),
+              ],
+            ),
+            backgroundColor: Colors.green[600],
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.info, color: Colors.white),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text('Logbook belum tersedia untuk event ini'),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.orange[600],
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error downloading logbook: $e'),
+          backgroundColor: Colors.red[600],
+        ),
+      );
+    } finally {
+      setState(() => _isDownloading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -620,17 +1084,44 @@ class HistoryDetailPage extends StatelessWidget {
   // ==================== MOBILE DETAIL LAYOUT ====================
   Widget _buildMobileDetailLayout(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Text('Unit Activity'),
+        title: Text(
+          'Detail Event',
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+        ),
         backgroundColor: Colors.blue[700],
+        foregroundColor: Colors.white,
+        elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(12),
-        child: _buildDetailContent(context, isMobile: true),
+      body: Column(
+        children: [
+          _buildHeaderCard(isMobile: true),
+          TabBar(
+            controller: _tabController,
+            labelColor: Colors.blue[700],
+            unselectedLabelColor: Colors.grey[600],
+            indicatorColor: Colors.blue[700],
+            labelStyle: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+            tabs: const [
+              Tab(text: 'Logbook'),
+              Tab(text: 'Peserta'),
+            ],
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildLogbookTab(isMobile: true),
+                _buildParticipantsTab(isMobile: true),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -649,7 +1140,52 @@ class HistoryDetailPage extends StatelessWidget {
                 Expanded(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.all(24),
-                    child: _buildDetailContent(context, isMobile: false),
+                    child: Column(
+                      children: [
+                        _buildHeaderCard(isMobile: false),
+                        const SizedBox(height: 24),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            children: [
+                              TabBar(
+                                controller: _tabController,
+                                labelColor: Colors.blue[700],
+                                unselectedLabelColor: Colors.grey[600],
+                                indicatorColor: Colors.blue[700],
+                                labelStyle: GoogleFonts.poppins(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                tabs: const [
+                                  Tab(text: 'Logbook'),
+                                  Tab(text: 'Peserta'),
+                                ],
+                              ),
+                              SizedBox(
+                                height: 400,
+                                child: TabBarView(
+                                  controller: _tabController,
+                                  children: [
+                                    _buildLogbookTab(isMobile: false),
+                                    _buildParticipantsTab(isMobile: false),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -660,149 +1196,313 @@ class HistoryDetailPage extends StatelessWidget {
     );
   }
 
-  // ==================== DETAIL CONTENT ====================
-  Widget _buildDetailContent(BuildContext context, {required bool isMobile}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          activity['title'] == 'UKM Live In'
-              ? 'KMK Live In'
-              : activity['title'],
-          style: TextStyle(
-            fontSize: isMobile ? 20 : 28,
-            fontWeight: FontWeight.bold,
+  Widget _buildHeaderCard({required bool isMobile}) {
+    return Container(
+      margin: EdgeInsets.all(isMobile ? 12 : 0),
+      padding: EdgeInsets.all(isMobile ? 16 : 24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
-        ),
-        const SizedBox(height: 16),
-        Container(
-          height: isMobile ? 200 : 300,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.08),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Event Image
+          Container(
+            width: isMobile ? 80 : 150,
+            height: isMobile ? 80 : 150,
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(12),
+              image: widget.activity['gambar'] != null
+                  ? DecorationImage(
+                      image: NetworkImage(widget.activity['gambar']),
+                      fit: BoxFit.cover,
+                    )
+                  : null,
+            ),
+            child: widget.activity['gambar'] == null
+                ? CustomPaint(
+                    painter: IllustrationPainter(
+                      type: widget.activity['illustration'] ?? 'person_camping',
+                    ),
+                  )
+                : null,
           ),
-          child: Center(
+          SizedBox(width: isMobile ? 12 : 24),
+          Expanded(
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // UKM Badge
+                if (widget.activity['ukm_name'] != null &&
+                    widget.activity['ukm_name'].isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    margin: const EdgeInsets.only(bottom: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.blue[50],
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      widget.activity['ukm_name'],
+                      style: GoogleFonts.poppins(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.blue[700],
+                      ),
+                    ),
+                  ),
                 Text(
-                  activity['title'] == 'UKM Live In'
-                      ? 'KMK Live In'
-                      : activity['title'],
-                  style: TextStyle(
-                    fontSize: isMobile ? 18 : 32,
-                    fontWeight: FontWeight.w900,
-                    fontStyle: FontStyle.italic,
+                  widget.activity['title'] ?? '',
+                  style: GoogleFonts.poppins(
+                    fontSize: isMobile ? 16 : 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // Status Badge
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.green[50],
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.check_circle,
+                        size: 14,
+                        color: Colors.green[700],
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Event Selesai',
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.green[700],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _buildDetailRow(
+                  Icons.calendar_today,
+                  _formatDate(widget.activity['tanggal_mulai']),
+                  isMobile,
+                ),
+                const SizedBox(height: 6),
+                _buildDetailRow(
+                  Icons.location_on,
+                  widget.activity['lokasi'] ?? '-',
+                  isMobile,
+                ),
+                const SizedBox(height: 6),
+                _buildDetailRow(
+                  Icons.monetization_on,
+                  _formatCurrency(widget.activity['biaya']),
+                  isMobile,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLogbookTab({required bool isMobile}) {
+    return Padding(
+      padding: EdgeInsets.all(isMobile ? 16 : 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Logbook Event',
+            style: GoogleFonts.poppins(
+              fontSize: isMobile ? 16 : 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Download logbook untuk melihat rekap kegiatan event',
+            style: GoogleFonts.poppins(
+              fontSize: isMobile ? 12 : 14,
+              color: Colors.grey[600],
+            ),
+          ),
+          const SizedBox(height: 24),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.blue[50],
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.blue[200]!),
+            ),
+            child: Column(
+              children: [
+                Icon(Icons.description, size: 48, color: Colors.blue[600]),
+                const SizedBox(height: 12),
+                Text(
+                  'Logbook ${widget.activity['title']}',
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
                   ),
                   textAlign: TextAlign.center,
                 ),
+                const SizedBox(height: 4),
+                Text(
+                  'Format: PDF',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
                 const SizedBox(height: 16),
                 SizedBox(
-                  width: isMobile ? 100 : 150,
-                  height: isMobile ? 100 : 150,
-                  child: CustomPaint(
-                    painter: IllustrationPainter(
-                      type: activity['illustration'],
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _isDownloading ? null : _downloadLogbook,
+                    icon: _isDownloading
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.download),
+                    label: Text(
+                      _isDownloading ? 'Downloading...' : 'Download Logbook',
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue[600],
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
                   ),
                 ),
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildParticipantsTab({required bool isMobile}) {
+    if (_isLoadingParticipants) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_participants.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.people_outline, size: 48, color: Colors.grey[400]),
+            const SizedBox(height: 12),
+            Text(
+              'Tidak ada peserta',
+              style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey[600]),
+            ),
+          ],
         ),
-        const SizedBox(height: 16),
-        Container(
-          padding: EdgeInsets.all(isMobile ? 12 : 24),
+      );
+    }
+
+    return ListView.builder(
+      padding: EdgeInsets.all(isMobile ? 12 : 16),
+      itemCount: _participants.length,
+      itemBuilder: (context, index) {
+        final participant = _participants[index];
+        return Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.08),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
+            color: Colors.grey[50],
+            borderRadius: BorderRadius.circular(8),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Row(
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Detail',
-                    style: TextStyle(
-                      fontSize: isMobile ? 16 : 20,
-                      fontWeight: FontWeight.bold,
-                    ),
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: Colors.blue[100],
+                child: Text(
+                  (participant['nama'] ?? 'U')[0].toUpperCase(),
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w600,
+                    color: Colors.blue[700],
                   ),
-                  OutlinedButton(
-                    onPressed: () {},
-                    style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: Colors.grey[300]!),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      padding: EdgeInsets.symmetric(
-                        horizontal: isMobile ? 12 : 16,
-                        vertical: isMobile ? 8 : 12,
-                      ),
-                    ),
-                    child: Text(
-                      'Terdaftar',
-                      style: TextStyle(fontSize: isMobile ? 12 : 14),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Text(
-                activity['title'] == 'UKM Live In'
-                    ? 'KMK Live In'
-                    : activity['title'],
-                style: TextStyle(
-                  fontSize: isMobile ? 14 : 18,
-                  fontWeight: FontWeight.w600,
                 ),
               ),
-              const SizedBox(height: 12),
-              _buildDetailRow(
-                Icons.calendar_today,
-                '1-2 November 2025',
-                isMobile,
-              ),
-              const SizedBox(height: 8),
-              _buildDetailRow(Icons.location_on, 'Puhsarang', isMobile),
-              const SizedBox(height: 8),
-              _buildDetailRow(Icons.monetization_on, 'Rp 200.000', isMobile),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.book),
-                  label: const Text('Logbook'),
-                  style: OutlinedButton.styleFrom(
-                    padding: EdgeInsets.symmetric(vertical: isMobile ? 12 : 16),
-                    side: BorderSide(color: Colors.grey[300]!),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      participant['nama'] ?? 'Unknown',
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
                     ),
+                    Text(
+                      participant['email'] ?? '',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: participant['hadir'] == true
+                      ? Colors.green[50]
+                      : Colors.orange[50],
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  participant['hadir'] == true ? 'Hadir' : 'Terdaftar',
+                  style: GoogleFonts.poppins(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: participant['hadir'] == true
+                        ? Colors.green[700]
+                        : Colors.orange[700],
                   ),
                 ),
               ),
             ],
           ),
-        ),
-      ],
+        );
+      },
     );
   }
 

@@ -200,7 +200,175 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
     _loadUKMs();
   }
 
-  void _showRegisterDialog(Map<String, dynamic> ukm) {
+  /// Get current active periode
+  Future<Map<String, dynamic>?> _getCurrentPeriode() async {
+    try {
+      final response = await _supabase
+          .from('periode')
+          .select('id_periode, nama_periode')
+          .eq('status', 'Aktif')
+          .order('tahun_mulai', ascending: false)
+          .limit(1)
+          .maybeSingle();
+
+      return response;
+    } catch (e) {
+      print('Error getting current periode: $e');
+      return null;
+    }
+  }
+
+  /// Check if user has cooldown for rejoining UKM
+  Future<Map<String, dynamic>> _checkCooldownPeriod(String ukmId) async {
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) {
+        return {'has_cooldown': false};
+      }
+
+      // Get last unjoin record
+      final lastUnjoin = await _supabase
+          .from('user_ukm_history')
+          .select('id_periode, unjoined_at, periode(nama_periode)')
+          .eq('id_ukm', ukmId)
+          .eq('id_user', user.id)
+          .eq('action', 'unjoin')
+          .order('unjoined_at', ascending: false)
+          .limit(1)
+          .maybeSingle();
+
+      if (lastUnjoin == null) {
+        return {'has_cooldown': false};
+      }
+
+      // Get current periode
+      final currentPeriode = await _getCurrentPeriode();
+      if (currentPeriode == null) {
+        return {'has_cooldown': false};
+      }
+
+      // Check if unjoin was in current periode
+      if (lastUnjoin['id_periode'] == currentPeriode['id_periode']) {
+        return {
+          'has_cooldown': true,
+          'next_period': 'periode berikutnya',
+          'last_unjoin_periode': lastUnjoin['periode']?['nama_periode'],
+        };
+      }
+
+      return {'has_cooldown': false};
+    } catch (e) {
+      print('Error checking cooldown: $e');
+      return {'has_cooldown': false};
+    }
+  }
+
+  /// Unjoin from UKM
+  Future<void> _unjoinUKM(Map<String, dynamic> ukm) async {
+    final user = _supabase.auth.currentUser;
+
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Keluar dari UKM?',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          'Anda yakin ingin keluar dari ${ukm['name']}? Anda harus menunggu 1 periode untuk bergabung kembali.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red[600],
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Ya, Keluar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final currentPeriode = await _getCurrentPeriode();
+
+      // Delete from user_halaman_ukm
+      await _supabase
+          .from('user_halaman_ukm')
+          .delete()
+          .eq('id_ukm', ukm['id'])
+          .eq('id_user', user?.id ?? '');
+
+      // Insert to history
+      await _supabase.from('user_ukm_history').insert({
+        'id_ukm': ukm['id'],
+        'id_user': user?.id ?? '',
+        'id_periode': currentPeriode?['id_periode'],
+        'action': 'unjoin',
+        'unjoined_at': DateTime.now().toIso8601String(),
+      });
+
+      // Update local state
+      setState(() {
+        final index = _allUKMs.indexWhere((e) => e['id'] == ukm['id']);
+        if (index != -1) {
+          _allUKMs[index]['isRegistered'] = false;
+          _allUKMs[index]['status'] = 'Belum Terdaftar';
+          if (_selectedUKM?['id'] == ukm['id']) {
+            _selectedUKM = _allUKMs[index];
+          }
+        }
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Berhasil keluar dari ${ukm['name']}'),
+          backgroundColor: Colors.green[600],
+        ),
+      );
+
+      // Reload data
+      await _loadUKMs();
+    } catch (e) {
+      print('Error unjoining UKM: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal keluar dari UKM: $e'),
+          backgroundColor: Colors.red[600],
+        ),
+      );
+    }
+  }
+
+  Future<void> _showRegisterDialog(Map<String, dynamic> ukm) async {
+    // Check cooldown period
+    try {
+      final cooldownCheck = await _checkCooldownPeriod(ukm['id']);
+      if (cooldownCheck['has_cooldown'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Anda harus menunggu hingga periode ${cooldownCheck['next_period']} untuk bergabung kembali',
+            ),
+            backgroundColor: Colors.orange[600],
+            duration: const Duration(seconds: 4),
+          ),
+        );
+        return;
+      }
+    } catch (e) {
+      print('Error checking cooldown: $e');
+    }
+
     showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -214,7 +382,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
               children: [
                 const SizedBox(height: 12),
                 const Text(
-                  'Anda yakin mendaftar UKM ini ?',
+                  'Anda yakin mendaftar UKM ini?',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -252,14 +420,13 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                           try {
                             final user = _supabase.auth.currentUser;
 
-                            // Generate anonymous user ID jika tidak login
-                            final userId =
-                                user?.id ??
-                                'anonymous_${DateTime.now().millisecondsSinceEpoch}';
-
-                            // Save to Supabase
+                            // Save to Supabase with current periode
+                            final currentPeriode = await _getCurrentPeriode();
                             await _supabase.from('user_halaman_ukm').insert({
                               'id_ukm': ukm['id'],
+                              'id_user': user?.id ?? '',
+                              'id_periode': currentPeriode?['id_periode'],
+                              'status': 'active',
                             });
 
                             print(
@@ -1074,9 +1241,35 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
 
     return InkWell(
       onTap: () => _viewUKMDetail(ukm),
-      child: Card(
-        elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.white,
+              isRegistered ? Colors.green[50]! : Colors.grey[50]!,
+            ],
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: isRegistered
+                  ? Colors.green.withOpacity(0.15)
+                  : Colors.black.withOpacity(0.08),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+              spreadRadius: 0,
+            ),
+          ],
+          border: Border.all(
+            color: isRegistered
+                ? Colors.green.withOpacity(0.3)
+                : Colors.grey.withOpacity(0.2),
+            width: 1.5,
+          ),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1084,129 +1277,268 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
               child: Container(
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  color: Colors.grey[200],
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(12),
-                  ),
-                ),
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _buildUKMLogo(ukm['logo'], size: isMobile ? 50 : 70),
-                      const SizedBox(height: 6),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 6),
-                        child: Text(
-                          ukm['name'],
-                          style: TextStyle(
-                            fontSize: isMobile ? 12 : 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          textAlign: TextAlign.center,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      isRegistered ? Colors.green[100]! : Colors.grey[200]!,
+                      isRegistered ? Colors.green[50]! : Colors.grey[100]!,
                     ],
                   ),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(15),
+                  ),
+                ),
+                child: Stack(
+                  children: [
+                    // Decorative circles
+                    Positioned(
+                      top: -20,
+                      right: -20,
+                      child: Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white.withOpacity(0.2),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      bottom: -10,
+                      left: -10,
+                      child: Container(
+                        width: 50,
+                        height: 50,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white.withOpacity(0.15),
+                        ),
+                      ),
+                    ),
+                    // Content
+                    Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: _buildUKMLogo(
+                              ukm['logo'],
+                              size: isMobile ? 50 : 70,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            child: Text(
+                              ukm['name'],
+                              style: GoogleFonts.poppins(
+                                fontSize: isMobile ? 13 : 17,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey[800],
+                                letterSpacing: 0.3,
+                              ),
+                              textAlign: TextAlign.center,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.all(8),
+            Container(
+              padding: EdgeInsets.all(isMobile ? 10 : 12),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.95),
+                borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(15),
+                ),
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (isRegistered) ...[
                     // Progress bar untuk pertemuan
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '$attendance/3 Pertemuan Dihadiri',
-                          style: TextStyle(
-                            fontSize: isMobile ? 10 : 11,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey[700],
-                          ),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.green[50],
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: Colors.green.withOpacity(0.2),
+                          width: 1,
                         ),
-                        const SizedBox(height: 4),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 6,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(3),
-                            child: LinearProgressIndicator(
-                              value: attendance / 3,
-                              backgroundColor: Colors.grey[300],
-                              valueColor: AlwaysStoppedAnimation(
-                                attendance >= 3
-                                    ? Colors.green[600]
-                                    : Colors.blue[600],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.event_available,
+                                size: isMobile ? 12 : 14,
+                                color: Colors.green[700],
                               ),
-                            ),
+                              const SizedBox(width: 6),
+                              Text(
+                                '$attendance/3 Pertemuan',
+                                style: GoogleFonts.poppins(
+                                  fontSize: isMobile ? 11 : 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.green[800],
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 6),
+                          Stack(
+                            children: [
+                              Container(
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  color: Colors.green[100],
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                              ),
+                              FractionallySizedBox(
+                                widthFactor: attendance / 3,
+                                child: Container(
+                                  height: 8,
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        attendance >= 3
+                                            ? Colors.green[400]!
+                                            : Colors.blue[400]!,
+                                        attendance >= 3
+                                            ? Colors.green[600]!
+                                            : Colors.blue[600]!,
+                                      ],
+                                    ),
+                                    borderRadius: BorderRadius.circular(4),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color:
+                                            (attendance >= 3
+                                                    ? Colors.green
+                                                    : Colors.blue)
+                                                .withOpacity(0.4),
+                                        blurRadius: 4,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ] else ...[
-                    // Belum terdaftar - tampilkan empty progress bar
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '0/3 Pertemuan Dihadiri',
-                          style: TextStyle(
-                            fontSize: isMobile ? 10 : 11,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey[500],
-                          ),
+                    // Belum terdaftar
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: Colors.grey.withOpacity(0.3),
+                          width: 1,
                         ),
-                        const SizedBox(height: 4),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 6,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(3),
-                            child: LinearProgressIndicator(
-                              value: 0,
-                              backgroundColor: Colors.grey[300],
-                              valueColor: AlwaysStoppedAnimation(
-                                Colors.grey[400],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.event_busy,
+                                size: isMobile ? 12 : 14,
+                                color: Colors.grey[600],
                               ),
+                              const SizedBox(width: 6),
+                              Text(
+                                '0/3 Pertemuan',
+                                style: GoogleFonts.poppins(
+                                  fontSize: isMobile ? 11 : 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Container(
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: Colors.grey[300],
+                              borderRadius: BorderRadius.circular(4),
                             ),
                           ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isMobile ? 10 : 12,
+                      vertical: isMobile ? 6 : 8,
+                    ),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: isRegistered
+                            ? [Colors.green[500]!, Colors.green[600]!]
+                            : [Colors.grey[400]!, Colors.grey[500]!],
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: [
+                        BoxShadow(
+                          color: (isRegistered ? Colors.green : Colors.grey)
+                              .withOpacity(0.3),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
                         ),
                       ],
                     ),
-                  ],
-                  const SizedBox(height: 6),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        isRegistered ? 'Terdaftar' : 'Belum Terdaftar',
-                        style: TextStyle(
-                          color: isRegistered
-                              ? Colors.green[700]
-                              : Colors.grey[600],
-                          fontSize: isMobile ? 10 : 12,
-                          fontWeight: isRegistered
-                              ? FontWeight.w600
-                              : FontWeight.normal,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          isRegistered ? 'Terdaftar' : 'Belum Terdaftar',
+                          style: GoogleFonts.poppins(
+                            color: Colors.white,
+                            fontSize: isMobile ? 11 : 13,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.5,
+                          ),
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      Icon(
-                        Icons.arrow_forward,
-                        size: isMobile ? 12 : 16,
-                        color: isRegistered
-                            ? Colors.green[700]
-                            : Colors.grey[600],
-                      ),
-                    ],
+                        Icon(
+                          isRegistered
+                              ? Icons.check_circle
+                              : Icons.arrow_forward_rounded,
+                          size: isMobile ? 14 : 16,
+                          color: Colors.white,
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -1619,24 +1951,51 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                   ),
                 )
               else
-                Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isMobile ? 8 : 12,
-                    vertical: isMobile ? 4 : 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.green[50],
-                    border: Border.all(color: Colors.green[700]!),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    'Terdaftar',
-                    style: TextStyle(
-                      fontSize: isMobile ? 10 : 12,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.green[700],
+                Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isMobile ? 8 : 12,
+                        vertical: isMobile ? 4 : 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.green[50],
+                        border: Border.all(color: Colors.green[700]!),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        'Terdaftar',
+                        style: TextStyle(
+                          fontSize: isMobile ? 10 : 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.green[700],
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: () => _unjoinUKM(_selectedUKM!),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red[50],
+                        foregroundColor: Colors.red[700],
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isMobile ? 8 : 12,
+                          vertical: isMobile ? 6 : 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          side: BorderSide(color: Colors.red[300]!),
+                        ),
+                      ),
+                      child: Text(
+                        'Keluar',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: isMobile ? 11 : 14,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
             ],
           ),

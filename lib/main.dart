@@ -12,6 +12,7 @@ import 'package:unit_activity/ukm/dashboard_ukm.dart';
 import 'package:unit_activity/user/dashboard_user.dart';
 import 'package:unit_activity/config/config.dart';
 import 'package:unit_activity/services/custom_auth_service.dart';
+import 'package:unit_activity/widgets/auth_guard.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

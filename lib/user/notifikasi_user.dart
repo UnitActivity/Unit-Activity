@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:unit_activity/services/user_notification_service.dart';
+import 'package:unit_activity/services/attendance_service.dart';
 import 'package:unit_activity/widgets/user_sidebar.dart';
 import 'package:unit_activity/widgets/qr_scanner_mixin.dart';
 import 'package:unit_activity/user/dashboard_user.dart';
@@ -21,17 +23,28 @@ class _NotifikasiUserPageState extends State<NotifikasiUserPage>
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final UserNotificationService _notificationService =
       UserNotificationService();
+  final AttendanceService _attendanceService = AttendanceService();
   String _selectedMenu = 'notifikasi';
+  String _filterType = 'all'; // 'all', 'admin', 'ukm', 'event'
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
     _notificationService.addListener(_onNotificationUpdate);
     _notificationService.loadNotifications();
+
+    // Auto-refresh notifikasi setiap 30 detik
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      if (mounted) {
+        _notificationService.loadNotifications();
+      }
+    });
   }
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     _notificationService.removeListener(_onNotificationUpdate);
     super.dispose();
   }
@@ -161,9 +174,14 @@ class _NotifikasiUserPageState extends State<NotifikasiUserPage>
                   children: [
                     const SizedBox(height: 70), // Space for floating top bar
                     Expanded(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.all(24),
-                        child: _buildNotificationContent(),
+                      child: RefreshIndicator(
+                        onRefresh: () =>
+                            _notificationService.loadNotifications(),
+                        child: SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.all(24),
+                          child: _buildNotificationContent(),
+                        ),
                       ),
                     ),
                   ],
@@ -253,19 +271,61 @@ class _NotifikasiUserPageState extends State<NotifikasiUserPage>
   }
 
   // ==================== QR SCANNER HANDLER ====================
-  void _handleQRCodeScanned(String code) {
+  Future<void> _handleQRCodeScanned(String code) async {
     print('DEBUG: QR Code scanned: $code');
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('QR Code scanned: $code'),
-        backgroundColor: Colors.green[600],
-        duration: const Duration(seconds: 2),
-      ),
-    );
+
+    try {
+      final result = await _attendanceService.processQRCodeAttendance(code);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(
+                result['success'] ? Icons.check_circle : Icons.error,
+                color: Colors.white,
+              ),
+              const SizedBox(width: 8),
+              Expanded(child: Text(result['message'])),
+            ],
+          ),
+          backgroundColor: result['success']
+              ? Colors.green[600]
+              : Colors.red[600],
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: ${e.toString()}'),
+          backgroundColor: Colors.red[600],
+        ),
+      );
+    }
+  }
+
+  List<UserNotification> _getFilteredNotifications() {
+    final notifications = _notificationService.notifications;
+    if (_filterType == 'all') return notifications;
+
+    return notifications.where((n) {
+      switch (_filterType) {
+        case 'admin':
+          return n.sender == 'Admin';
+        case 'ukm':
+          return n.sender != 'Admin' && n.sender != 'Sistem';
+        case 'event':
+          return n.type == 'event';
+        default:
+          return true;
+      }
+    }).toList();
   }
 
   Widget _buildNotificationContent() {
-    final notifications = _notificationService.notifications;
+    final filteredNotifications = _getFilteredNotifications();
+    final allNotifications = _notificationService.notifications;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -274,13 +334,26 @@ class _NotifikasiUserPageState extends State<NotifikasiUserPage>
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'Semua Pemberitahuan',
-              style: GoogleFonts.inter(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey.shade800,
-              ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Semua Pemberitahuan',
+                  style: GoogleFonts.poppins(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${_notificationService.unreadCount} belum dibaca dari ${allNotifications.length} pemberitahuan',
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ],
             ),
             if (_notificationService.unreadCount > 0)
               TextButton.icon(
@@ -289,44 +362,65 @@ class _NotifikasiUserPageState extends State<NotifikasiUserPage>
                 },
                 icon: const Icon(Icons.done_all, size: 18),
                 label: Text(
-                  'Tandai semua telah dibaca',
-                  style: GoogleFonts.inter(fontSize: 13),
+                  'Tandai semua',
+                  style: GoogleFonts.poppins(fontSize: 12),
                 ),
               ),
           ],
         ),
-        const SizedBox(height: 8),
-        Text(
-          '${_notificationService.unreadCount} belum dibaca dari ${notifications.length} pemberitahuan',
-          style: GoogleFonts.inter(fontSize: 14, color: Colors.grey.shade600),
+        const SizedBox(height: 16),
+
+        // Filter Chips
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _buildFilterChip('all', 'Semua', Icons.all_inbox),
+              const SizedBox(width: 8),
+              _buildFilterChip('admin', 'Admin', Icons.admin_panel_settings),
+              const SizedBox(width: 8),
+              _buildFilterChip('ukm', 'UKM', Icons.groups),
+              const SizedBox(width: 8),
+              _buildFilterChip('event', 'Event', Icons.event),
+            ],
+          ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 20),
 
         // Notification list
-        if (notifications.isEmpty)
+        if (filteredNotifications.isEmpty)
           Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const SizedBox(height: 60),
-                Icon(
-                  Icons.notifications_off_outlined,
-                  size: 80,
-                  color: Colors.grey.shade400,
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.notifications_off_outlined,
+                    size: 48,
+                    color: Colors.grey.shade400,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 Text(
                   'Tidak ada pemberitahuan',
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.poppins(
                     fontSize: 16,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.w600,
                     color: Colors.grey.shade600,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Pemberitahuan dari admin akan muncul di sini',
-                  style: GoogleFonts.inter(
+                  _filterType == 'all'
+                      ? 'Pemberitahuan akan muncul di sini'
+                      : 'Tidak ada pemberitahuan untuk filter ini',
+                  style: GoogleFonts.poppins(
                     fontSize: 14,
                     color: Colors.grey.shade500,
                   ),
@@ -338,10 +432,10 @@ class _NotifikasiUserPageState extends State<NotifikasiUserPage>
           ListView.separated(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: notifications.length,
+            itemCount: filteredNotifications.length,
             separatorBuilder: (context, index) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
-              final notification = notifications[index];
+              final notification = filteredNotifications[index];
               return _buildNotificationCard(notification);
             },
           ),
@@ -349,11 +443,39 @@ class _NotifikasiUserPageState extends State<NotifikasiUserPage>
     );
   }
 
+  Widget _buildFilterChip(String type, String label, IconData icon) {
+    final isSelected = _filterType == type;
+    return FilterChip(
+      selected: isSelected,
+      onSelected: (selected) {
+        setState(() {
+          _filterType = type;
+        });
+      },
+      avatar: Icon(
+        icon,
+        size: 18,
+        color: isSelected ? Colors.white : Colors.grey[600],
+      ),
+      label: Text(label),
+      labelStyle: GoogleFonts.poppins(
+        fontSize: 12,
+        fontWeight: FontWeight.w500,
+        color: isSelected ? Colors.white : Colors.grey[700],
+      ),
+      backgroundColor: Colors.grey[100],
+      selectedColor: Colors.blue[600],
+      checkmarkColor: Colors.white,
+      showCheckmark: false,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+    );
+  }
+
   Widget _buildNotificationCard(UserNotification notification) {
     return Container(
       decoration: BoxDecoration(
         color: notification.isRead ? Colors.white : Colors.blue.shade50,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: notification.isRead
               ? Colors.grey.shade200
@@ -361,9 +483,9 @@ class _NotifikasiUserPageState extends State<NotifikasiUserPage>
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -373,7 +495,7 @@ class _NotifikasiUserPageState extends State<NotifikasiUserPage>
           onTap: () {
             _notificationService.markAsRead(notification.id);
           },
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
@@ -403,7 +525,7 @@ class _NotifikasiUserPageState extends State<NotifikasiUserPage>
                           Expanded(
                             child: Text(
                               notification.title,
-                              style: GoogleFonts.inter(
+                              style: GoogleFonts.poppins(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w600,
                                 color: Colors.grey.shade800,
@@ -422,8 +544,8 @@ class _NotifikasiUserPageState extends State<NotifikasiUserPage>
                               ),
                               child: Text(
                                 'BARU',
-                                style: GoogleFonts.inter(
-                                  fontSize: 10,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 9,
                                   fontWeight: FontWeight.w700,
                                   color: Colors.white,
                                 ),
@@ -431,35 +553,76 @@ class _NotifikasiUserPageState extends State<NotifikasiUserPage>
                             ),
                         ],
                       ),
-                      const SizedBox(height: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _getIconColor(
-                            notification.type,
-                          ).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          notification.typeName,
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: _getIconColor(notification.type),
+                      const SizedBox(height: 6),
+                      // Sender and Type badges
+                      Row(
+                        children: [
+                          // Sender Badge
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _getSenderColor(
+                                notification.sender,
+                              ).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  _getSenderIcon(notification.sender),
+                                  size: 12,
+                                  color: _getSenderColor(notification.sender),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  notification.sender,
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: _getSenderColor(notification.sender),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
+                          const SizedBox(width: 8),
+                          // Type Badge
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _getIconColor(
+                                notification.type,
+                              ).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              notification.typeName,
+                              style: GoogleFonts.poppins(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: _getIconColor(notification.type),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 10),
                       Text(
                         notification.message,
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
                           color: Colors.grey.shade700,
                           height: 1.4,
                         ),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 10),
                       Row(
@@ -467,14 +630,14 @@ class _NotifikasiUserPageState extends State<NotifikasiUserPage>
                           Icon(
                             Icons.access_time,
                             size: 14,
-                            color: Colors.green.shade600,
+                            color: Colors.grey.shade500,
                           ),
                           const SizedBox(width: 4),
                           Text(
                             notification.timeAgo,
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              color: Colors.green.shade600,
+                            style: GoogleFonts.poppins(
+                              fontSize: 11,
+                              color: Colors.grey.shade500,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -489,6 +652,28 @@ class _NotifikasiUserPageState extends State<NotifikasiUserPage>
         ),
       ),
     );
+  }
+
+  Color _getSenderColor(String sender) {
+    if (sender == 'Admin') {
+      return Colors.red;
+    } else if (sender == 'Sistem') {
+      return Colors.grey;
+    } else {
+      // UKM
+      return Colors.blue;
+    }
+  }
+
+  IconData _getSenderIcon(String sender) {
+    if (sender == 'Admin') {
+      return Icons.admin_panel_settings;
+    } else if (sender == 'Sistem') {
+      return Icons.computer;
+    } else {
+      // UKM
+      return Icons.groups;
+    }
   }
 
   IconData _getIcon(String type) {
