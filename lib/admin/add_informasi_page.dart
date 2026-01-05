@@ -145,47 +145,21 @@ class _AddInformasiPageState extends State<AddInformasiPage> {
     }
 
     try {
-      // Insert informasi
-      final response = await _supabase
-          .from('informasi')
-          .insert({
-            'judul': _judulController.text.trim(),
-            'deskripsi': _deskripsiController.text.trim(),
-            'gambar': _uploadedImagePath,
-            'status': _selectedStatus,
-            'id_ukm': _selectedUkmId != null ? _selectedUkmId : null,
-            'id_periode': _selectedPeriodeId != null
-                ? _selectedPeriodeId
-                : null,
-            'status_aktif': true,
-          })
-          .select()
-          .single();
-
-      // Create broadcast notification for all users
-      final String title = _judulController.text.trim();
-      final String desc = _deskripsiController.text.trim();
-      final notifMessage = desc.isNotEmpty && desc.length > 100
-          ? '${desc.substring(0, 100)}...'
-          : desc.isNotEmpty
-          ? desc
-          : 'Informasi baru telah ditambahkan';
-
-      await _supabase.from('notifikasi_broadcast').insert({
-        'judul': '📢 Informasi Baru: $title',
-        'pesan': notifMessage,
-        'tipe': 'announcement',
-        'id_informasi': response['id_informasi'],
-        'pengirim': 'Admin',
+      await _supabase.from('informasi').insert({
+        'judul': _judulController.text.trim(),
+        'deskripsi': _deskripsiController.text.trim(),
+        'gambar': _uploadedImagePath,
+        'status': _selectedStatus,
+        'id_ukm': _selectedUkmId != null ? _selectedUkmId : null,
+        'id_periode': _selectedPeriodeId != null ? _selectedPeriodeId : null,
+        'status_aktif': true,
       });
 
       if (mounted) {
         Navigator.pop(context, true); // Return true to indicate success
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-              'Informasi berhasil ditambahkan dan notifikasi terkirim!',
-            ),
+            content: Text('Informasi berhasil ditambahkan!'),
             backgroundColor: Colors.green,
           ),
         );

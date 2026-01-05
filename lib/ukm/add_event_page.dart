@@ -48,7 +48,7 @@ class _AddEventPageState extends State<AddEventPage> {
       final now = DateTime.now().toIso8601String();
       final notificationData = members.map((member) {
         return {
-          'user_id': member['user_id'],
+          'user_id': member['id_user'],
           'judul': 'Event Baru: ${_namaEventController.text}',
           'isi':
               'Event baru telah dibuat. Deskripsi: ${_deskripsiController.text}',

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:unit_activity/widgets/user_sidebar.dart';
 import 'package:unit_activity/widgets/qr_scanner_mixin.dart';
 import 'package:unit_activity/widgets/notification_bell_widget.dart';

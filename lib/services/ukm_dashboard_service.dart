@@ -6,6 +6,9 @@ class UkmDashboardService {
   final CustomAuthService _authService =
       CustomAuthService(); // Singleton instance
 
+  // Public getter for supabase client (needed for notifications)
+  SupabaseClient get supabase => _supabase;
+
   // Timeout duration for requests
   static const Duration _requestTimeout = Duration(seconds: 10);
 
@@ -380,6 +383,22 @@ class UkmDashboardService {
         'success': false,
         'error': 'Gagal mengambil event mendatang: ${e.toString()}',
       };
+    }
+  }
+
+  /// Get all active UKM members
+  Future<List<Map<String, dynamic>>> getUkmMembers(String ukmId) async {
+    try {
+      final response = await _supabase
+          .from('user_halaman_ukm')
+          .select('id_user, status')
+          .eq('id_ukm', ukmId)
+          .eq('status', 'aktif');
+
+      return (response as List).cast<Map<String, dynamic>>();
+    } catch (e) {
+      print('Error fetching UKM members: $e');
+      return [];
     }
   }
 }

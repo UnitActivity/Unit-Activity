@@ -437,6 +437,7 @@ class _ProfileAdminPageState extends State<ProfileAdminPage> {
     }
 
     return SingleChildScrollView(
+      padding: EdgeInsets.all(isMobile ? 12 : 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

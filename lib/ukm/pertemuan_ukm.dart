@@ -386,7 +386,7 @@ class _PertemuanUKMPageState extends State<PertemuanUKMPage> {
       final now = DateTime.now().toIso8601String();
       final notificationData = members.map((member) {
         return {
-          'user_id': member['user_id'],
+          'user_id': member['id_user'],
           'judul': 'Pertemuan Baru: $topik',
           'isi':
               'Pertemuan baru dijadwalkan pada $tanggal pukul $jamMulai - $jamAkhir di $lokasi',
