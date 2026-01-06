@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'dart:typed_data';
 import 'detail_event_page.dart';
+import 'detail_document_page.dart';
 
 class DetailUkmPage extends StatefulWidget {
   final Map<String, dynamic> ukm;
@@ -371,16 +372,18 @@ class _DetailUkmPageState extends State<DetailUkmPage>
 
       // Load dokumen proposal
       final proposalData = await _supabase
-          .from('event_proposal')
+          .from('event_documents')
           .select('*, events(nama_event), users(username)')
+          .eq('document_type', 'proposal')
           .eq('id_ukm', idUkm)
           .order('tanggal_pengajuan', ascending: false);
       _dokumenProposalList = List<Map<String, dynamic>>.from(proposalData);
 
       // Load dokumen LPJ
       final lpjData = await _supabase
-          .from('event_lpj')
+          .from('event_documents')
           .select('*, events(nama_event), users(username)')
+          .eq('document_type', 'lpj')
           .eq('id_ukm', idUkm)
           .order('tanggal_pengajuan', ascending: false);
       _dokumenLpjList = List<Map<String, dynamic>>.from(lpjData);
@@ -2025,117 +2028,137 @@ class _DetailUkmPageState extends State<DetailUkmPage>
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: isProposal
-                              ? [
-                                  const Color(0xFF4169E1),
-                                  const Color(0xFF5B7FE8),
-                                ]
-                              : [
-                                  const Color(0xFF10B981),
-                                  const Color(0xFF059669),
-                                ],
+          child: InkWell(
+            onTap: () {
+              // Navigate to detail document page
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => DetailDocumentPage(
+                    documentId: dokumen['id_document'],
+                    documentType: isProposal ? 'proposal' : 'lpj',
+                  ),
+                ),
+              );
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: isProposal
+                                ? [
+                                    const Color(0xFF4169E1),
+                                    const Color(0xFF5B7FE8),
+                                  ]
+                                : [
+                                    const Color(0xFF10B981),
+                                    const Color(0xFF059669),
+                                  ],
+                          ),
+                          borderRadius: BorderRadius.circular(8),
                         ),
+                        child: Icon(
+                          isProposal
+                              ? Icons.description_rounded
+                              : Icons.assignment_turned_in_rounded,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              isProposal ? 'Proposal' : 'LPJ',
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              eventName,
+                              style: GoogleFonts.inter(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: statusColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: statusColor.withOpacity(0.3),
+                          ),
+                        ),
+                        child: Text(
+                          statusLabel,
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: statusColor,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _buildSimpleInfoRow(
+                    Icons.calendar_today,
+                    'Diajukan: $tanggal',
+                  ),
+                  if (dokumen['catatan_admin'] != null) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.orange[50],
                         borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.orange[200]!),
                       ),
-                      child: Icon(
-                        isProposal
-                            ? Icons.description_rounded
-                            : Icons.assignment_turned_in_rounded,
-                        color: Colors.white,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
+                      child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            isProposal ? 'Proposal' : 'LPJ',
-                            style: GoogleFonts.inter(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey[600],
-                            ),
+                          Icon(
+                            Icons.info_outline,
+                            size: 18,
+                            color: Colors.orange[700],
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            eventName,
-                            style: GoogleFonts.inter(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.black87,
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              dokumen['catatan_admin'],
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                color: Colors.orange[900],
+                              ),
                             ),
                           ),
                         ],
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: statusColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: statusColor.withOpacity(0.3)),
-                      ),
-                      child: Text(
-                        statusLabel,
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: statusColor,
-                        ),
-                      ),
-                    ),
                   ],
-                ),
-                const SizedBox(height: 12),
-                _buildSimpleInfoRow(Icons.calendar_today, 'Diajukan: $tanggal'),
-                if (dokumen['catatan_admin'] != null) ...[
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.orange[50],
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.orange[200]!),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(
-                          Icons.info_outline,
-                          size: 18,
-                          color: Colors.orange[700],
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            dokumen['catatan_admin'],
-                            style: GoogleFonts.inter(
-                              fontSize: 13,
-                              color: Colors.orange[900],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                 ],
-              ],
+              ),
             ),
           ),
         );

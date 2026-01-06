@@ -1,34 +1,61 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:ui_web' as ui_web;
+import 'dart:html' as html show IFrameElement;
+import '../models/document_model.dart';
+import '../services/document_service.dart';
+import '../services/document_storage_service.dart';
+import '../services/custom_auth_service.dart';
 
 class DetailDocumentPage extends StatefulWidget {
-  final Map<String, dynamic> document;
+  final String documentId;
+  final String documentType; // 'proposal' or 'lpj'
 
-  const DetailDocumentPage({super.key, required this.document});
+  const DetailDocumentPage({
+    super.key,
+    required this.documentId,
+    required this.documentType,
+  });
 
   @override
   State<DetailDocumentPage> createState() => _DetailDocumentPageState();
 }
 
 class _DetailDocumentPageState extends State<DetailDocumentPage> {
+  final DocumentService _documentService = DocumentService();
+  final DocumentStorageService _storageService = DocumentStorageService();
+  final SupabaseClient _supabase = Supabase.instance.client;
   final TextEditingController _commentController = TextEditingController();
 
-  // Dummy comments data
-  final List<Map<String, dynamic>> _comments = [
-    {
-      'author': 'Admin Pusat',
-      'comment':
-          'Proposal sudah bagus, namun perlu ditambahkan detail anggaran untuk konsumsi.',
-      'timestamp': '16-12-2025 10:30',
-      'avatar': 'AP',
-    },
-    {
-      'author': 'Koordinator UKM',
-      'comment': 'Baik, akan segera kami revisi. Terima kasih atas masukannya.',
-      'timestamp': '16-12-2025 14:15',
-      'avatar': 'KU',
-    },
-  ];
+  bool _isLoading = true;
+  bool _isSubmitting = false;
+  bool _isDownloading = false;
+  double _downloadProgress = 0.0;
+  String? _error;
+
+  // Document data
+  DocumentProposal? _proposal;
+  DocumentLPJ? _lpj;
+  List<DocumentRevision> _revisions = [];
+  List<DocumentComment> _comments = [];
+
+  // Status management
+  String? _selectedStatus;
+
+  // For LPJ - which file to preview
+  String _selectedLpjFile = 'laporan'; // 'laporan' or 'keuangan'
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDocumentData();
+  }
 
   @override
   void dispose() {
@@ -36,29 +63,73 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
     super.dispose();
   }
 
-  void _addComment() {
-    if (_commentController.text.trim().isEmpty) return;
-
+  Future<void> _loadDocumentData() async {
     setState(() {
-      _comments.add({
-        'author': 'Admin',
-        'comment': _commentController.text.trim(),
-        'timestamp': '18-12-2025 ${TimeOfDay.now().format(context)}',
-        'avatar': 'AD',
-      });
-      _commentController.clear();
+      _isLoading = true;
+      _error = null;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Komentar berhasil ditambahkan'),
-        backgroundColor: Colors.green,
-      ),
-    );
+    try {
+      if (widget.documentType == 'proposal') {
+        _proposal = await _documentService.getProposalDetails(
+          widget.documentId,
+        );
+        _selectedStatus = _proposal!.status;
+      } else {
+        _lpj = await _documentService.getLPJDetails(widget.documentId);
+        _selectedStatus = _lpj!.status;
+      }
+
+      // Load revision history
+      _revisions = await _documentService.getRevisionHistory(
+        widget.documentId,
+        widget.documentType,
+      );
+
+      // Load all comments
+      _comments = await _documentService.getDocumentComments(
+        widget.documentId,
+        widget.documentType,
+      );
+
+      setState(() => _isLoading = false);
+    } catch (e, stackTrace) {
+      print('Error loading document: $e');
+      print('Stack trace: $stackTrace');
+      setState(() {
+        _error = 'Gagal memuat dokumen: ${e.toString()}';
+        _isLoading = false;
+      });
+    }
   }
 
-  void _deleteComment(int index) {
-    showDialog(
+  Future<void> _updateStatus() async {
+    if (_selectedStatus == null || _commentController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Silakan pilih status dan tambahkan catatan'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    final currentStatus = widget.documentType == 'proposal'
+        ? _proposal?.status
+        : _lpj?.status;
+
+    if (_selectedStatus == currentStatus) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Status tidak berubah'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -67,121 +138,25 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
             Icon(Icons.warning_rounded, color: Colors.orange[700]),
             const SizedBox(width: 12),
             Text(
-              'Hapus Komentar',
+              'Konfirmasi Perubahan Status',
               style: GoogleFonts.inter(fontWeight: FontWeight.w700),
             ),
           ],
         ),
         content: Text(
-          'Apakah Anda yakin ingin menghapus komentar ini?',
+          'Apakah Anda yakin ingin mengubah status dokumen dari "$currentStatus" ke "$_selectedStatus"?',
           style: GoogleFonts.inter(),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, false),
             child: Text(
               'Batal',
               style: GoogleFonts.inter(color: Colors.grey[600]),
             ),
           ),
           ElevatedButton(
-            onPressed: () {
-              setState(() {
-                _comments.removeAt(index);
-              });
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Komentar berhasil dihapus'),
-                  backgroundColor: Colors.red,
-                ),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            child: Text('Hapus', style: GoogleFonts.inter()),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _editComment(int index) {
-    final TextEditingController editController = TextEditingController(
-      text: _comments[index]['comment'],
-    );
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        title: Row(
-          children: [
-            Icon(Icons.edit_rounded, color: const Color(0xFF4169E1)),
-            const SizedBox(width: 12),
-            Text(
-              'Edit Komentar',
-              style: GoogleFonts.inter(fontWeight: FontWeight.w700),
-            ),
-          ],
-        ),
-        content: TextField(
-          controller: editController,
-          maxLines: 4,
-          autofocus: true,
-          decoration: InputDecoration(
-            hintText: 'Tulis komentar Anda...',
-            hintStyle: GoogleFonts.inter(fontSize: 14, color: Colors.grey[500]),
-            filled: true,
-            fillColor: Colors.grey[50],
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Color(0xFF4169E1)),
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              editController.dispose();
-              Navigator.pop(context);
-            },
-            child: Text(
-              'Batal',
-              style: GoogleFonts.inter(color: Colors.grey[600]),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (editController.text.trim().isNotEmpty) {
-                setState(() {
-                  _comments[index]['comment'] = editController.text.trim();
-                  _comments[index]['timestamp'] =
-                      '${_comments[index]['timestamp']} (edited)';
-                });
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Komentar berhasil diubah'),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-              }
-              editController.dispose();
-            },
+            onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF4169E1),
               foregroundColor: Colors.white,
@@ -189,11 +164,224 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
                 borderRadius: BorderRadius.circular(8),
               ),
             ),
-            child: Text('Simpan', style: GoogleFonts.inter()),
+            child: Text('Ya, Ubah', style: GoogleFonts.inter()),
           ),
         ],
       ),
     );
+
+    if (confirmed != true) return;
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      // Get admin ID from CustomAuthService (admin table, not auth.users)
+      final authService = CustomAuthService();
+      final currentUser = authService.currentUser;
+
+      print('🔄 [Status Update] Current user: $currentUser');
+
+      if (currentUser == null) {
+        throw Exception('Admin tidak terautentikasi');
+      }
+
+      final adminId = currentUser['id'] as String?;
+      if (adminId == null) {
+        throw Exception('Admin ID tidak ditemukan');
+      }
+
+      print('🔄 [Status Update] Admin ID: $adminId');
+
+      if (widget.documentType == 'proposal') {
+        await _documentService.updateProposalStatus(
+          proposalId: widget.documentId,
+          newStatus: _selectedStatus!,
+          catatan: _commentController.text.trim(),
+          adminId: adminId,
+        );
+      } else {
+        await _documentService.updateLPJStatus(
+          lpjId: widget.documentId,
+          newStatus: _selectedStatus!,
+          catatan: _commentController.text.trim(),
+          adminId: adminId,
+        );
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Status berhasil diperbarui'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        _commentController.clear();
+        await _loadDocumentData(); // Reload data
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal memperbarui status: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
+  }
+
+  Future<void> _addComment() async {
+    if (_commentController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Silakan tulis komentar terlebih dahulu'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      // Get admin ID from CustomAuthService (admin table, not auth.users)
+      final authService = CustomAuthService();
+      final currentUser = authService.currentUser;
+
+      print('💬 [Comment] Current user: $currentUser');
+
+      if (currentUser == null) {
+        throw Exception('Admin tidak terautentikasi');
+      }
+
+      final adminId = currentUser['id'] as String?;
+      if (adminId == null) {
+        throw Exception('Admin ID tidak ditemukan');
+      }
+
+      print('💬 [Comment] Admin ID: $adminId');
+
+      if (widget.documentType == 'proposal') {
+        await _documentService.addProposalComment(
+          proposalId: widget.documentId,
+          comment: _commentController.text.trim(),
+          adminId: adminId,
+        );
+      } else {
+        await _documentService.addLPJComment(
+          lpjId: widget.documentId,
+          comment: _commentController.text.trim(),
+          adminId: adminId,
+        );
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Komentar berhasil ditambahkan'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        _commentController.clear();
+        await _loadDocumentData(); // Reload data
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal menambahkan komentar: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
+  }
+
+  Future<void> _downloadDocument(String fileUrl) async {
+    if (_isDownloading) return;
+
+    setState(() {
+      _isDownloading = true;
+      _downloadProgress = 0.0;
+    });
+
+    try {
+      final fileName = _storageService.getFileNameFromUrl(fileUrl);
+
+      if (kIsWeb) {
+        // For web, open in new tab - browser will handle download
+        final uri = Uri.parse(fileUrl);
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('File dibuka di tab baru'),
+                backgroundColor: Colors.green,
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        } else {
+          throw 'Tidak dapat membuka URL';
+        }
+      } else {
+        // For mobile, download and open
+        await _storageService.downloadAndOpenFile(
+          fileUrl: fileUrl,
+          fileName: fileName,
+          onProgress: (progress) {
+            if (mounted) {
+              setState(() {
+                _downloadProgress = progress;
+              });
+            }
+          },
+        );
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('File berhasil diunduh: $fileName'),
+              backgroundColor: Colors.green,
+              action: SnackBarAction(
+                label: 'OK',
+                textColor: Colors.white,
+                onPressed: () {},
+              ),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal mengunduh: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDownloading = false;
+          _downloadProgress = 0.0;
+        });
+      }
+    }
   }
 
   @override
@@ -202,300 +390,396 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      body: CustomScrollView(
-        slivers: [
-          // Modern App Bar with Gradient
-          SliverAppBar(
-            expandedHeight: 200,
-            floating: false,
-            pinned: true,
-            backgroundColor: const Color(0xFF4169E1),
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
-              onPressed: () => Navigator.pop(context),
-            ),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.download_rounded, color: Colors.white),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Mengunduh dokumen...'),
-                      backgroundColor: Color(0xFF4169E1),
-                    ),
-                  );
-                },
-                tooltip: 'Download',
-              ),
-            ],
-            flexibleSpace: LayoutBuilder(
-              builder: (BuildContext context, BoxConstraints constraints) {
-                final double collapseRatio =
-                    ((constraints.maxHeight - kToolbarHeight) /
-                            (200 - kToolbarHeight))
-                        .clamp(0.0, 1.0);
-
-                return FlexibleSpaceBar(
-                  titlePadding: const EdgeInsets.only(
-                    left: 56,
-                    bottom: 14,
-                    right: 56,
-                  ),
-                  title: Opacity(
-                    opacity: 1 - collapseRatio,
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Icon(
-                            widget.document['icon'] as IconData,
-                            size: 16,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            widget.document['name'],
-                            style: GoogleFonts.inter(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  background: Container(
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Color(0xFF4169E1), Color(0xFF5B7FE8)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Gagal Memuat Dokumen',
+                      style: GoogleFonts.inter(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey[700],
                       ),
                     ),
-                    child: Stack(
+                    const SizedBox(height: 8),
+                    Text(
+                      _error!,
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        color: Colors.grey[600],
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton.icon(
+                      onPressed: _loadDocumentData,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Coba Lagi'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF4169E1),
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : CustomScrollView(
+              slivers: [
+                _buildAppBar(),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.all(isDesktop ? 32 : 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Decorative circles
-                        Positioned(
-                          top: -50,
-                          right: -50,
-                          child: Container(
-                            width: 200,
-                            height: 200,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.white.withOpacity(0.1),
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          bottom: -30,
-                          left: -30,
-                          child: Container(
-                            width: 150,
-                            height: 150,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.white.withOpacity(0.1),
-                            ),
-                          ),
-                        ),
-                        // Content
-                        Center(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 24),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const SizedBox(height: 24),
-                                Container(
-                                  padding: const EdgeInsets.all(20),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.2),
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  child: Icon(
-                                    widget.document['icon'] as IconData,
-                                    size: 48,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'Detail Dokumen',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  widget.document['name'],
-                                  style: GoogleFonts.inter(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                    color: Colors.white.withOpacity(0.9),
-                                  ),
-                                  textAlign: TextAlign.center,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
+                        _buildDocumentInfoCard(),
+                        const SizedBox(height: 24),
+                        _buildDocumentPreview(),
+                        const SizedBox(height: 24),
+                        _buildStatusManagement(),
+                        const SizedBox(height: 24),
+                        _buildCommentsSection(),
                       ],
                     ),
                   ),
-                );
-              },
+                ),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildAppBar() {
+    final documentName = widget.documentType == 'proposal'
+        ? _proposal?.getEventName() ?? 'Proposal'
+        : _lpj?.getEventName() ?? 'LPJ';
+
+    final statusStyle = DocumentService.getStatusStyle(
+      widget.documentType == 'proposal'
+          ? _proposal?.status ?? 'menunggu'
+          : _lpj?.status ?? 'menunggu',
+    );
+
+    return SliverAppBar(
+      expandedHeight: 200,
+      floating: false,
+      pinned: true,
+      backgroundColor: const Color(0xFF4169E1),
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+        onPressed: () => Navigator.pop(context),
+      ),
+      flexibleSpace: FlexibleSpaceBar(
+        title: Text(
+          widget.documentType == 'proposal' ? 'Proposal' : 'LPJ',
+          style: GoogleFonts.inter(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
+        ),
+        background: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF4169E1), Color(0xFF5B7FE8)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
           ),
-
-          // Content
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Document Info Card
-                  _buildDocumentInfoCard(),
-                  const SizedBox(height: 24),
-
-                  // Document Preview
-                  _buildDocumentPreview(),
-                  const SizedBox(height: 24),
-
-                  // Comments Section
-                  _buildCommentsSection(),
-                ],
+          child: Stack(
+            children: [
+              // Decorative circles
+              Positioned(
+                top: -50,
+                right: -50,
+                child: Container(
+                  width: 200,
+                  height: 200,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withOpacity(0.1),
+                  ),
+                ),
               ),
-            ),
+              Positioned(
+                bottom: -30,
+                left: -30,
+                child: Container(
+                  width: 150,
+                  height: 150,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withOpacity(0.1),
+                  ),
+                ),
+              ),
+              // Content
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const SizedBox(height: 24),
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Icon(
+                          statusStyle['icon'] as IconData,
+                          size: 48,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        documentName,
+                        style: GoogleFonts.inter(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 
   Widget _buildDocumentInfoCard() {
+    final isProposal = widget.documentType == 'proposal';
+    final eventName = isProposal
+        ? _proposal?.getEventName() ?? '-'
+        : _lpj?.getEventName() ?? '-';
+    final ukmName = isProposal
+        ? _proposal?.getUkmName() ?? '-'
+        : _lpj?.getUkmName() ?? '-';
+    final userName = isProposal
+        ? _proposal?.getUserName() ?? '-'
+        : _lpj?.getUserName() ?? '-';
+    final tanggalPengajuan = isProposal
+        ? _proposal?.tanggalPengajuan
+        : _lpj?.tanggalPengajuan;
+    final tanggalDitinjau = isProposal
+        ? _proposal?.tanggalDitinjau
+        : _lpj?.tanggalDitinjau;
+    final status = isProposal ? _proposal?.status ?? '-' : _lpj?.status ?? '-';
+    final statusStyle = DocumentService.getStatusStyle(status);
+
+    final fileSize = isProposal
+        ? _proposal?.fileSize
+        : _selectedLpjFile == 'laporan'
+        ? _lpj?.fileSizeLaporan
+        : _lpj?.fileSizeKeuangan;
+
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            (widget.document['color'] as Color).withOpacity(0.1),
-            (widget.document['color'] as Color).withOpacity(0.05),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: (widget.document['color'] as Color).withOpacity(0.2),
-          width: 1,
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  widget.document['color'] as Color,
-                  (widget.document['color'] as Color).withOpacity(0.8),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: (widget.document['color'] as Color).withOpacity(0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Icon(
-              widget.document['icon'] as IconData,
-              color: Colors.white,
-              size: 32,
-            ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.document['name'],
-                  style: GoogleFonts.inter(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.black87,
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: isProposal
+                        ? [const Color(0xFF4169E1), const Color(0xFF5B7FE8)]
+                        : [const Color(0xFF10B981), const Color(0xFF059669)],
                   ),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 8,
+                child: Icon(
+                  isProposal
+                      ? Icons.description_rounded
+                      : Icons.assignment_turned_in_rounded,
+                  color: Colors.white,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildInfoChip(
-                      Icons.insert_drive_file,
-                      widget.document['type'],
+                    Text(
+                      isProposal
+                          ? 'Proposal Event'
+                          : 'Laporan Pertanggungjawaban',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey[600],
+                      ),
                     ),
-                    _buildInfoChip(Icons.storage, widget.document['size']),
-                    _buildInfoChip(
-                      Icons.access_time,
-                      'Diunggah: ${widget.document['uploadedAt']}',
+                    const SizedBox(height: 4),
+                    Text(
+                      eventName,
+                      style: GoogleFonts.inter(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black87,
+                      ),
                     ),
                   ],
                 ),
-              ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: (statusStyle['color'] as Color).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: (statusStyle['color'] as Color).withOpacity(0.3),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      statusStyle['icon'] as IconData,
+                      size: 16,
+                      color: statusStyle['color'] as Color,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      statusStyle['label'] as String,
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: statusStyle['color'] as Color,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Divider(color: Colors.grey[200]),
+          const SizedBox(height: 20),
+          _buildInfoRow(Icons.business, 'UKM', ukmName),
+          const SizedBox(height: 12),
+          _buildInfoRow(Icons.person, 'Diajukan oleh', userName),
+          const SizedBox(height: 12),
+          _buildInfoRow(
+            Icons.calendar_today,
+            'Tanggal Pengajuan',
+            tanggalPengajuan != null
+                ? DateFormat(
+                    'dd MMMM yyyy, HH:mm',
+                    'id_ID',
+                  ).format(tanggalPengajuan)
+                : '-',
+          ),
+          if (tanggalDitinjau != null) ...[
+            const SizedBox(height: 12),
+            _buildInfoRow(
+              Icons.check_circle,
+              'Tanggal Ditinjau',
+              DateFormat(
+                'dd MMMM yyyy, HH:mm',
+                'id_ID',
+              ).format(tanggalDitinjau),
             ),
+          ],
+          const SizedBox(height: 12),
+          _buildInfoRow(
+            Icons.storage,
+            'Ukuran File',
+            DocumentService.formatFileSize(fileSize),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildInfoChip(IconData icon, String text) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey[300]!, width: 1),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: const Color(0xFF4169E1)),
-          const SizedBox(width: 6),
-          Text(
-            text,
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              color: Colors.black87,
-              fontWeight: FontWeight.w500,
-            ),
+  Widget _buildInfoRow(IconData icon, String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 18, color: const Color(0xFF4169E1)),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: Colors.black87,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
   Widget _buildDocumentPreview() {
+    final isProposal = widget.documentType == 'proposal';
+    String? fileUrl;
+
+    if (isProposal) {
+      fileUrl = _proposal?.fileProposal;
+      print('📄 [PREVIEW] Proposal file path from DB: $fileUrl');
+    } else {
+      fileUrl = _selectedLpjFile == 'laporan'
+          ? _lpj?.fileLaporan
+          : _lpj?.fileKeuangan;
+      print('📄 [PREVIEW] LPJ file path from DB ($_selectedLpjFile): $fileUrl');
+    }
+
+    if (fileUrl != null) {
+      print('📄 [PREVIEW] Will construct URL from path: $fileUrl');
+    } else {
+      print('❌ [PREVIEW] File URL is NULL!');
+    }
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -546,63 +830,297 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                Text(
-                  'Preview Dokumen',
-                  style: GoogleFonts.inter(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.black87,
+                Expanded(
+                  child: Text(
+                    'Preview Dokumen',
+                    style: GoogleFonts.inter(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black87,
+                    ),
                   ),
                 ),
+                if (!isProposal)
+                  SegmentedButton<String>(
+                    segments: const [
+                      ButtonSegment(
+                        value: 'laporan',
+                        label: Text('Laporan'),
+                        icon: Icon(Icons.description, size: 16),
+                      ),
+                      ButtonSegment(
+                        value: 'keuangan',
+                        label: Text('Keuangan'),
+                        icon: Icon(Icons.attach_money, size: 16),
+                      ),
+                    ],
+                    selected: {_selectedLpjFile},
+                    onSelectionChanged: (Set<String> newSelection) {
+                      setState(() {
+                        _selectedLpjFile = newSelection.first;
+                      });
+                    },
+                    style: ButtonStyle(
+                      textStyle: WidgetStateProperty.all(
+                        GoogleFonts.inter(fontSize: 12),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.all(24),
-            child: Container(
-              height: 400,
-              decoration: BoxDecoration(
-                color: Colors.grey[50],
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey[200]!, width: 2),
-              ),
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      widget.document['icon'] as IconData,
-                      size: 64,
-                      color: Colors.grey[400],
+          Container(
+            height: 500,
+            padding: const EdgeInsets.all(16),
+            child: fileUrl != null
+                ? _buildFilePreview(fileUrl)
+                : Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.insert_drive_file,
+                          size: 64,
+                          color: Colors.grey[400],
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'File tidak tersedia',
+                          style: GoogleFonts.inter(
+                            fontSize: 16,
+                            color: Colors.grey[600],
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Preview ${widget.document['type']}',
-                      style: GoogleFonts.inter(
-                        fontSize: 16,
-                        color: Colors.grey[600],
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Klik download untuk melihat dokumen lengkap',
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        color: Colors.grey[500],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+                  ),
           ),
         ],
       ),
     );
   }
 
+  Widget _buildStatusManagement() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFF59E0B), Color(0xFFFBBF24)],
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.edit_note_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Kelola Status Dokumen',
+                style: GoogleFonts.inter(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Status Dokumen',
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              _buildStatusChip('menunggu', 'Menunggu Review', Icons.schedule),
+              _buildStatusChip('disetujui', 'Disetujui', Icons.check_circle),
+              _buildStatusChip('ditolak', 'Ditolak', Icons.cancel),
+              _buildStatusChip('revisi', 'Perlu Revisi', Icons.edit),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Catatan Admin',
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _commentController,
+            maxLines: 4,
+            decoration: InputDecoration(
+              hintText: 'Tulis catatan atau komentar untuk dokumen ini...',
+              hintStyle: GoogleFonts.inter(
+                fontSize: 14,
+                color: Colors.grey[500],
+              ),
+              filled: true,
+              fillColor: Colors.grey[50],
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: Colors.grey[300]!),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: Colors.grey[300]!),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: Color(0xFF4169E1)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _isSubmitting ? null : _addComment,
+                  icon: _isSubmitting
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
+                          ),
+                        )
+                      : const Icon(Icons.comment, size: 18),
+                  label: Text(
+                    'Tambah Komentar',
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.grey[700],
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 14,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    elevation: 0,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _isSubmitting ? null : _updateStatus,
+                  icon: _isSubmitting
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
+                          ),
+                        )
+                      : const Icon(Icons.save, size: 18),
+                  label: Text(
+                    'Update Status',
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4169E1),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 14,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    elevation: 0,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusChip(String value, String label, IconData icon) {
+    final isSelected = _selectedStatus == value;
+    final statusStyle = DocumentService.getStatusStyle(value);
+    final color = statusStyle['color'] as Color;
+
+    return FilterChip(
+      selected: isSelected,
+      label: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: isSelected ? Colors.white : color),
+          const SizedBox(width: 6),
+          Text(label),
+        ],
+      ),
+      onSelected: (selected) {
+        setState(() {
+          _selectedStatus = value;
+        });
+      },
+      selectedColor: color,
+      checkmarkColor: Colors.white,
+      labelStyle: GoogleFonts.inter(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: isSelected ? Colors.white : color,
+      ),
+      backgroundColor: color.withOpacity(0.1),
+      side: BorderSide(color: color.withOpacity(0.3)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+    );
+  }
+
   Widget _buildCommentsSection() {
+    final currentNote = widget.documentType == 'proposal'
+        ? _proposal?.catatanAdmin
+        : _lpj?.catatanAdmin;
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -647,14 +1165,14 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Icon(
-                    Icons.comment_rounded,
+                    Icons.history_rounded,
                     color: Colors.white,
                     size: 20,
                   ),
                 ),
                 const SizedBox(width: 12),
                 Text(
-                  'Komentar (${_comments.length})',
+                  'Riwayat & Komentar (${_revisions.length})',
                   style: GoogleFonts.inter(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
@@ -669,78 +1187,96 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Comments list
-                ...List.generate(
-                  _comments.length,
-                  (index) => _buildCommentItem(_comments[index], index),
-                ),
+                // Current admin note
+                if (currentNote != null && currentNote.isNotEmpty) ...[
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          const Color(0xFF4169E1).withOpacity(0.1),
+                          const Color(0xFF5B7FE8).withOpacity(0.05),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: const Color(0xFF4169E1).withOpacity(0.3),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.push_pin,
+                              size: 16,
+                              color: const Color(0xFF4169E1),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Catatan Terkini',
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF4169E1),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          currentNote,
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            color: Colors.black87,
+                            height: 1.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Divider(color: Colors.grey[200]),
+                  const SizedBox(height: 20),
+                ],
 
-                const SizedBox(height: 20),
-                Divider(color: Colors.grey[200], thickness: 1),
-                const SizedBox(height: 20),
-
-                // Add comment form
-                Text(
-                  'Tambah Komentar',
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _commentController,
-                  maxLines: 4,
-                  decoration: InputDecoration(
-                    hintText: 'Tulis komentar Anda...',
-                    hintStyle: GoogleFonts.inter(
-                      fontSize: 14,
-                      color: Colors.grey[500],
-                    ),
-                    filled: true,
-                    fillColor: Colors.grey[50],
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: Colors.grey[300]!),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: Colors.grey[300]!),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: Color(0xFF4169E1)),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: ElevatedButton.icon(
-                    onPressed: _addComment,
-                    icon: const Icon(Icons.send, size: 18),
-                    label: Text(
-                      'Kirim Komentar',
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
+                // Comments & Revision history
+                if (_comments.isEmpty && _revisions.isEmpty)
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        children: [
+                          Icon(
+                            Icons.comment_outlined,
+                            size: 48,
+                            color: Colors.grey[400],
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Belum ada komentar atau riwayat',
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF4169E1),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 12,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      elevation: 0,
-                    ),
+                  )
+                else ...[
+                  // Display all comments (newer design)
+                  ...List.generate(
+                    _comments.length,
+                    (index) => _buildCommentItem(_comments[index], index),
                   ),
-                ),
+                  // Display old revision history as fallback
+                  ...List.generate(
+                    _revisions.length,
+                    (index) => _buildRevisionItem(_revisions[index], index),
+                  ),
+                ],
               ],
             ),
           ),
@@ -749,7 +1285,179 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
     );
   }
 
-  Widget _buildCommentItem(Map<String, dynamic> comment, int index) {
+  Widget _buildCommentItem(DocumentComment comment, int index) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: comment.isStatusChange
+              ? [Colors.blue[50]!, Colors.blue[100]!.withOpacity(0.3)]
+              : [Colors.grey[50]!, Colors.grey[100]!.withOpacity(0.3)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: comment.isStatusChange ? Colors.blue[200]! : Colors.grey[200]!,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: comment.isStatusChange
+                    ? const Color(0xFF4169E1)
+                    : Colors.grey[600],
+                radius: 18,
+                child: Icon(
+                  comment.isStatusChange
+                      ? Icons.swap_horiz_rounded
+                      : Icons.comment,
+                  size: 16,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      comment.getAdminName(),
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      DateFormat(
+                        'dd MMM yyyy, HH:mm',
+                        'id_ID',
+                      ).format(comment.createdAt),
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (comment.isStatusChange)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[100],
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.edit, size: 12, color: Colors.blue[800]),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Perubahan Status',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          color: Colors.blue[800],
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+          if (comment.isStatusChange &&
+              comment.statusFrom != null &&
+              comment.statusTo != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue[200]!),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildStatusBadge(comment.statusFrom!),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Icon(
+                      Icons.arrow_forward,
+                      size: 16,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  _buildStatusBadge(comment.statusTo!),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.7),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              comment.comment,
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                color: Colors.black87,
+                height: 1.5,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusBadge(String status) {
+    final statusStyle = DocumentService.getStatusStyle(status);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: (statusStyle['color'] as Color).withOpacity(0.1),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: (statusStyle['color'] as Color).withOpacity(0.3),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            statusStyle['icon'] as IconData,
+            size: 14,
+            color: statusStyle['color'] as Color,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            statusStyle['label'] as String,
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: statusStyle['color'] as Color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRevisionItem(DocumentRevision revision, int index) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
@@ -762,121 +1470,359 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.grey[200]!),
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Avatar
-          Container(
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: const LinearGradient(
-                colors: [Color(0xFF4169E1), Color(0xFF5B7FE8)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF4169E1).withOpacity(0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: CircleAvatar(
-              backgroundColor: Colors.transparent,
-              radius: 20,
-              child: Text(
-                comment['avatar'],
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
+          Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: const Color(0xFF4169E1),
+                radius: 18,
+                child: Text(
+                  revision.getAuthorName()[0].toUpperCase(),
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
                 ),
               ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          // Comment content
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Row(
-                        children: [
-                          Text(
-                            comment['author'],
-                            style: GoogleFonts.inter(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.black87,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text('•', style: TextStyle(color: Colors.grey[400])),
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Text(
-                              comment['timestamp'],
-                              style: GoogleFonts.inter(
-                                fontSize: 12,
-                                color: Colors.grey[600],
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
+                    Text(
+                      revision.getAuthorName(),
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
                       ),
                     ),
-                    // Action buttons
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        InkWell(
-                          onTap: () => _editComment(index),
-                          borderRadius: BorderRadius.circular(6),
-                          child: Padding(
-                            padding: const EdgeInsets.all(6),
-                            child: Icon(
-                              Icons.edit_rounded,
-                              size: 18,
-                              color: const Color(0xFF4169E1),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        InkWell(
-                          onTap: () => _deleteComment(index),
-                          borderRadius: BorderRadius.circular(6),
-                          child: Padding(
-                            padding: const EdgeInsets.all(6),
-                            child: Icon(
-                              Icons.delete_rounded,
-                              size: 18,
-                              color: Colors.red[400],
-                            ),
-                          ),
-                        ),
-                      ],
+                    const SizedBox(height: 2),
+                    Text(
+                      DateFormat(
+                        'dd MMM yyyy, HH:mm',
+                        'id_ID',
+                      ).format(revision.createdAt),
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  comment['comment'],
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    color: Colors.black87,
-                    height: 1.5,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
+          if (revision.statusSebelumnya != null &&
+              revision.statusSetelahnya != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: Colors.blue[200]!),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.swap_horiz, size: 14, color: Colors.blue[700]),
+                  const SizedBox(width: 6),
+                  Text(
+                    revision.getStatusChangeText(),
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: Colors.blue[900],
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          if (revision.catatan != null && revision.catatan!.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              revision.catatan!,
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                color: Colors.black87,
+                height: 1.5,
+              ),
+            ),
+          ],
         ],
       ),
     );
+  }
+
+  Widget _buildFilePreview(String filePath) {
+    print('🔧 [_buildFilePreview] Input filePath: $filePath');
+
+    // Construct proper URL
+    String fileUrl;
+    try {
+      print('🔧 [_buildFilePreview] Calling getProperFileUrl...');
+      fileUrl = _storageService.getProperFileUrl(filePath);
+      print('✅ [_buildFilePreview] Constructed URL: $fileUrl');
+    } catch (e) {
+      print('❌ [_buildFilePreview] URL construction failed: $e');
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
+              const SizedBox(height: 16),
+              Text(
+                'URL file tidak valid',
+                style: GoogleFonts.inter(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[700],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Path: $filePath\n\nError: ${e.toString()}',
+                style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Detect file extension
+    final String extension = _storageService.getFileExtension(fileUrl);
+    print('🔧 [_buildFilePreview] File extension: $extension');
+
+    // Check if it's a PDF
+    if (extension == 'pdf') {
+      print('📄 [_buildFilePreview] Rendering PDF viewer for: $fileUrl');
+
+      if (kIsWeb) {
+        print('🌐 [_buildFilePreview] Using iframe for web platform');
+        return _buildWebPdfViewer(fileUrl);
+      }
+
+      print('📱 [_buildFilePreview] Using SfPdfViewer for mobile');
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: SfPdfViewer.network(
+          fileUrl,
+          onDocumentLoadFailed: (details) {
+            print('❌ [PDF] Load failed: ${details.error}');
+            print('❌ [PDF] URL was: $fileUrl');
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Gagal memuat PDF: ${details.error}\n\nURL: $fileUrl',
+                  ),
+                  backgroundColor: Colors.red,
+                  duration: const Duration(seconds: 5),
+                  action: SnackBarAction(
+                    label: 'Download',
+                    textColor: Colors.white,
+                    onPressed: () => _downloadDocument(fileUrl),
+                  ),
+                ),
+              );
+            }
+          },
+          onDocumentLoaded: (details) {
+            print(
+              '✅ [PDF] Document loaded successfully! Pages: ${details.document.pages.count}',
+            );
+          },
+        ),
+      );
+    }
+
+    // For Word, Excel, PowerPoint, and other files - show download option
+    IconData fileIcon;
+    String fileType;
+    Color iconColor;
+
+    switch (extension) {
+      case 'doc':
+      case 'docx':
+        fileIcon = Icons.description;
+        fileType = 'Microsoft Word';
+        iconColor = const Color(0xFF2B579A);
+        break;
+      case 'xls':
+      case 'xlsx':
+        fileIcon = Icons.table_chart;
+        fileType = 'Microsoft Excel';
+        iconColor = const Color(0xFF217346);
+        break;
+      case 'ppt':
+      case 'pptx':
+        fileIcon = Icons.slideshow;
+        fileType = 'Microsoft PowerPoint';
+        iconColor = const Color(0xFFD24726);
+        break;
+      case 'txt':
+        fileIcon = Icons.text_snippet;
+        fileType = 'Text File';
+        iconColor = Colors.grey[700]!;
+        break;
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+      case 'gif':
+        // For images, show the image
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Image.network(
+            fileUrl,
+            fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.broken_image, size: 64, color: Colors.grey[400]),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Gagal memuat gambar',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        );
+      default:
+        fileIcon = Icons.insert_drive_file;
+        fileType = 'File';
+        iconColor = Colors.grey[700]!;
+    }
+
+    // Show download card for non-previewable files
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.all(32),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey[300]!),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: iconColor.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(fileIcon, size: 64, color: iconColor),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              fileType,
+              style: GoogleFonts.inter(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Preview tidak tersedia untuk tipe file ini',
+              style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: () => _downloadDocument(fileUrl),
+              icon: const Icon(Icons.download_rounded),
+              label: Text(
+                'Download File',
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4169E1),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 16,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                elevation: 0,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextButton.icon(
+              onPressed: () async {
+                try {
+                  final uri = Uri.parse(fileUrl);
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Gagal membuka file: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              },
+              icon: const Icon(Icons.open_in_new, size: 18),
+              label: Text(
+                'Buka di Browser',
+                style: GoogleFonts.inter(fontSize: 14),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Web-specific PDF viewer using iframe
+  Widget _buildWebPdfViewer(String fileUrl) {
+    if (!kIsWeb) {
+      return const SizedBox();
+    }
+
+    final viewId = 'pdf-viewer-${fileUrl.hashCode}';
+
+    // Register view factory for web
+    ui_web.platformViewRegistry.registerViewFactory(viewId, (int viewId) {
+      // Add #toolbar=0 to hide PDF viewer toolbar
+      final pdfUrl = fileUrl.contains('#')
+          ? '$fileUrl&toolbar=0'
+          : '$fileUrl#toolbar=0';
+
+      final iframe = html.IFrameElement()
+        ..src = pdfUrl
+        ..style.border = 'none'
+        ..style.width = '100%'
+        ..style.height = '100%';
+      return iframe;
+    });
+
+    return HtmlElementView(viewType: viewId);
   }
 }

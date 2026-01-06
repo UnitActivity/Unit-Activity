@@ -397,8 +397,9 @@ class DashboardService {
         try {
           final proposals = await _executeQuery(
             _supabase
-                .from('event_proposal')
-                .select('id_proposal')
+                .from('event_documents')
+                .select('id_document')
+                .eq('document_type', 'proposal')
                 .eq('status', 'menunggu'),
             errorContext: 'fetching pending proposals',
           );
@@ -410,8 +411,9 @@ class DashboardService {
         try {
           final lpjs = await _executeQuery(
             _supabase
-                .from('event_lpj')
-                .select('id_lpj')
+                .from('event_documents')
+                .select('id_document')
+                .eq('document_type', 'lpj')
                 .eq('status', 'menunggu'),
             errorContext: 'fetching pending LPJs',
           );

@@ -86,18 +86,20 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
         _event = await _eventService.getEventById(widget.eventId);
       }
 
-      // Load dokumen proposal
+      // Load dokumen proposal dari event_documents
       final proposalData = await _supabase
-          .from('event_proposal')
+          .from('event_documents')
           .select('*, users(username)')
-          .eq('id_event', widget.eventId);
+          .eq('id_event', widget.eventId)
+          .eq('document_type', 'proposal');
       _dokumenProposal = List<Map<String, dynamic>>.from(proposalData);
 
-      // Load dokumen LPJ
+      // Load dokumen LPJ dari event_documents
       final lpjData = await _supabase
-          .from('event_lpj')
+          .from('event_documents')
           .select('*, users(username)')
-          .eq('id_event', widget.eventId);
+          .eq('id_event', widget.eventId)
+          .eq('document_type', 'lpj');
       _dokumenLpj = List<Map<String, dynamic>>.from(lpjData);
 
       // Load peserta
@@ -207,22 +209,27 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
     print('Current user ID: $userId');
     print('Current user role: ${_authService.currentUserRole}');
 
-    // Insert to database
+    // Insert to database (unified event_documents table)
+    // IMPORTANT: UKM login as admin, so their ID is in admin table, not users table
+    // Only include id_user if uploader is a regular user
     final insertData = {
+      'document_type': 'proposal', // Unified table identifier
       'id_event': widget.eventId,
       'id_ukm': _event!['id_ukm'],
       'file_proposal': storagePath,
-      'original_filename': fileName,
-      'file_size': fileSize,
-      'status': 'draft',
+      'original_filename_proposal': fileName,
+      'file_size_proposal': fileSize,
+      'status': 'draft', // Draft status - requires manual submission
     };
 
     // Only add id_user for regular users (not for UKM/admin)
+    // UKM are admins, their ID is in admin table, not users table
     if (_authService.isUser) {
       insertData['id_user'] = userId;
     }
 
-    await _supabase.from('event_proposal').insert(insertData);
+    print('Inserting proposal with data: $insertData');
+    await _supabase.from('event_documents').insert(insertData);
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -420,8 +427,11 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
     print('Current user ID: $userId');
     print('Current user role: ${_authService.currentUserRole}');
 
-    // Insert to database
+    // Insert to database (unified event_documents table)
+    // IMPORTANT: UKM login as admin, so their ID is in admin table, not users table
+    // Only include id_user if uploader is a regular user
     final insertData = {
+      'document_type': 'lpj', // Unified table identifier
       'id_event': widget.eventId,
       'id_ukm': _event!['id_ukm'],
       'file_laporan': laporanPath,
@@ -430,15 +440,17 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
       'original_filename_keuangan': keuanganFile.name,
       'file_size_laporan': laporanSize,
       'file_size_keuangan': keuanganSize,
-      'status': 'draft',
+      'status': 'draft', // Draft status - requires manual submission
     };
 
     // Only add id_user for regular users (not for UKM/admin)
+    // UKM are admins, their ID is in admin table, not users table
     if (_authService.isUser) {
       insertData['id_user'] = userId;
     }
 
-    await _supabase.from('event_lpj').insert(insertData);
+    print('Inserting LPJ with data: $insertData');
+    await _supabase.from('event_documents').insert(insertData);
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -540,11 +552,11 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
     if (confirmed != true) return;
 
     try {
-      // Delete from database
-      final table = documentType == 'proposal' ? 'event_proposal' : 'event_lpj';
-      final idColumn = documentType == 'proposal' ? 'id_proposal' : 'id_lpj';
-
-      await _supabase.from(table).delete().eq(idColumn, documentId);
+      // Delete from database (unified event_documents table)
+      await _supabase
+          .from('event_documents')
+          .delete()
+          .eq('id_document', documentId);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -655,17 +667,14 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
     if (confirmed != true) return;
 
     try {
-      // Update status to 'menunggu'
-      final table = documentType == 'proposal' ? 'event_proposal' : 'event_lpj';
-      final idColumn = documentType == 'proposal' ? 'id_proposal' : 'id_lpj';
-
+      // Update status to 'menunggu' (unified event_documents table)
       await _supabase
-          .from(table)
+          .from('event_documents')
           .update({
             'status': 'menunggu',
             'tanggal_pengajuan': DateTime.now().toIso8601String(),
           })
-          .eq(idColumn, documentId);
+          .eq('id_document', documentId);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1701,13 +1710,23 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
         break;
       case 'menunggu':
         statusColor = const Color(0xFFF59E0B);
-        statusText = 'Menunggu';
+        statusText = 'Menunggu Review';
         statusIcon = Icons.schedule_rounded;
         break;
       case 'ditolak':
         statusColor = const Color(0xFFEF4444);
         statusText = 'Ditolak';
         statusIcon = Icons.cancel_rounded;
+        break;
+      case 'revisi':
+        statusColor = const Color(0xFFFF6B6B);
+        statusText = 'Perlu Revisi';
+        statusIcon = Icons.edit_rounded;
+        break;
+      case 'draft':
+        statusColor = const Color(0xFF6B7280);
+        statusText = 'Draft';
+        statusIcon = Icons.description_outlined;
         break;
       default:
         statusColor = const Color(0xFF9CA3AF);
@@ -1833,9 +1852,8 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
 
   Widget _buildDocumentItem(Map<String, dynamic> doc, String documentType) {
     final status = doc['status'] ?? 'menunggu';
-    final docId = documentType == 'proposal'
-        ? doc['id_proposal']
-        : doc['id_lpj'];
+    // Unified table uses id_document for all document types
+    final docId = doc['id_document'];
     Color statusColor;
     String statusLabel;
 
@@ -1857,10 +1875,10 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
         statusLabel = 'Menunggu';
     }
 
-    // Get filename
+    // Get filename (unified table uses specific field names)
     String filename = '';
     if (documentType == 'proposal') {
-      filename = doc['original_filename'] ?? 'proposal.pdf';
+      filename = doc['original_filename_proposal'] ?? 'proposal.pdf';
     } else {
       filename = doc['original_filename_laporan'] ?? 'lpj_laporan.pdf';
     }

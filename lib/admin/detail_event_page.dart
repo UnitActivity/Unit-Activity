@@ -33,18 +33,20 @@ class _DetailEventPageState extends State<DetailEventPage> {
     try {
       final idEvent = widget.event['id_event'];
 
-      // Load dokumen proposal
+      // Load dokumen proposal dari event_documents
       final proposalData = await _supabase
-          .from('event_proposal')
+          .from('event_documents')
           .select('*, users(username)')
-          .eq('id_event', idEvent);
+          .eq('id_event', idEvent)
+          .eq('document_type', 'proposal');
       _dokumenProposal = List<Map<String, dynamic>>.from(proposalData);
 
-      // Load dokumen LPJ
+      // Load dokumen LPJ dari event_documents
       final lpjData = await _supabase
-          .from('event_lpj')
+          .from('event_documents')
           .select('*, users(username)')
-          .eq('id_event', idEvent);
+          .eq('id_event', idEvent)
+          .eq('document_type', 'lpj');
       _dokumenLpj = List<Map<String, dynamic>>.from(lpjData);
 
       // Load jumlah peserta dari absen_event
@@ -629,10 +631,10 @@ class _DetailEventPageState extends State<DetailEventPage> {
     final documents = [
       ..._dokumenProposal.map(
         (doc) => {
-          'id': doc['id_proposal'],
+          'id': doc['id_document'], // Unified table uses id_document
           'name': 'Proposal - ${widget.event['nama_event']}',
           'type': 'Proposal',
-          'status': doc['status_approval'] ?? 'Menunggu',
+          'status': doc['status'] ?? 'Menunggu',
           'uploadedAt': doc['tanggal_pengajuan'],
           'uploadedBy':
               (doc['users'] as Map<String, dynamic>?)?['username'] ?? 'Unknown',
@@ -643,10 +645,10 @@ class _DetailEventPageState extends State<DetailEventPage> {
       ),
       ..._dokumenLpj.map(
         (doc) => {
-          'id': doc['id_lpj'],
+          'id': doc['id_document'], // Unified table uses id_document
           'name': 'LPJ - ${widget.event['nama_event']}',
           'type': 'LPJ',
-          'status': doc['status_approval'] ?? 'Menunggu',
+          'status': doc['status'] ?? 'Menunggu',
           'uploadedAt': doc['tanggal_pengajuan'],
           'uploadedBy':
               (doc['users'] as Map<String, dynamic>?)?['username'] ?? 'Unknown',
