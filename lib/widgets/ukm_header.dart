@@ -155,19 +155,6 @@ class UKMHeader extends StatelessWidget {
             ],
           ),
         ),
-        PopupMenuItem<String>(
-          value: 'akun',
-          child: Row(
-            children: [
-              Icon(Icons.settings_outlined, size: 20, color: Colors.grey[700]),
-              const SizedBox(width: 12),
-              Text(
-                'Akun',
-                style: GoogleFonts.inter(fontSize: 14, color: Colors.black87),
-              ),
-            ],
-          ),
-        ),
         const PopupMenuDivider(),
         PopupMenuItem<String>(
           value: 'logout',
@@ -190,10 +177,8 @@ class UKMHeader extends StatelessWidget {
       onSelected: (value) {
         if (value == 'logout' && onLogout != null) {
           onLogout!();
-        } else if (value == 'profile') {
-          // TODO: Navigate to profile
-        } else if (value == 'akun' && onMenuSelected != null) {
-          onMenuSelected!('akun');
+        } else if (value == 'profile' && onMenuSelected != null) {
+          onMenuSelected!('profile');
         }
       },
     );

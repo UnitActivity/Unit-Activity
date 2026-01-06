@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:unit_activity/ukm/detail_pertemuan_ukm.dart';
+import 'package:unit_activity/ukm/add_pertemuan_ukm_page.dart';
 import 'package:unit_activity/services/pertemuan_service.dart';
 import 'package:unit_activity/services/ukm_dashboard_service.dart';
 import 'package:unit_activity/models/pertemuan_model.dart';
@@ -15,11 +16,30 @@ class PertemuanUKMPage extends StatefulWidget {
 
 class _PertemuanUKMPageState extends State<PertemuanUKMPage> {
   int _currentPage = 1;
+  final int _itemsPerPage = 10;
   final PertemuanService _pertemuanService = PertemuanService();
   final UkmDashboardService _dashboardService = UkmDashboardService();
 
   List<PertemuanModel> _pertemuanList = [];
   bool _isLoading = true;
+
+  // Calculate total pages based on data length
+  int get _totalPages {
+    if (_pertemuanList.isEmpty) return 0;
+    return (_pertemuanList.length / _itemsPerPage).ceil();
+  }
+
+  // Get paginated data for current page
+  List<PertemuanModel> get _paginatedPertemuan {
+    if (_pertemuanList.isEmpty) return [];
+    final startIndex = (_currentPage - 1) * _itemsPerPage;
+    final endIndex = startIndex + _itemsPerPage;
+    if (startIndex >= _pertemuanList.length) return [];
+    return _pertemuanList.sublist(
+      startIndex,
+      endIndex > _pertemuanList.length ? _pertemuanList.length : endIndex,
+    );
+  }
 
   @override
   void initState() {
@@ -34,6 +54,7 @@ class _PertemuanUKMPageState extends State<PertemuanUKMPage> {
       final pertemuan = await _pertemuanService.getAllPertemuan();
       setState(() {
         _pertemuanList = pertemuan;
+        _currentPage = 1; // Reset to first page
         _isLoading = false;
       });
     } catch (e) {
@@ -63,52 +84,109 @@ class _PertemuanUKMPageState extends State<PertemuanUKMPage> {
       mainAxisSize: MainAxisSize.min,
       children: [
         // Header
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Pertemuan Rutin',
-              style: GoogleFonts.inter(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey[800],
-              ),
-            ),
-            Row(
-              children: [
-                IconButton(
-                  onPressed: _loadPertemuan,
-                  icon: const Icon(Icons.refresh),
-                  color: const Color(0xFF4169E1),
-                  tooltip: 'Refresh',
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton.icon(
-                  onPressed: _showAddPertemuanDialog,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4169E1),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 12,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    elevation: 0,
-                  ),
-                  icon: const Icon(Icons.add, size: 20),
-                  label: Text(
-                    'Tambah Pertemuan',
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final isMobile = constraints.maxWidth < 600;
+            if (isMobile) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Pertemuan Rutin',
                     style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey[800],
                     ),
                   ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      IconButton(
+                        onPressed: _loadPertemuan,
+                        icon: const Icon(Icons.refresh),
+                        color: const Color(0xFF4169E1),
+                        tooltip: 'Refresh',
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: _navigateToAddPertemuan,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF4169E1),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            elevation: 0,
+                          ),
+                          icon: const Icon(Icons.add, size: 20),
+                          label: Text(
+                            'Tambah',
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            }
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Pertemuan Rutin',
+                  style: GoogleFonts.inter(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey[800],
+                  ),
+                ),
+                Row(
+                  children: [
+                    IconButton(
+                      onPressed: _loadPertemuan,
+                      icon: const Icon(Icons.refresh),
+                      color: const Color(0xFF4169E1),
+                      tooltip: 'Refresh',
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton.icon(
+                      onPressed: _navigateToAddPertemuan,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF4169E1),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        elevation: 0,
+                      ),
+                      icon: const Icon(Icons.add, size: 20),
+                      label: Text(
+                        'Tambah Pertemuan',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
-            ),
-          ],
+            );
+          },
         ),
         const SizedBox(height: 24),
 
@@ -121,246 +199,353 @@ class _PertemuanUKMPageState extends State<PertemuanUKMPage> {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: Colors.grey[200]!),
             ),
-            child: Column(
-              children: [
-                // Table Header
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 16,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[50],
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(12),
-                      topRight: Radius.circular(12),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isMobile = constraints.maxWidth < 768;
+                return Column(
+                  children: [
+                    // Table Header
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 16,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[50],
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(12),
+                          topRight: Radius.circular(12),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 60,
+                            child: isMobile
+                                ? Icon(
+                                    Icons.tag,
+                                    size: 18,
+                                    color: Colors.grey[700],
+                                  )
+                                : Text(
+                                    'No.',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.grey[700],
+                                    ),
+                                  ),
+                          ),
+                          Expanded(
+                            flex: 2,
+                            child: Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: isMobile
+                                  ? Icon(
+                                      Icons.event,
+                                      size: 18,
+                                      color: Colors.grey[700],
+                                    )
+                                  : Text(
+                                      'Pertemuan',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.grey[700],
+                                      ),
+                                    ),
+                            ),
+                          ),
+                          Expanded(
+                            flex: 2,
+                            child: Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: isMobile
+                                  ? Icon(
+                                      Icons.calendar_today,
+                                      size: 18,
+                                      color: Colors.grey[700],
+                                    )
+                                  : Text(
+                                      'Tanggal',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.grey[700],
+                                      ),
+                                    ),
+                            ),
+                          ),
+                          Expanded(
+                            flex: 2,
+                            child: Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: isMobile
+                                  ? Icon(
+                                      Icons.access_time,
+                                      size: 18,
+                                      color: Colors.grey[700],
+                                    )
+                                  : Text(
+                                      'Jam',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.grey[700],
+                                      ),
+                                    ),
+                            ),
+                          ),
+                          const SizedBox(width: 140),
+                        ],
+                      ),
                     ),
-                  ),
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        width: 60,
-                        child: Text(
-                          'No.',
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey[700],
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        flex: 2,
-                        child: Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: Text(
-                            'Pertemuan',
-                            style: GoogleFonts.inter(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey[700],
-                            ),
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        flex: 2,
-                        child: Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: Text(
-                            'Tanggal',
-                            style: GoogleFonts.inter(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey[700],
-                            ),
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        flex: 2,
-                        child: Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: Text(
-                            'Jam',
-                            style: GoogleFonts.inter(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey[700],
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 140),
-                    ],
-                  ),
-                ),
 
-                // Table Body
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: _pertemuanList.length,
-                    itemBuilder: (context, index) {
-                      final pertemuan = _pertemuanList[index];
-                      final tanggalStr = pertemuan.tanggal != null
-                          ? DateFormat('dd-MM-yyyy').format(pertemuan.tanggal!)
-                          : '-';
+                    // Table Body
+                    Expanded(
+                      child: _paginatedPertemuan.isEmpty
+                          ? Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(40),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.event_note,
+                                      size: 64,
+                                      color: Colors.grey[400],
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      'Belum ada pertemuan',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )
+                          : ListView.builder(
+                              itemCount: _paginatedPertemuan.length,
+                              itemBuilder: (context, index) {
+                                final pertemuan = _paginatedPertemuan[index];
+                                final actualIndex =
+                                    (_currentPage - 1) * _itemsPerPage + index;
+                                final tanggalStr = pertemuan.tanggal != null
+                                    ? DateFormat(
+                                        'dd-MM-yyyy',
+                                      ).format(pertemuan.tanggal!)
+                                    : '-';
 
-                      return Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 16,
-                        ),
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                    vertical: 16,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    border: Border(
+                                      bottom: BorderSide(
+                                        color: Colors.grey[200]!,
+                                      ),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      SizedBox(
+                                        width: 60,
+                                        child: Text(
+                                          '${actualIndex + 1}',
+                                          style: GoogleFonts.inter(
+                                            fontSize: 14,
+                                            color: Colors.grey[800],
+                                          ),
+                                        ),
+                                      ),
+                                      Expanded(
+                                        flex: 2,
+                                        child: Padding(
+                                          padding: const EdgeInsets.only(
+                                            right: 8,
+                                          ),
+                                          child: Text(
+                                            pertemuan.topik ??
+                                                'Pertemuan ${index + 1}',
+                                            style: GoogleFonts.inter(
+                                              fontSize: 14,
+                                              color: Colors.grey[800],
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ),
+                                      Expanded(
+                                        flex: 2,
+                                        child: Padding(
+                                          padding: const EdgeInsets.only(
+                                            right: 8,
+                                          ),
+                                          child: Text(
+                                            tanggalStr,
+                                            style: GoogleFonts.inter(
+                                              fontSize: 14,
+                                              color: Colors.grey[800],
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ),
+                                      Expanded(
+                                        flex: 2,
+                                        child: Padding(
+                                          padding: const EdgeInsets.only(
+                                            right: 8,
+                                          ),
+                                          child: Text(
+                                            '${pertemuan.jamMulai ?? '-'} - ${pertemuan.jamAkhir ?? '-'}',
+                                            style: GoogleFonts.inter(
+                                              fontSize: 14,
+                                              color: Colors.grey[800],
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ),
+                                      SizedBox(
+                                        width: 140,
+                                        child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.end,
+                                          children: [
+                                            IconButton(
+                                              onPressed: () {
+                                                // Convert model to map for detail page
+                                                final pertemuanMap = {
+                                                  'id': pertemuan.idPertemuan,
+                                                  'topik': pertemuan.topik,
+                                                  'tanggal': tanggalStr,
+                                                  'jamMulai':
+                                                      pertemuan.jamMulai,
+                                                  'jamAkhir':
+                                                      pertemuan.jamAkhir,
+                                                  'lokasi': pertemuan.lokasi,
+                                                };
+                                                Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    builder: (context) =>
+                                                        DetailPertemuanUKMPage(
+                                                          pertemuan:
+                                                              pertemuanMap,
+                                                        ),
+                                                  ),
+                                                );
+                                              },
+                                              icon: const Icon(
+                                                Icons.visibility_outlined,
+                                              ),
+                                              color: const Color(0xFF4169E1),
+                                              tooltip: 'Lihat Detail',
+                                            ),
+                                            IconButton(
+                                              onPressed: () =>
+                                                  _showDeleteDialog(pertemuan),
+                                              icon: const Icon(
+                                                Icons.delete_outline,
+                                              ),
+                                              color: Colors.red,
+                                              tooltip: 'Hapus',
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+
+                    // Pagination
+                    if (_pertemuanList.isNotEmpty && _totalPages > 1)
+                      Container(
+                        padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           border: Border(
-                            bottom: BorderSide(color: Colors.grey[200]!),
+                            top: BorderSide(color: Colors.grey[200]!),
                           ),
                         ),
                         child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            SizedBox(
-                              width: 60,
-                              child: Text(
-                                '${index + 1}',
-                                style: GoogleFonts.inter(
-                                  fontSize: 14,
-                                  color: Colors.grey[800],
-                                ),
+                            Text(
+                              'Menampilkan ${(_currentPage - 1) * _itemsPerPage + 1} - ${(_currentPage * _itemsPerPage) > _pertemuanList.length ? _pertemuanList.length : (_currentPage * _itemsPerPage)} dari ${_pertemuanList.length}',
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.grey[700],
                               ),
                             ),
-                            Expanded(
-                              flex: 2,
-                              child: Padding(
-                                padding: const EdgeInsets.only(right: 8),
-                                child: Text(
-                                  pertemuan.topik ?? 'Pertemuan ${index + 1}',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 14,
-                                    color: Colors.grey[800],
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
+                            Row(
+                              children: [
+                                IconButton(
+                                  onPressed: _currentPage > 1
+                                      ? () {
+                                          setState(() {
+                                            _currentPage--;
+                                          });
+                                        }
+                                      : null,
+                                  icon: const Icon(Icons.chevron_left),
+                                  color: const Color(0xFF4169E1),
                                 ),
-                              ),
-                            ),
-                            Expanded(
-                              flex: 2,
-                              child: Padding(
-                                padding: const EdgeInsets.only(right: 8),
-                                child: Text(
-                                  tanggalStr,
-                                  style: GoogleFonts.inter(
-                                    fontSize: 14,
-                                    color: Colors.grey[800],
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
                                   ),
-                                  overflow: TextOverflow.ellipsis,
+                                  decoration: BoxDecoration(
+                                    color: const Color(
+                                      0xFF4169E1,
+                                    ).withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: const Color(
+                                        0xFF4169E1,
+                                      ).withOpacity(0.3),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    '$_currentPage / $_totalPages',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: const Color(0xFF4169E1),
+                                    ),
+                                  ),
                                 ),
-                              ),
-                            ),
-                            Expanded(
-                              flex: 2,
-                              child: Padding(
-                                padding: const EdgeInsets.only(right: 8),
-                                child: Text(
-                                  '${pertemuan.jamMulai ?? '-'} - ${pertemuan.jamAkhir ?? '-'}',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 14,
-                                    color: Colors.grey[800],
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
+                                IconButton(
+                                  onPressed: _currentPage < _totalPages
+                                      ? () {
+                                          setState(() {
+                                            _currentPage++;
+                                          });
+                                        }
+                                      : null,
+                                  icon: const Icon(Icons.chevron_right),
+                                  color: const Color(0xFF4169E1),
                                 ),
-                              ),
-                            ),
-                            SizedBox(
-                              width: 140,
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [
-                                  IconButton(
-                                    onPressed: () {
-                                      // Convert model to map for detail page
-                                      final pertemuanMap = {
-                                        'id': pertemuan.idPertemuan,
-                                        'topik': pertemuan.topik,
-                                        'tanggal': tanggalStr,
-                                        'jamMulai': pertemuan.jamMulai,
-                                        'jamAkhir': pertemuan.jamAkhir,
-                                        'lokasi': pertemuan.lokasi,
-                                      };
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) =>
-                                              DetailPertemuanUKMPage(
-                                                pertemuan: pertemuanMap,
-                                              ),
-                                        ),
-                                      );
-                                    },
-                                    icon: const Icon(Icons.visibility_outlined),
-                                    color: const Color(0xFF4169E1),
-                                    tooltip: 'Lihat Detail',
-                                  ),
-                                  IconButton(
-                                    onPressed: () =>
-                                        _showDeleteDialog(pertemuan),
-                                    icon: const Icon(Icons.delete_outline),
-                                    color: Colors.red,
-                                    tooltip: 'Hapus',
-                                  ),
-                                ],
-                              ),
+                              ],
                             ),
                           ],
                         ),
-                      );
-                    },
-                  ),
-                ),
-
-                // Pagination
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    border: Border(top: BorderSide(color: Colors.grey[200]!)),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      IconButton(
-                        onPressed: _currentPage > 1
-                            ? () {
-                                setState(() {
-                                  _currentPage--;
-                                });
-                              }
-                            : null,
-                        icon: const Icon(Icons.chevron_left),
-                        color: const Color(0xFF4169E1),
                       ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Text(
-                          'Halaman $_currentPage',
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () {
-                          setState(() {
-                            _currentPage++;
-                          });
-                        },
-                        icon: const Icon(Icons.chevron_right),
-                        color: const Color(0xFF4169E1),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+                  ],
+                );
+              },
             ),
           ),
         ),
@@ -402,6 +587,17 @@ class _PertemuanUKMPageState extends State<PertemuanUKMPage> {
           .insert(notificationData);
     } catch (e) {
       debugPrint('Error sending notification: $e');
+    }
+  }
+
+  Future<void> _navigateToAddPertemuan() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const AddPertemuanUKMPage()),
+    );
+
+    if (result == true) {
+      _loadPertemuan();
     }
   }
 

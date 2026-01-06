@@ -137,37 +137,77 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             // Header
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Daftar Peserta',
-                      style: GoogleFonts.inter(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey[800],
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final isMobile = constraints.maxWidth < 600;
+                if (isMobile) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Daftar Peserta',
+                        style: GoogleFonts.inter(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey[800],
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${_filteredPesertaList.length} peserta',
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        color: Colors.grey[600],
+                      if (_periodeId != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          '${_filteredPesertaList.length} peserta',
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      IconButton(
+                        onPressed: _loadData,
+                        icon: const Icon(Icons.refresh),
+                        color: const Color(0xFF4169E1),
+                        tooltip: 'Refresh',
                       ),
-                    ),
-                  ],
-                ),
-                IconButton(
-                  onPressed: _loadData,
-                  icon: const Icon(Icons.refresh),
-                  color: const Color(0xFF4169E1),
-                  tooltip: 'Refresh',
-                ),
-              ],
+                    ],
+                  );
+                } else {
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Daftar Peserta',
+                            style: GoogleFonts.inter(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey[800],
+                            ),
+                          ),
+                          if (_periodeId != null) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              '${_filteredPesertaList.length} peserta',
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      IconButton(
+                        onPressed: _loadData,
+                        icon: const Icon(Icons.refresh),
+                        color: const Color(0xFF4169E1),
+                        tooltip: 'Refresh',
+                      ),
+                    ],
+                  );
+                }
+              },
             ),
             const SizedBox(height: 20),
 
