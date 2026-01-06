@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:unit_activity/services/custom_auth_service.dart';
 import 'package:unit_activity/auth/login.dart';
 
 /// Middleware untuk memastikan user sudah login
@@ -17,6 +18,7 @@ class AuthGuard extends StatefulWidget {
 
 class _AuthGuardState extends State<AuthGuard> {
   final SupabaseClient _supabase = Supabase.instance.client;
+  final CustomAuthService _authService = CustomAuthService();
   bool _isChecking = true;
   bool _isAuthenticated = false;
 
@@ -28,9 +30,8 @@ class _AuthGuardState extends State<AuthGuard> {
 
   Future<void> _checkAuth() async {
     try {
-      final user = _supabase.auth.currentUser;
-
-      if (user == null) {
+      // Check if user is logged in using CustomAuthService
+      if (!_authService.isLoggedIn) {
         setState(() {
           _isAuthenticated = false;
           _isChecking = false;
@@ -40,14 +41,8 @@ class _AuthGuardState extends State<AuthGuard> {
 
       // Check role if required
       if (widget.requiredRole != null) {
-        // Get user role from database
-        final userData = await _supabase
-            .from('users')
-            .select('role')
-            .eq('id_user', user.id)
-            .maybeSingle();
-
-        if (userData == null || userData['role'] != widget.requiredRole) {
+        final userRole = _authService.currentUserRole;
+        if (userRole != widget.requiredRole) {
           setState(() {
             _isAuthenticated = false;
             _isChecking = false;

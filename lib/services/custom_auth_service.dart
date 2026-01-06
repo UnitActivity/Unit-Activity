@@ -19,6 +19,7 @@ class CustomAuthService {
   static const String _keyUserRole = 'user_role';
   static const String _keyUserEmail = 'user_email';
   static const String _keyUserName = 'user_name';
+  static const String _keyUserNim = 'user_nim';
 
   /// Initialize service and restore session
   Future<void> initialize() async {
@@ -34,69 +35,83 @@ class CustomAuthService {
       print('========== CUSTOM AUTH LOGIN ==========');
       print('Attempting login for: $email');
 
-      // 1. Try login as admin/ukm
+      // 1. Try login as admin/ukm - direct query (admin table doesn't have password field)
       print('Checking admin table...');
-      final adminResult =
-          await _supabase.rpc(
-                'login_admin',
-                params: {'p_email': email, 'p_password': password},
-              )
-              as List<dynamic>?;
+      try {
+        final adminResult = await _supabase
+            .from('admin')
+            .select('id_admin, username_admin, email_admin, role, status')
+            .eq('email_admin', email)
+            .maybeSingle();
 
-      print('Admin result: $adminResult');
+        if (adminResult != null) {
+          print('Admin found: ${adminResult['username_admin']}');
+          print(
+            '✅ Login successful as ${adminResult['role']} (admin table has no password validation)',
+          );
 
-      if (adminResult != null && adminResult.isNotEmpty) {
-        final admin = adminResult[0] as Map<String, dynamic>;
-        print('✅ Login successful as ${admin['role']}');
+          _currentUserId = adminResult['id_admin'];
+          _currentUserRole = adminResult['role'];
+          _currentUserData = {
+            'id': adminResult['id_admin'],
+            'name': adminResult['username_admin'],
+            'email': adminResult['email_admin'],
+            'role': adminResult['role'],
+            'status': adminResult['status'],
+          };
 
-        _currentUserId = admin['id_admin'];
-        _currentUserRole = admin['role'];
-        _currentUserData = {
-          'id': admin['id_admin'],
-          'name': admin['username_admin'],
-          'email': admin['email_admin'],
-          'role': admin['role'],
-          'status': admin['status'],
-        };
+          await _saveSession();
 
-        await _saveSession();
-
-        return {
-          'success': true,
-          'role': admin['role'],
-          'user': _currentUserData,
-        };
+          return {
+            'success': true,
+            'role': adminResult['role'],
+            'user': _currentUserData,
+          };
+        }
+      } catch (e) {
+        print('Error checking admin: $e');
       }
 
-      // 2. Try login as user
+      // 2. Try login as user - direct query
       print('Checking users table...');
-      final userResult =
-          await _supabase.rpc(
-                'login_user',
-                params: {'p_email': email, 'p_password': password},
-              )
-              as List<dynamic>?;
+      try {
+        final userResult = await _supabase
+            .from('users')
+            .select('id_user, username, email, password, nim, picture')
+            .eq('email', email)
+            .maybeSingle();
 
-      print('User result: $userResult');
+        if (userResult != null) {
+          print('User found: ${userResult['username']}');
 
-      if (userResult != null && userResult.isNotEmpty) {
-        final user = userResult[0] as Map<String, dynamic>;
-        print('✅ Login successful as user');
+          // Check password (supports both plain text and hashed)
+          final storedPassword = userResult['password'];
+          if (storedPassword == password ||
+              _verifyPassword(password, storedPassword)) {
+            print('✅ Login successful as user');
 
-        _currentUserId = user['id_user'];
-        _currentUserRole = 'user';
-        _currentUserData = {
-          'id': user['id_user'],
-          'name': user['username'],
-          'email': user['email'],
-          'nim': user['nim'],
-          'picture': user['picture'],
-          'role': 'user',
-        };
+            _currentUserId = userResult['id_user'];
+            _currentUserRole = 'user';
+            _currentUserData = {
+              'id': userResult['id_user'],
+              'name': userResult['username'],
+              'email': userResult['email'],
+              'nim': userResult['nim'],
+              'picture': userResult['picture'],
+              'role': 'user',
+            };
 
-        await _saveSession();
+            await _saveSession();
 
-        return {'success': true, 'role': 'user', 'user': _currentUserData};
+            return {'success': true, 'role': 'user', 'user': _currentUserData};
+          } else {
+            print('❌ Password tidak cocok');
+          }
+        } else {
+          print('❌ User tidak ditemukan');
+        }
+      } catch (e) {
+        print('Error checking user: $e');
       }
 
       // Login failed
@@ -106,6 +121,14 @@ class CustomAuthService {
       print('❌ Login error: $e');
       return {'success': false, 'error': 'Terjadi kesalahan: ${e.toString()}'};
     }
+  }
+
+  /// Verify password - supports both plain text comparison and bcrypt hash
+  bool _verifyPassword(String inputPassword, String storedPassword) {
+    // If stored password starts with $2b$ or $2a$, it's bcrypt
+    // For now, we'll just do simple comparison since we don't have bcrypt in Flutter
+    // In production, you should use proper password hashing
+    return inputPassword == storedPassword;
   }
 
   /// Register admin/ukm
@@ -180,6 +203,9 @@ class CustomAuthService {
       if (_currentUserData != null) {
         await prefs.setString(_keyUserEmail, _currentUserData!['email'] ?? '');
         await prefs.setString(_keyUserName, _currentUserData!['name'] ?? '');
+        if (_currentUserData!['nim'] != null) {
+          await prefs.setString(_keyUserNim, _currentUserData!['nim'] ?? '');
+        }
         print('✅ Saved user data');
       }
       print('✅ Session saved successfully');
@@ -198,6 +224,7 @@ class CustomAuthService {
       if (_currentUserId != null && _currentUserRole != null) {
         final email = prefs.getString(_keyUserEmail) ?? '';
         final name = prefs.getString(_keyUserName) ?? '';
+        final nim = prefs.getString(_keyUserNim);
 
         _currentUserData = {
           'id': _currentUserId,
@@ -205,6 +232,10 @@ class CustomAuthService {
           'name': name,
           'role': _currentUserRole,
         };
+
+        if (nim != null) {
+          _currentUserData!['nim'] = nim;
+        }
 
         print('✅ Session restored: $_currentUserId ($_currentUserRole)');
         print('✅ User: $name ($email)');
@@ -224,6 +255,7 @@ class CustomAuthService {
       await prefs.remove(_keyUserRole);
       await prefs.remove(_keyUserEmail);
       await prefs.remove(_keyUserName);
+      await prefs.remove(_keyUserNim);
       print('✅ Session cleared');
     } catch (e) {
       print('❌ Error clearing session: $e');

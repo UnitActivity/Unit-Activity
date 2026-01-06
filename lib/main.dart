@@ -56,6 +56,22 @@ class MyApp extends StatelessWidget {
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
+    // Check if user is already logged in
+    final authService = CustomAuthService();
+    String initialRoute = '/login';
+
+    if (authService.isLoggedIn) {
+      final role = authService.currentUserRole;
+      if (role == 'admin') {
+        initialRoute = '/admin';
+      } else if (role == 'ukm') {
+        initialRoute = '/ukm';
+      } else {
+        initialRoute = '/user';
+      }
+      print('User already logged in, redirecting to: $initialRoute');
+    }
+
     return MaterialApp(
       title: 'Unit Activity',
       debugShowCheckedModeBanner: false,
@@ -66,7 +82,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF4169E1)),
         useMaterial3: true,
       ),
-      initialRoute: '/login',
+      initialRoute: initialRoute,
       routes: {
         '/': (context) => const LoginPage(),
         '/login': (context) => const LoginPage(),
