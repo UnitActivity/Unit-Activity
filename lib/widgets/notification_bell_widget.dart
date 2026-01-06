@@ -288,6 +288,9 @@ class _NotificationItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isFromAdmin =
+        notification.sender == 'Admin' || notification.sender == 'Sistem';
+
     return InkWell(
       onTap: onTap,
       child: Container(
@@ -360,13 +363,58 @@ class _NotificationItem extends StatelessWidget {
             const SizedBox(height: 6),
             Padding(
               padding: const EdgeInsets.only(left: 42),
-              child: Text(
-                notification.timeAgo,
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  color: Colors.green.shade600,
-                  fontWeight: FontWeight.w500,
-                ),
+              child: Row(
+                children: [
+                  // Sender badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isFromAdmin
+                          ? Colors.purple.withOpacity(0.1)
+                          : Colors.blue.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                        color: isFromAdmin
+                            ? Colors.purple.withOpacity(0.3)
+                            : Colors.blue.withOpacity(0.3),
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isFromAdmin
+                              ? Icons.admin_panel_settings
+                              : Icons.school,
+                          size: 10,
+                          color: isFromAdmin ? Colors.purple : Colors.blue,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          notification.sender,
+                          style: GoogleFonts.inter(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: isFromAdmin ? Colors.purple : Colors.blue,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    notification.timeAgo,
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: Colors.green.shade600,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

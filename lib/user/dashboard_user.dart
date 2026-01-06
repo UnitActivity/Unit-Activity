@@ -379,129 +379,140 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
 
   Future<void> _loadSliderEvents() async {
     try {
-      final response = await _supabase
-          .from('events')
+      final userId = _supabase.auth.currentUser?.id;
+
+      print('========== DEBUG INFORMASI ==========');
+      print('Current user ID: $userId');
+
+      List<Map<String, dynamic>> allInformasi = [];
+
+      // 1. Load informasi from Admin (id_ukm is null or empty)
+      final adminResponse = await _supabase
+          .from('informasi')
           .select(
-            'id_events, nama_event, deskripsi, lokasi, tanggal, jam, ukm(nama_ukm)',
+            'id_informasi, judul, deskripsi, gambar, create_at, status_aktif, id_ukm',
           )
-          .limit(5)
-          .order('tanggal', ascending: false);
+          .eq('status', 'Publish')
+          .eq('status_aktif', true)
+          .filter('id_ukm', 'is', null)
+          .order('create_at', ascending: false)
+          .limit(10);
 
-      print('DEBUG: Events loaded: ${response.length} events');
+      print('Admin informasi count: ${(adminResponse as List).length}');
 
-      // Available slider images
-      final sliderImages = [
-        'assets/images/slider/percobaan.png',
-        'assets/images/slider/percobaan2.png',
-        'assets/images/slider/percobaan3.png',
-        'assets/images/slider/percobaan4.png',
-      ];
+      for (var item in adminResponse) {
+        String? imageUrl;
+        if (item['gambar'] != null) {
+          try {
+            imageUrl = _supabase.storage
+                .from('informasi-images')
+                .getPublicUrl(item['gambar']);
+          } catch (e) {
+            print('Error getting image URL: $e');
+          }
+        }
+
+        allInformasi.add({
+          'id': item['id_informasi'],
+          'title': item['judul'] ?? 'Informasi',
+          'description': item['deskripsi'] ?? '',
+          'subtitle': 'Admin',
+          'source': 'admin',
+          'date': _formatDate(item['create_at']),
+          'imageUrl': imageUrl,
+          'image': null,
+        });
+      }
+
+      // 2. Load informasi from UKM that user has joined
+      if (userId != null) {
+        try {
+          // Get UKMs user has joined
+          final userUkms = await _supabase
+              .from('user_halaman_ukm')
+              .select('id_ukm, ukm(nama_ukm)')
+              .eq('id_user', userId)
+              .eq('status', 'active');
+
+          print('User joined UKMs: ${(userUkms as List).length}');
+
+          if (userUkms.isNotEmpty) {
+            final ukmIds = userUkms.map((e) => e['id_ukm']).toList();
+
+            // Get informasi from these UKMs
+            final ukmResponse = await _supabase
+                .from('informasi')
+                .select(
+                  'id_informasi, judul, deskripsi, gambar, create_at, status_aktif, id_ukm, ukm(nama_ukm)',
+                )
+                .inFilter('id_ukm', ukmIds)
+                .eq('status_aktif', true)
+                .order('create_at', ascending: false)
+                .limit(10);
+
+            print('UKM informasi count: ${(ukmResponse as List).length}');
+
+            for (var item in ukmResponse) {
+              String? imageUrl;
+              if (item['gambar'] != null) {
+                try {
+                  imageUrl = _supabase.storage
+                      .from('informasi-images')
+                      .getPublicUrl(item['gambar']);
+                } catch (e) {
+                  print('Error getting image URL: $e');
+                }
+              }
+
+              allInformasi.add({
+                'id': item['id_informasi'],
+                'title': item['judul'] ?? 'Informasi',
+                'description': item['deskripsi'] ?? '',
+                'subtitle': item['ukm']?['nama_ukm'] ?? 'UKM',
+                'source': 'ukm',
+                'date': _formatDate(item['create_at']),
+                'imageUrl': imageUrl,
+                'image': null,
+              });
+            }
+          }
+        } catch (e) {
+          print('Error loading UKM informasi: $e');
+        }
+      }
+
+      // Sort by date (newest first)
+      allInformasi.sort((a, b) {
+        try {
+          final dateA = DateTime.parse(a['date']);
+          final dateB = DateTime.parse(b['date']);
+          return dateB.compareTo(dateA);
+        } catch (e) {
+          return 0;
+        }
+      });
+
+      // Take top 5
+      final topInformasi = allInformasi.take(5).toList();
+
+      print('Total informasi loaded: ${topInformasi.length}');
+      print('====================================');
 
       if (mounted) {
         setState(() {
-          if ((response as List).isEmpty) {
-            // No events from database, use demo data with images
-            _sliderEvents = [
-              {
-                'id': 'demo1',
-                'title': 'UKM Badminton',
-                'subtitle': 'Olahraga',
-                'description': 'Sparing badminton antar UKM',
-                'date': 'Sabtu, 01 November 2025',
-                'time': '10:00 - 13:00 WIB',
-                'location': 'Lapangan MERR Court',
-                'image': sliderImages[0],
-              },
-              {
-                'id': 'demo2',
-                'title': 'UKM E-Sports',
-                'subtitle': 'Gaming',
-                'description': 'Tournament e-sports terbuka',
-                'date': 'Jumat, 07 November 2025',
-                'time': '16:00 - 18:00 WIB',
-                'location': 'Ruang A - Universitas Katolik Darma Cendika',
-                'image': sliderImages[1],
-              },
-              {
-                'id': 'demo3',
-                'title': 'UKM E-Sports',
-                'subtitle': 'Gaming',
-                'description': 'Latihan bersama e-sports',
-                'date': 'Jumat, 07 November 2025',
-                'time': '16:00 - 18:00 WIB',
-                'location': 'Kampus C - Universitas Katolik Darma Cendika',
-                'image': sliderImages[2],
-              },
-            ];
-          } else {
-            _sliderEvents = (response as List)
-                .asMap()
-                .entries
-                .map(
-                  (entry) => {
-                    'id': entry.value['id_events'],
-                    'title': entry.value['nama_event'] ?? 'Event',
-                    'description': entry.value['deskripsi'] ?? '',
-                    'subtitle': entry.value['ukm']?['nama_ukm'] ?? 'UKM',
-                    'date': entry.value['tanggal'] ?? '',
-                    'time': entry.value['jam'] ?? '',
-                    'location': entry.value['lokasi'] ?? '',
-                    'image': sliderImages[entry.key % sliderImages.length],
-                  },
-                )
-                .toList();
-          }
-
+          _sliderEvents = topInformasi;
           _isLoadingEvents = false;
-          print('DEBUG: Slider events updated: ${_sliderEvents.length} events');
         });
       }
     } catch (e) {
-      print('ERROR loading events: $e');
-
-      // Fallback demo data with images when error
-      final sliderImages = [
-        'assets/images/slider/percobaan.png',
-        'assets/images/slider/percobaan2.png',
-        'assets/images/slider/percobaan3.png',
-        'assets/images/slider/percobaan4.png',
-      ];
+      print('========== ERROR ==========');
+      print('ERROR loading informasi: $e');
+      print('===========================');
 
       if (mounted) {
         setState(() {
           _isLoadingEvents = false;
-          _sliderEvents = [
-            {
-              'id': 'demo1',
-              'title': 'UKM Badminton',
-              'subtitle': 'Olahraga',
-              'description': 'Sparing badminton antar UKM',
-              'date': 'Sabtu, 01 November 2025',
-              'time': '10:00 - 13:00 WIB',
-              'location': 'Lapangan MERR Court',
-              'image': sliderImages[0],
-            },
-            {
-              'id': 'demo2',
-              'title': 'UKM E-Sports',
-              'subtitle': 'Gaming',
-              'description': 'Tournament e-sports terbuka',
-              'date': 'Jumat, 07 November 2025',
-              'time': '16:00 - 18:00 WIB',
-              'location': 'Ruang A - Universitas Katolik Darma Cendika',
-              'image': sliderImages[1],
-            },
-            {
-              'id': 'demo3',
-              'title': 'UKM E-Sports',
-              'subtitle': 'Gaming',
-              'description': 'Latihan bersama e-sports',
-              'date': 'Jumat, 07 November 2025',
-              'time': '16:00 - 18:00 WIB',
-              'location': 'Kampus C - Universitas Katolik Darma Cendika',
-              'image': sliderImages[2],
-            },
-          ];
+          _sliderEvents = [];
         });
       }
     }
@@ -936,6 +947,67 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
       );
     }
 
+    // Show empty state if no informasi available
+    if (_sliderEvents.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Informasi Terkini',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            height: sliderHeight.toDouble(),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.1),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    size: isMobile ? 48 : 64,
+                    color: Colors.grey[400],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Belum ada informasi',
+                    style: GoogleFonts.poppins(
+                      fontSize: isMobile ? 14 : 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[700],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 32),
+                    child: Text(
+                      'Informasi dari admin akan muncul di sini',
+                      style: GoogleFonts.poppins(
+                        fontSize: isMobile ? 12 : 14,
+                        color: Colors.grey[600],
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -965,24 +1037,53 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
                 Stack(
                   fit: StackFit.expand,
                   children: [
-                    // Background image from assets
-                    Image.asset(
-                      _sliderEvents[_currentSlideIndex]['image'] ??
-                          'assets/images/slider/percobaan.png',
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          color: Colors.blue[300],
-                          child: Center(
-                            child: Icon(
-                              Icons.event,
-                              size: 80,
-                              color: Colors.white.withOpacity(0.3),
+                    // Background image - prioritize imageUrl from database
+                    _sliderEvents[_currentSlideIndex]['imageUrl'] != null
+                        ? Image.network(
+                            _sliderEvents[_currentSlideIndex]['imageUrl']!,
+                            fit: BoxFit.cover,
+                            loadingBuilder: (context, child, loadingProgress) {
+                              if (loadingProgress == null) return child;
+                              return Container(
+                                color: Colors.grey[200],
+                                child: Center(
+                                  child: CircularProgressIndicator(
+                                    value:
+                                        loadingProgress.expectedTotalBytes !=
+                                            null
+                                        ? loadingProgress
+                                                  .cumulativeBytesLoaded /
+                                              loadingProgress
+                                                  .expectedTotalBytes!
+                                        : null,
+                                  ),
+                                ),
+                              );
+                            },
+                            errorBuilder: (context, error, stackTrace) {
+                              // Show placeholder if image fails to load
+                              return Container(
+                                color: Colors.blue[300],
+                                child: Center(
+                                  child: Icon(
+                                    Icons.info,
+                                    size: 80,
+                                    color: Colors.white.withOpacity(0.3),
+                                  ),
+                                ),
+                              );
+                            },
+                          )
+                        : Container(
+                            color: Colors.blue[300],
+                            child: Center(
+                              child: Icon(
+                                Icons.info,
+                                size: 80,
+                                color: Colors.white.withOpacity(0.3),
+                              ),
                             ),
                           ),
-                        );
-                      },
-                    ),
                     // Dark gradient overlay
                     Container(
                       decoration: BoxDecoration(
@@ -1004,6 +1105,45 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // Source badge (Admin or UKM)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color:
+                                  _sliderEvents[_currentSlideIndex]['source'] ==
+                                      'admin'
+                                  ? Colors.purple.withOpacity(0.9)
+                                  : Colors.blue.withOpacity(0.9),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  _sliderEvents[_currentSlideIndex]['source'] ==
+                                          'admin'
+                                      ? Icons.admin_panel_settings
+                                      : Icons.school,
+                                  size: 12,
+                                  color: Colors.white,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  _sliderEvents[_currentSlideIndex]['subtitle'] ??
+                                      '',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
                           Text(
                             _sliderEvents[_currentSlideIndex]['title'] ?? '',
                             style: TextStyle(
@@ -1019,7 +1159,7 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
                             Row(
                               children: [
                                 Text(
-                                  _sliderEvents[_currentSlideIndex]['subtitle'] ??
+                                  _sliderEvents[_currentSlideIndex]['date'] ??
                                       '',
                                   style: const TextStyle(
                                     color: Colors.white70,

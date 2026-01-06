@@ -9,6 +9,7 @@ import 'package:unit_activity/user/profile.dart';
 import 'package:unit_activity/user/dashboard_user.dart';
 import 'package:unit_activity/user/event.dart';
 import 'package:unit_activity/user/history.dart';
+import 'package:unit_activity/services/custom_auth_service.dart';
 
 class UserUKMPage extends StatefulWidget {
   const UserUKMPage({super.key});
@@ -19,6 +20,7 @@ class UserUKMPage extends StatefulWidget {
 
 class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
   final SupabaseClient _supabase = Supabase.instance.client;
+  final CustomAuthService _authService = CustomAuthService();
 
   String _selectedMenu = 'UKM';
   Map<String, dynamic>? _selectedUKM;
@@ -31,9 +33,15 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
   @override
   void initState() {
     super.initState();
-    _loadUKMs();
+    _initializeAndLoad();
     // Add lifecycle observer
     WidgetsBinding.instance.addObserver(_LifecycleObserver(_onResume));
+  }
+
+  Future<void> _initializeAndLoad() async {
+    // Initialize auth service first to restore session
+    await _authService.initialize();
+    _loadUKMs();
   }
 
   @override
@@ -53,8 +61,9 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
     });
 
     try {
-      final user = _supabase.auth.currentUser;
-      print('DEBUG: Current user: ${user?.email}');
+      final userId = _authService.currentUserId;
+      print('DEBUG: Current user ID: $userId');
+      print('DEBUG: Is logged in: ${_authService.isLoggedIn}');
 
       // Try minimal query first
       final response = await _supabase
@@ -216,39 +225,54 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
   /// Check if user has cooldown for rejoining UKM
   Future<Map<String, dynamic>> _checkCooldownPeriod(String ukmId) async {
     try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) {
+      final userId = _authService.currentUserId;
+      if (userId == null || userId.isEmpty) {
         return {'has_cooldown': false};
       }
 
-      // Get last unjoin record
-      final lastUnjoin = await _supabase
-          .from('user_ukm_history')
-          .select('id_periode, unjoined_at, periode(nama_periode)')
-          .eq('id_ukm', ukmId)
-          .eq('id_user', user.id)
-          .eq('action', 'unjoin')
-          .order('unjoined_at', ascending: false)
-          .limit(1)
-          .maybeSingle();
-
-      if (lastUnjoin == null) {
-        return {'has_cooldown': false};
-      }
-
-      // Get current periode
+      // Get current periode first
       final currentPeriode = await _getCurrentPeriode();
       if (currentPeriode == null) {
+        print('No active periode found');
         return {'has_cooldown': false};
       }
 
-      // Check if unjoin was in current periode
-      if (lastUnjoin['id_periode'] == currentPeriode['id_periode']) {
-        return {
-          'has_cooldown': true,
-          'next_period': 'periode berikutnya',
-          'last_unjoin_periode': lastUnjoin['periode']?['nama_periode'],
-        };
+      // Try to get last unjoin record from history table if it exists
+      try {
+        final lastUnjoin = await _supabase
+            .from('ukm_user_history')
+            .select('id_periode, unjoined_at, periode(nama_periode)')
+            .eq('id_ukm', ukmId)
+            .eq('id_user', userId)
+            .eq('action', 'unjoin')
+            .order('unjoined_at', ascending: false)
+            .limit(1)
+            .maybeSingle();
+
+        if (lastUnjoin == null) {
+          print('No unjoin history found for this UKM');
+          return {'has_cooldown': false};
+        }
+
+        print('Last unjoin periode: ${lastUnjoin['id_periode']}');
+        print('Current periode: ${currentPeriode['id_periode']}');
+
+        // Check if unjoin was in current periode
+        if (lastUnjoin['id_periode'] == currentPeriode['id_periode']) {
+          print('User is still in cooldown period');
+          return {
+            'has_cooldown': true,
+            'current_periode': currentPeriode['nama_periode'],
+            'last_unjoin_periode':
+                lastUnjoin['periode']?['nama_periode'] ??
+                currentPeriode['nama_periode'],
+          };
+        }
+
+        print('Cooldown period has passed');
+      } catch (historyError) {
+        print('History table not found or error: $historyError');
+        // Table doesn't exist, no cooldown
       }
 
       return {'has_cooldown': false};
@@ -260,7 +284,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
 
   /// Unjoin from UKM
   Future<void> _unjoinUKM(Map<String, dynamic> ukm) async {
-    final user = _supabase.auth.currentUser;
+    final userId = _authService.currentUserId;
 
     // Show confirmation dialog
     final confirmed = await showDialog<bool>(
@@ -294,23 +318,38 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
     if (confirmed != true) return;
 
     try {
+      if (userId == null || userId.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Anda harus login terlebih dahulu'),
+            backgroundColor: Colors.red[600],
+          ),
+        );
+        return;
+      }
+
       final currentPeriode = await _getCurrentPeriode();
 
       // Delete from user_halaman_ukm
-      await _supabase
-          .from('user_halaman_ukm')
-          .delete()
-          .eq('id_ukm', ukm['id'])
-          .eq('id_user', user?.id ?? '');
-
-      // Insert to history
-      await _supabase.from('user_ukm_history').insert({
+      await _supabase.from('user_halaman_ukm').delete().match({
         'id_ukm': ukm['id'],
-        'id_user': user?.id ?? '',
-        'id_periode': currentPeriode?['id_periode'],
-        'action': 'unjoin',
-        'unjoined_at': DateTime.now().toIso8601String(),
+        'id_user': userId,
       });
+
+      // Try to insert to history (optional if table exists)
+      try {
+        await _supabase.from('ukm_user_history').insert({
+          'id_ukm': ukm['id'],
+          'id_user': userId,
+          'id_periode': currentPeriode?['id_periode'],
+          'action': 'unjoin',
+          'unjoined_at': DateTime.now().toIso8601String(),
+        });
+        print('Successfully recorded unjoin history');
+      } catch (historyError) {
+        print('Could not save to history (table may not exist): $historyError');
+        // Continue anyway, history is optional
+      }
 
       // Update local state
       setState(() {
@@ -318,8 +357,9 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
         if (index != -1) {
           _allUKMs[index]['isRegistered'] = false;
           _allUKMs[index]['status'] = 'Belum Terdaftar';
-          if (_selectedUKM?['id'] == ukm['id']) {
-            _selectedUKM = _allUKMs[index];
+          if (_selectedUKM != null && _selectedUKM!['id'] == ukm['id']) {
+            _selectedUKM!['isRegistered'] = false;
+            _selectedUKM!['status'] = 'Belum Terdaftar';
           }
         }
       });
@@ -346,22 +386,78 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
 
   Future<void> _showRegisterDialog(Map<String, dynamic> ukm) async {
     // Check cooldown period
-    try {
-      final cooldownCheck = await _checkCooldownPeriod(ukm['id']);
-      if (cooldownCheck['has_cooldown'] == true) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Anda harus menunggu hingga periode ${cooldownCheck['next_period']} untuk bergabung kembali',
-            ),
-            backgroundColor: Colors.orange[600],
-            duration: const Duration(seconds: 4),
+    final cooldownCheck = await _checkCooldownPeriod(ukm['id']);
+    if (cooldownCheck['has_cooldown'] == true) {
+      final currentPeriodeName = cooldownCheck['current_periode'] ?? 'saat ini';
+
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
           ),
-        );
-        return;
-      }
-    } catch (e) {
-      print('Error checking cooldown: $e');
+          title: Row(
+            children: [
+              Icon(Icons.info_outline, color: Colors.orange[700], size: 28),
+              const SizedBox(width: 12),
+              const Text(
+                'Tidak Dapat Bergabung',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Anda telah keluar dari ${ukm['name']} pada periode $currentPeriodeName.',
+                style: const TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange[200]!),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.schedule, color: Colors.orange[700], size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Anda harus menunggu sampai periode berikutnya untuk bergabung kembali.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.orange[900],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue[600],
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+              ),
+              child: const Text('Mengerti'),
+            ),
+          ],
+        ),
+      );
+      return;
     }
 
     showDialog(
@@ -413,13 +509,43 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                       child: ElevatedButton(
                         onPressed: () async {
                           try {
-                            final user = _supabase.auth.currentUser;
+                            // Use CustomAuthService instead of Supabase Auth
+                            final userId = _authService.currentUserId;
+                            final userEmail =
+                                _authService.currentUser?['email'];
+
+                            print('========== DEBUG REGISTER UKM ==========');
+                            print('Current user ID: $userId');
+                            print('User email: $userEmail');
+                            print('Is logged in: ${_authService.isLoggedIn}');
+                            print('UKM ID: ${ukm['id']}');
+                            print('======================================');
+
+                            if (userId == null || userId.isEmpty) {
+                              if (!mounted) return;
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: const Text(
+                                    'Anda harus login terlebih dahulu',
+                                    style: TextStyle(color: Colors.white),
+                                  ),
+                                  backgroundColor: Colors.red[600],
+                                ),
+                              );
+                              return;
+                            }
 
                             // Save to Supabase with current periode
                             final currentPeriode = await _getCurrentPeriode();
+
+                            print(
+                              'Current periode: ${currentPeriode?['id_periode']}',
+                            );
+
                             await _supabase.from('user_halaman_ukm').insert({
                               'id_ukm': ukm['id'],
-                              'id_user': user?.id ?? '',
+                              'id_user': userId,
                               'id_periode': currentPeriode?['id_periode'],
                               'status': 'active',
                             });

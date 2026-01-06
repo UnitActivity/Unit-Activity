@@ -70,6 +70,9 @@ class UserDashboardService {
   }) async {
     try {
       final userId = currentUserId;
+      print('========== GET UPCOMING SCHEDULES ==========');
+      print('User ID: $userId');
+
       if (userId == null) {
         print('No user logged in');
         return [];
@@ -78,15 +81,20 @@ class UserDashboardService {
       // Get user's joined UKMs
       final userUkms = await _supabase
           .from('user_halaman_ukm')
-          .select('id_ukm')
-          .eq('id_user', userId);
+          .select('id_ukm, ukm(nama_ukm)')
+          .eq('id_user', userId)
+          .eq('status', 'active');
+
+      print('User joined UKMs: ${(userUkms as List).length}');
 
       if (userUkms.isEmpty) {
+        print('User has not joined any UKM');
         // Return all upcoming events if user hasn't joined any UKM
         return await _getAllUpcomingSchedules(limit: limit);
       }
 
       final ukmIds = (userUkms as List).map((e) => e['id_ukm']).toList();
+      print('UKM IDs: $ukmIds');
 
       // Get upcoming pertemuan for user's UKMs
       final pertemuanResponse = await _supabase
@@ -104,6 +112,8 @@ class UserDashboardService {
           .gte('tanggal', DateTime.now().toIso8601String().split('T')[0])
           .order('tanggal', ascending: true)
           .limit(limit);
+
+      print('Found ${(pertemuanResponse as List).length} pertemuan');
 
       List<Map<String, dynamic>> schedules = [];
 
@@ -140,6 +150,8 @@ class UserDashboardService {
           .order('tanggal_mulai', ascending: true)
           .limit(limit);
 
+      print('Found ${(eventsResponse as List).length} events');
+
       for (var event in eventsResponse) {
         schedules.add({
           'type': 'event',
@@ -160,6 +172,9 @@ class UserDashboardService {
         final dateB = DateTime.tryParse(b['date'] ?? '') ?? DateTime.now();
         return dateA.compareTo(dateB);
       });
+
+      print('Total schedules: ${schedules.length}');
+      print('=========================================');
 
       return schedules.take(limit).toList();
     } catch (e) {
