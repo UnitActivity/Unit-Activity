@@ -3,6 +3,8 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:unit_activity/services/ukm_dashboard_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class DetailPertemuanUKMPage extends StatefulWidget {
   final Map<String, dynamic> pertemuan;
@@ -14,17 +16,57 @@ class DetailPertemuanUKMPage extends StatefulWidget {
 }
 
 class _DetailPertemuanUKMPageState extends State<DetailPertemuanUKMPage> {
-  // Sample members data - replace with API data from user_halaman_ukm
-  final List<Map<String, dynamic>> _membersList = [
-    {'nim': '123456789', 'nama': 'Ahmad Rizki', 'status': 'Tidak Hadir'},
-    {'nim': '987654321', 'nama': 'Siti Nurhaliza', 'status': 'Tidak Hadir'},
-    {'nim': '456789123', 'nama': 'Budi Santoso', 'status': 'Tidak Hadir'},
-    {'nim': '789123456', 'nama': 'Dewi Lestari', 'status': 'Tidak Hadir'},
-    {'nim': '321654987', 'nama': 'Eko Prasetyo', 'status': 'Tidak Hadir'},
-  ];
+  final _supabase = Supabase.instance.client;
+  final _dashboardService = UkmDashboardService();
 
-  // Track attendance by NIM
+  List<Map<String, dynamic>> _membersList = [];
+  bool _isLoadingMembers = true;
+
+  // Track attendance by user ID
   final Map<String, bool> _attendanceData = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMembers();
+  }
+
+  Future<void> _loadMembers() async {
+    setState(() => _isLoadingMembers = true);
+
+    try {
+      // Get current UKM details
+      final ukmDetails = await _dashboardService.getCurrentUkmDetails();
+      if (ukmDetails != null) {
+        final ukmId = ukmDetails['id_ukm'];
+
+        // Get members with their details from admin table
+        final response = await _supabase
+            .from('user_halaman_ukm')
+            .select('id_user, admin(id_admin, nama_admin, nim_admin)')
+            .eq('id_ukm', ukmId)
+            .eq('status', 'aktif');
+
+        setState(() {
+          _membersList = (response as List).map((item) {
+            final admin = item['admin'] as Map<String, dynamic>?;
+            return {
+              'id_user': item['id_user'],
+              'nim': admin?['nim_admin']?.toString() ?? 'N/A',
+              'nama': admin?['nama_admin'] ?? 'Unknown',
+              'status': 'Tidak Hadir',
+            };
+          }).toList();
+          _isLoadingMembers = false;
+        });
+      } else {
+        setState(() => _isLoadingMembers = false);
+      }
+    } catch (e) {
+      debugPrint('Error loading members: $e');
+      setState(() => _isLoadingMembers = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -251,87 +293,107 @@ class _DetailPertemuanUKMPageState extends State<DetailPertemuanUKMPage> {
                     ),
                   ),
                   // Table Body
-                  ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: _membersList.length,
-                    itemBuilder: (context, index) {
-                      final member = _membersList[index];
-                      final isPresent = _attendanceData[member['nim']] ?? false;
-                      return Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 16,
-                        ),
-                        decoration: BoxDecoration(
-                          border: Border(
-                            bottom: BorderSide(color: Colors.grey[200]!),
+                  if (_isLoadingMembers)
+                    const Padding(
+                      padding: EdgeInsets.all(24.0),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else if (_membersList.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.all(24.0),
+                      child: Center(
+                        child: Text(
+                          'Belum ada anggota aktif',
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            color: Colors.grey[600],
                           ),
                         ),
-                        child: Row(
-                          children: [
-                            SizedBox(
-                              width: 60,
-                              child: Text(
-                                '${index + 1}',
-                                style: GoogleFonts.inter(
-                                  fontSize: 14,
-                                  color: Colors.grey[800],
-                                ),
-                              ),
+                      ),
+                    )
+                  else
+                    ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _membersList.length,
+                      itemBuilder: (context, index) {
+                        final member = _membersList[index];
+                        final userId = member['id_user'] as String;
+                        final isPresent = _attendanceData[userId] ?? false;
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 16,
+                          ),
+                          decoration: BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(color: Colors.grey[200]!),
                             ),
-                            Expanded(
-                              flex: 2,
-                              child: Text(
-                                member['nim'],
-                                style: GoogleFonts.inter(
-                                  fontSize: 14,
-                                  color: Colors.grey[800],
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              flex: 3,
-                              child: Text(
-                                member['nama'],
-                                style: GoogleFonts.inter(
-                                  fontSize: 14,
-                                  color: Colors.grey[800],
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              flex: 2,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: isPresent
-                                      ? Colors.green[50]
-                                      : Colors.red[50],
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
+                          ),
+                          child: Row(
+                            children: [
+                              SizedBox(
+                                width: 60,
                                 child: Text(
-                                  isPresent ? 'Hadir' : 'Tidak Hadir',
+                                  '${index + 1}',
                                   style: GoogleFonts.inter(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: isPresent
-                                        ? Colors.green[700]
-                                        : Colors.red[700],
+                                    fontSize: 14,
+                                    color: Colors.grey[800],
                                   ),
-                                  textAlign: TextAlign.center,
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
+                              Expanded(
+                                flex: 2,
+                                child: Text(
+                                  member['nim'],
+                                  style: GoogleFonts.inter(
+                                    fontSize: 14,
+                                    color: Colors.grey[800],
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                flex: 3,
+                                child: Text(
+                                  member['nama'],
+                                  style: GoogleFonts.inter(
+                                    fontSize: 14,
+                                    color: Colors.grey[800],
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                flex: 2,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isPresent
+                                        ? Colors.green[50]
+                                        : Colors.red[50],
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    isPresent ? 'Hadir' : 'Tidak Hadir',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: isPresent
+                                          ? Colors.green[700]
+                                          : Colors.red[700],
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
                 ],
               ),
             ),
@@ -363,7 +425,7 @@ class _DetailPertemuanUKMPageState extends State<DetailPertemuanUKMPage> {
               // Simulate attendance scanning - update after dialog state
               if (Random().nextDouble() > 0.7 && _membersList.isNotEmpty) {
                 final unscannedMembers = _membersList
-                    .where((m) => !(_attendanceData[m['nim']] ?? false))
+                    .where((m) => !(_attendanceData[m['id_user']] ?? false))
                     .toList();
                 if (unscannedMembers.isNotEmpty) {
                   final randomMember =
@@ -374,7 +436,7 @@ class _DetailPertemuanUKMPageState extends State<DetailPertemuanUKMPage> {
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     if (mounted) {
                       setState(() {
-                        _attendanceData[randomMember['nim']] = true;
+                        _attendanceData[randomMember['id_user']] = true;
                       });
                     }
                   });
