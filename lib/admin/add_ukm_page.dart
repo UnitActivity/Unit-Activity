@@ -273,15 +273,15 @@ class _AddUkmPageState extends State<AddUkmPage> {
 
       print('🔐 Creating admin with role UKM...');
 
-      // 1. Create entry in admin table with role "UKM"
+      // 1. Create entry in admin table with role "ukm"
       final adminResponse = await _supabase
           .from('admin')
           .insert({
             'username_admin': name,
             'email_admin': email,
             'password': hashedPassword,
-            'role': 'UKM',
-            'status': 'active',
+            'role': 'ukm',
+            'status': 'aktif',
             'create_at': DateTime.now().toIso8601String(),
           })
           .select()

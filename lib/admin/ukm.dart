@@ -1556,18 +1556,35 @@ class _UkmPageState extends State<UkmPage> {
 
   Future<void> _performDelete(String ukmId) async {
     try {
+      // 1. Get id_admin from ukm table first
+      final ukmData = await _supabase
+          .from('ukm')
+          .select('id_admin')
+          .eq('id_ukm', ukmId)
+          .single();
+
+      final adminId = ukmData['id_admin'] as String?;
+
+      // 2. Delete from ukm table
       await _supabase.from('ukm').delete().eq('id_ukm', ukmId);
+
+      // 3. Delete from admin table if id_admin exists
+      if (adminId != null) {
+        await _supabase.from('admin').delete().eq('id_admin', adminId);
+        print('✅ Deleted admin with ID: $adminId');
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('UKM berhasil dihapus'),
+            content: Text('UKM dan admin terkait berhasil dihapus'),
             backgroundColor: Colors.green,
           ),
         );
         _loadUkm();
       }
     } catch (e) {
+      print('❌ Error deleting UKM: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
