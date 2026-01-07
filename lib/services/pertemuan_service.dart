@@ -27,11 +27,11 @@ class PertemuanService {
     String idPeriode,
   ) async {
     try {
+      // Include pertemuan with matching id_ukm OR null id_ukm (legacy data)
       final response = await _supabase
           .from('pertemuan')
           .select()
-          .eq('id_ukm', idUkm)
-          .eq('id_periode', idPeriode)
+          .or('id_ukm.eq.$idUkm,id_ukm.is.null')
           .order('tanggal', ascending: false);
 
       return (response as List)

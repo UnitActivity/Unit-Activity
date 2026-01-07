@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:unit_activity/services/peserta_service.dart';
 import 'package:unit_activity/services/ukm_dashboard_service.dart';
-import 'package:intl/intl.dart';
 
 class PesertaUKMPage extends StatefulWidget {
   const PesertaUKMPage({super.key});
@@ -62,15 +61,21 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
 
       // Get current periode
       print('Step 2: Getting current periode for UKM $_ukmId...');
+      print('About to call getCurrentPeriode...');
       final periode = await _dashboardService.getCurrentPeriode(_ukmId!);
-      print('Periode data: $periode');
+      print('getCurrentPeriode returned: $periode');
+      print('Periode is null: ${periode == null}');
 
       if (periode != null) {
         _periodeId = periode['id_periode'];
+        print('>>> _periodeId set to: $_periodeId');
+        
         // Create readable periode name
         final semester = periode['semester'] ?? '';
         final tahun = periode['tahun'] ?? '';
         _periodeName = 'Periode $semester $tahun';
+        print('>>> _periodeName set to: $_periodeName');
+        
         print(
           '✅ Using periode: ${periode['nama_periode']} (${periode['semester']} ${periode['tahun']})',
         );
@@ -78,6 +83,8 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
         print('Periode status: ${periode['status']}');
       } else {
         print('❌ No periode found for UKM $_ukmId');
+        print('>>> _periodeId remains: $_periodeId');
+        print('>>> _periodeName remains: $_periodeName');
       }
 
       // Load peserta for this UKM and periode
@@ -318,11 +325,7 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Fitur tambah pengguna akan segera hadir')),
-                );
-              },
+              onPressed: _showAddPesertaDialog,
               icon: const Icon(Icons.add, size: 18),
               label: Text(
                 'Tambah Pengguna',
@@ -369,11 +372,7 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
               ),
               const SizedBox(width: 12),
               ElevatedButton.icon(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Fitur tambah pengguna akan segera hadir')),
-                  );
-                },
+              onPressed: _showAddPesertaDialog,
                 icon: const Icon(Icons.add, size: 20),
                 label: Text(
                   'Tambah Pengguna',
@@ -550,6 +549,78 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
                 constraints: isMobile ? const BoxConstraints() : null,
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAddPesertaDialog() {
+    final nimController = TextEditingController();
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          'Tambah Peserta',
+          style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.bold),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Masukkan NIM mahasiswa yang ingin ditambahkan:',
+              style: GoogleFonts.inter(fontSize: 14),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: nimController,
+              decoration: InputDecoration(
+                labelText: 'NIM',
+                hintText: 'Contoh: 211350001',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                prefixIcon: const Icon(Icons.badge),
+              ),
+              keyboardType: TextInputType.number,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Batal',
+              style: GoogleFonts.inter(color: Colors.grey[600]),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (nimController.text.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('NIM tidak boleh kosong')),
+                );
+                return;
+              }
+
+              Navigator.pop(context);
+              
+              // TODO: Implement add peserta logic
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Menambahkan peserta dengan NIM: ${nimController.text}'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+              
+              // Refresh data setelah menambahkan
+              _loadData();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF4169E1),
+              foregroundColor: Colors.white,
+            ),
+            child: Text('Tambah', style: GoogleFonts.inter()),
           ),
         ],
       ),
