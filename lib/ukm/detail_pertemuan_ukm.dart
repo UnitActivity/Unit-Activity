@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:unit_activity/services/ukm_dashboard_service.dart';
 import 'package:unit_activity/widgets/dynamic_qr_widget.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';

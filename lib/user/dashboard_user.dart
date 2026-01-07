@@ -305,6 +305,60 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
     }
   }
 
+  void _showLogoutDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.logout, color: Colors.red[600]),
+            const SizedBox(width: 12),
+            Text(
+              'Logout',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: Text(
+          'Apakah Anda yakin ingin keluar?',
+          style: GoogleFonts.inter(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Batal', style: GoogleFonts.inter()),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              try {
+                await _supabase.auth.signOut();
+              } catch (e) {
+                debugPrint('Error signing out: $e');
+              }
+              if (mounted) {
+                Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  '/login',
+                  (route) => false,
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red[600],
+              foregroundColor: Colors.white,
+            ),
+            child: Text(
+              'Logout',
+              style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _loadStatisticsData() async {
     try {
       print('========== LOADING STATISTICS DATA ==========');
@@ -973,13 +1027,48 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
                   },
                 ),
                 const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const ProfilePage(),
-                    ),
+                PopupMenuButton<String>(
+                  offset: const Offset(0, 45),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
+                  onSelected: (value) {
+                    if (value == 'profile') {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ProfilePage(),
+                        ),
+                      );
+                    } else if (value == 'logout') {
+                      _showLogoutDialog();
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      value: 'profile',
+                      child: Row(
+                        children: [
+                          Icon(Icons.person, size: 20, color: Colors.blue[700]),
+                          const SizedBox(width: 12),
+                          const Text('Profile'),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'logout',
+                      child: Row(
+                        children: [
+                          Icon(Icons.logout, size: 20, color: Colors.red[600]),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Logout',
+                            style: TextStyle(color: Colors.red[600]),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   child: const CircleAvatar(
                     radius: 16,
                     backgroundColor: Colors.blue,
@@ -1017,17 +1106,52 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
                   },
                 ),
                 const SizedBox(width: 12),
-                GestureDetector(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const ProfilePage(),
-                    ),
+                PopupMenuButton<String>(
+                  offset: const Offset(0, 45),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
+                  onSelected: (value) {
+                    if (value == 'profile') {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ProfilePage(),
+                        ),
+                      );
+                    } else if (value == 'logout') {
+                      _showLogoutDialog();
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      value: 'profile',
+                      child: Row(
+                        children: [
+                          Icon(Icons.person, size: 20, color: Colors.blue[700]),
+                          const SizedBox(width: 12),
+                          const Text('Profile'),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'logout',
+                      child: Row(
+                        children: [
+                          Icon(Icons.logout, size: 20, color: Colors.red[600]),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Logout',
+                            style: TextStyle(color: Colors.red[600]),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   child: const CircleAvatar(
-                    radius: 16,
+                    radius: 18,
                     backgroundColor: Colors.blue,
-                    child: Icon(Icons.person, color: Colors.white, size: 20),
+                    child: Icon(Icons.person, color: Colors.white, size: 22),
                   ),
                 ),
               ],
@@ -1793,7 +1917,7 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
@@ -1809,7 +1933,7 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
                   child: Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(8),
+                        padding: const EdgeInsets.all(6),
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
                             colors: [
@@ -1847,7 +1971,10 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   child: Column(
                     children: [
                       _buildJadwalInfo(
@@ -1856,14 +1983,14 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
                         isMobile,
                         item['color'] as Color,
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 6),
                       _buildJadwalInfo(
                         Icons.access_time,
                         item['time'],
                         isMobile,
                         item['color'] as Color,
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 6),
                       _buildJadwalInfo(
                         Icons.location_on,
                         item['location'],
@@ -1998,24 +2125,27 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
     Color color,
   ) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 6 : 8,
+        vertical: isMobile ? 4 : 6,
+      ),
       decoration: BoxDecoration(
         color: color.withOpacity(0.08),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
         children: [
-          Icon(icon, size: isMobile ? 14 : 16, color: color),
-          const SizedBox(width: 8),
+          Icon(icon, size: isMobile ? 12 : 16, color: color),
+          const SizedBox(width: 6),
           Expanded(
             child: Text(
               text,
               style: GoogleFonts.poppins(
-                fontSize: isMobile ? 11 : 12,
+                fontSize: isMobile ? 10 : 12,
                 color: Colors.grey[700],
                 fontWeight: FontWeight.w500,
               ),
-              maxLines: 2,
+              maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
           ),
