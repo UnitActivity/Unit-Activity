@@ -5,13 +5,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-// ignore: avoid_web_libraries_in_flutter
-import 'dart:ui_web' as ui_web;
-import 'dart:html' as html show IFrameElement;
 import '../models/document_model.dart';
 import '../services/document_service.dart';
 import '../services/document_storage_service.dart';
 import '../services/custom_auth_service.dart';
+import '../utils/pdf_viewer.dart' as pdf_viewer;
 
 class DetailDocumentPage extends StatefulWidget {
   final String documentId;
@@ -2095,23 +2093,6 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
       return const SizedBox();
     }
 
-    final viewId = 'pdf-viewer-${fileUrl.hashCode}';
-
-    // Register view factory for web
-    ui_web.platformViewRegistry.registerViewFactory(viewId, (int viewId) {
-      // Add #toolbar=0 to hide PDF viewer toolbar
-      final pdfUrl = fileUrl.contains('#')
-          ? '$fileUrl&toolbar=0'
-          : '$fileUrl#toolbar=0';
-
-      final iframe = html.IFrameElement()
-        ..src = pdfUrl
-        ..style.border = 'none'
-        ..style.width = '100%'
-        ..style.height = '100%';
-      return iframe;
-    });
-
-    return HtmlElementView(viewType: viewId);
+    return pdf_viewer.buildWebPdfViewer(fileUrl);
   }
 }

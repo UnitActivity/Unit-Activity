@@ -20,11 +20,15 @@ class UserEventPage extends StatefulWidget {
   State<UserEventPage> createState() => _UserEventPageState();
 }
 
-class _UserEventPageState extends State<UserEventPage> with QRScannerMixin {
+class _UserEventPageState extends State<UserEventPage>
+    with QRScannerMixin, TickerProviderStateMixin {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   String _selectedMenu = 'event';
   final UserDashboardService _dashboardService = UserDashboardService();
   final AttendanceService _attendanceService = AttendanceService();
+
+  // Tab controller for event categories
+  late TabController _tabController;
 
   List<Map<String, dynamic>> _allEvents = [];
   List<Map<String, dynamic>> _followedEvents = [];
@@ -36,7 +40,14 @@ class _UserEventPageState extends State<UserEventPage> with QRScannerMixin {
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 3, vsync: this);
     _loadEvents();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadEvents() async {
@@ -240,28 +251,58 @@ class _UserEventPageState extends State<UserEventPage> with QRScannerMixin {
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: Colors.grey[50],
-      body: Stack(
+      body: Column(
         children: [
-          _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : RefreshIndicator(
-                  onRefresh: _loadEvents,
-                  child: SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.only(
-                      top: 70,
-                      left: 12,
-                      right: 12,
-                      bottom: 80,
-                    ),
-                    child: _buildEventListViewMobile(),
+          // Top bar
+          _buildFloatingTopBar(isMobile: true),
+          // Tab bar
+          Container(
+            color: Colors.white,
+            child: TabBar(
+              controller: _tabController,
+              labelColor: Colors.blue[700],
+              unselectedLabelColor: Colors.grey[600],
+              indicatorColor: Colors.blue[700],
+              indicatorWeight: 3,
+              labelStyle: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+              unselectedLabelStyle: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+              tabs: const [
+                Tab(text: 'Seluruh Event'),
+                Tab(text: 'Event Diikuti'),
+                Tab(text: 'UKM Saya'),
+              ],
+            ),
+          ),
+          // Tab content
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _buildEventTabContent(
+                        _allEvents,
+                        'Belum ada event tersedia',
+                        isMobile: true,
+                      ),
+                      _buildEventTabContent(
+                        _followedEvents,
+                        'Belum ada event yang diikuti',
+                        isMobile: true,
+                      ),
+                      _buildEventTabContent(
+                        _myUKMEvents,
+                        'Belum ada event dari UKM yang kamu ikuti',
+                        isMobile: true,
+                      ),
+                    ],
                   ),
-                ),
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: _buildFloatingTopBar(isMobile: true),
           ),
         ],
       ),
@@ -269,79 +310,149 @@ class _UserEventPageState extends State<UserEventPage> with QRScannerMixin {
     );
   }
 
+  // Build event content for each tab
+  Widget _buildEventTabContent(
+    List<Map<String, dynamic>> events,
+    String emptyMessage, {
+    required bool isMobile,
+  }) {
+    if (events.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.event_busy, size: 64, color: Colors.grey[400]),
+              const SizedBox(height: 16),
+              Text(
+                emptyMessage,
+                style: GoogleFonts.poppins(
+                  color: Colors.grey[600],
+                  fontSize: 16,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadEvents,
+      child: GridView.builder(
+        padding: EdgeInsets.all(isMobile ? 12 : 16),
+        physics: const AlwaysScrollableScrollPhysics(),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: isMobile
+              ? 1
+              : (MediaQuery.of(context).size.width < 1200 ? 2 : 3),
+          mainAxisSpacing: isMobile ? 12 : 16,
+          crossAxisSpacing: isMobile ? 12 : 16,
+          childAspectRatio: isMobile ? 1.4 : 1.3,
+        ),
+        itemCount: events.length,
+        itemBuilder: (context, index) {
+          return _buildEventCard(events[index]);
+        },
+      ),
+    );
+  }
+
   // ==================== TABLET LAYOUT ====================
   Widget _buildTabletLayout() {
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      body: Stack(
+      body: Row(
         children: [
-          Row(
-            children: [
-              UserSidebar(
-                selectedMenu: 'event',
-                onMenuSelected: (menu) {
-                  if (menu == 'dashboard') {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const DashboardUser(),
-                      ),
-                    );
-                  } else if (menu == 'ukm') {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const UserUKMPage(),
-                      ),
-                    );
-                  } else if (menu == 'histori') {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const HistoryPage(),
-                      ),
-                    );
-                  } else if (menu == 'profile') {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const ProfilePage(),
-                      ),
-                    );
-                  }
-                },
-                onLogout: () => Navigator.pushNamedAndRemoveUntil(
+          UserSidebar(
+            selectedMenu: 'event',
+            onMenuSelected: (menu) {
+              if (menu == 'dashboard') {
+                Navigator.pushReplacement(
                   context,
-                  '/login',
-                  (route) => false,
-                ),
-              ),
-              Expanded(
-                child: Column(
-                  children: [
-                    const SizedBox(height: 70),
-                    Expanded(
-                      child: _isLoading
-                          ? const Center(child: CircularProgressIndicator())
-                          : RefreshIndicator(
-                              onRefresh: _loadEvents,
-                              child: SingleChildScrollView(
-                                physics: const AlwaysScrollableScrollPhysics(),
-                                padding: const EdgeInsets.all(16),
-                                child: _buildEventListViewTablet(),
-                              ),
-                            ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+                  MaterialPageRoute(
+                    builder: (context) => const DashboardUser(),
+                  ),
+                );
+              } else if (menu == 'ukm') {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => const UserUKMPage()),
+                );
+              } else if (menu == 'histori') {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => const HistoryPage()),
+                );
+              } else if (menu == 'profile') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const ProfilePage()),
+                );
+              }
+            },
+            onLogout: () => Navigator.pushNamedAndRemoveUntil(
+              context,
+              '/login',
+              (route) => false,
+            ),
           ),
-          Positioned(
-            top: 0,
-            left: 260,
-            right: 0,
-            child: _buildFloatingTopBar(isMobile: false),
+          Expanded(
+            child: Column(
+              children: [
+                _buildFloatingTopBar(isMobile: false),
+                // Tab bar
+                Container(
+                  color: Colors.white,
+                  child: TabBar(
+                    controller: _tabController,
+                    labelColor: Colors.blue[700],
+                    unselectedLabelColor: Colors.grey[600],
+                    indicatorColor: Colors.blue[700],
+                    indicatorWeight: 3,
+                    labelStyle: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    unselectedLabelStyle: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    tabs: const [
+                      Tab(text: 'Seluruh Event'),
+                      Tab(text: 'Event yang Diikuti'),
+                      Tab(text: 'Event dari UKM Saya'),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : TabBarView(
+                          controller: _tabController,
+                          children: [
+                            _buildEventTabContent(
+                              _allEvents,
+                              'Belum ada event tersedia',
+                              isMobile: false,
+                            ),
+                            _buildEventTabContent(
+                              _followedEvents,
+                              'Belum ada event yang diikuti',
+                              isMobile: false,
+                            ),
+                            _buildEventTabContent(
+                              _myUKMEvents,
+                              'Belum ada event dari UKM yang kamu ikuti',
+                              isMobile: false,
+                            ),
+                          ],
+                        ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -352,75 +463,95 @@ class _UserEventPageState extends State<UserEventPage> with QRScannerMixin {
   Widget _buildDesktopLayout() {
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      body: Stack(
+      body: Row(
         children: [
-          Row(
-            children: [
-              UserSidebar(
-                selectedMenu: 'event',
-                onMenuSelected: (menu) {
-                  if (menu == 'dashboard') {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const DashboardUser(),
-                      ),
-                    );
-                  } else if (menu == 'ukm') {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const UserUKMPage(),
-                      ),
-                    );
-                  } else if (menu == 'histori') {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const HistoryPage(),
-                      ),
-                    );
-                  } else if (menu == 'profile') {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const ProfilePage(),
-                      ),
-                    );
-                  }
-                },
-                onLogout: () => Navigator.pushNamedAndRemoveUntil(
+          UserSidebar(
+            selectedMenu: 'event',
+            onMenuSelected: (menu) {
+              if (menu == 'dashboard') {
+                Navigator.pushReplacement(
                   context,
-                  '/login',
-                  (route) => false,
-                ),
-              ),
-              Expanded(
-                child: Column(
-                  children: [
-                    const SizedBox(height: 70),
-                    Expanded(
-                      child: _isLoading
-                          ? const Center(child: CircularProgressIndicator())
-                          : RefreshIndicator(
-                              onRefresh: _loadEvents,
-                              child: SingleChildScrollView(
-                                physics: const AlwaysScrollableScrollPhysics(),
-                                padding: const EdgeInsets.all(24),
-                                child: _buildEventListViewDesktop(),
-                              ),
-                            ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+                  MaterialPageRoute(
+                    builder: (context) => const DashboardUser(),
+                  ),
+                );
+              } else if (menu == 'ukm') {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => const UserUKMPage()),
+                );
+              } else if (menu == 'histori') {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => const HistoryPage()),
+                );
+              } else if (menu == 'profile') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const ProfilePage()),
+                );
+              }
+            },
+            onLogout: () => Navigator.pushNamedAndRemoveUntil(
+              context,
+              '/login',
+              (route) => false,
+            ),
           ),
-          Positioned(
-            top: 0,
-            left: 260,
-            right: 0,
-            child: _buildFloatingTopBar(isMobile: false),
+          Expanded(
+            child: Column(
+              children: [
+                _buildFloatingTopBar(isMobile: false),
+                // Tab bar
+                Container(
+                  color: Colors.white,
+                  child: TabBar(
+                    controller: _tabController,
+                    labelColor: Colors.blue[700],
+                    unselectedLabelColor: Colors.grey[600],
+                    indicatorColor: Colors.blue[700],
+                    indicatorWeight: 3,
+                    labelStyle: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    unselectedLabelStyle: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    tabs: const [
+                      Tab(text: 'Seluruh Event'),
+                      Tab(text: 'Event yang Diikuti'),
+                      Tab(text: 'Event dari UKM Saya'),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : TabBarView(
+                          controller: _tabController,
+                          children: [
+                            _buildEventTabContent(
+                              _allEvents,
+                              'Belum ada event tersedia',
+                              isMobile: false,
+                            ),
+                            _buildEventTabContent(
+                              _followedEvents,
+                              'Belum ada event yang diikuti',
+                              isMobile: false,
+                            ),
+                            _buildEventTabContent(
+                              _myUKMEvents,
+                              'Belum ada event dari UKM yang kamu ikuti',
+                              isMobile: false,
+                            ),
+                          ],
+                        ),
+                ),
+              ],
+            ),
           ),
         ],
       ),

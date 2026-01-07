@@ -1529,38 +1529,48 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
 
   Widget _buildEmptySchedule(bool isMobile) {
     return Container(
-      padding: EdgeInsets.all(isMobile ? 20 : 32),
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(
+        vertical: isMobile ? 32 : 48,
+        horizontal: isMobile ? 24 : 40,
+      ),
       decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         children: [
           Icon(
             Icons.event_busy,
-            size: isMobile ? 48 : 64,
+            size: isMobile ? 64 : 80,
             color: Colors.grey[400],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           Text(
             'Belum ada jadwal',
             style: GoogleFonts.poppins(
-              fontSize: isMobile ? 14 : 16,
+              fontSize: isMobile ? 16 : 18,
               fontWeight: FontWeight.w600,
               color: Colors.grey[700],
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           Text(
             'Jadwal akan muncul setelah kamu bergabung dengan UKM',
             style: GoogleFonts.poppins(
-              fontSize: isMobile ? 12 : 14,
+              fontSize: isMobile ? 13 : 14,
               color: Colors.grey[600],
             ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           ElevatedButton.icon(
             onPressed: () {
               Navigator.push(
@@ -1568,14 +1578,14 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
                 MaterialPageRoute(builder: (context) => const UserUKMPage()),
               );
             },
-            icon: const Icon(Icons.groups, size: 18),
+            icon: const Icon(Icons.groups, size: 20),
             label: const Text('Lihat UKM'),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.blue[600],
               foregroundColor: Colors.white,
               padding: EdgeInsets.symmetric(
-                horizontal: isMobile ? 16 : 20,
-                vertical: isMobile ? 10 : 12,
+                horizontal: isMobile ? 24 : 32,
+                vertical: isMobile ? 12 : 14,
               ),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
