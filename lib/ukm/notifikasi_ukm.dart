@@ -16,10 +16,10 @@ class _NotifikasiUKMPageState extends State<NotifikasiUKMPage> {
   final _supabase = Supabase.instance.client;
   final _dashboardService = UkmDashboardService();
 
-  int _currentPage = 1;
   List<Map<String, dynamic>> _notifikasiList = [];
   bool _isLoading = true;
   String? _currentUkmId;
+  String _selectedTab = 'Semua'; // Semua, Belum Dibaca, Sudah Dibaca
 
   @override
   void initState() {
@@ -58,329 +58,307 @@ class _NotifikasiUKMPageState extends State<NotifikasiUKMPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Get screen height for calculating container height
-    final screenHeight = MediaQuery.of(context).size.height;
-    final tableHeight = screenHeight - 300; // Account for header, padding, etc.
+    final isDesktop = MediaQuery.of(context).size.width >= 768;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Header
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Daftar Notifikasi',
-              style: GoogleFonts.inter(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
-            ),
-            ElevatedButton.icon(
-              onPressed: () async {
-                final result = await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const SendNotifikasiUKMPage(),
-                  ),
-                );
-                if (result == true) {
-                  _loadNotifications();
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4169E1),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 12,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                elevation: 0,
-              ),
-              icon: const Icon(Icons.send, size: 20),
-              label: Text(
-                'Kirim Notifikasi',
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 24),
-
-        // Table Container
-        SizedBox(
-          height: tableHeight,
-          child: Container(
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Gradient
+          Container(
+            padding: const EdgeInsets.all(32),
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey[200]!),
+              gradient: const LinearGradient(
+                colors: [Color(0xFF4169E1), Color(0xFF5B7FE8)],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF4169E1).withOpacity(0.3),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
             ),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final isMobile = constraints.maxWidth < 768;
-                return Column(
+            child: Column(
+              children: [
+                Row(
                   children: [
-                    // Table Header
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 16,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[50],
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(12),
-                          topRight: Radius.circular(12),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            flex: 2,
-                            child: isMobile
-                                ? Icon(
-                                    Icons.title,
-                                    size: 18,
-                                    color: Colors.grey[700],
-                                  )
-                                : Text(
-                                    'Judul',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.grey[700],
-                                    ),
-                                  ),
-                          ),
-                          Expanded(
-                            flex: 3,
-                            child: isMobile
-                                ? Icon(
-                                    Icons.message,
-                                    size: 18,
-                                    color: Colors.grey[700],
-                                  )
-                                : Text(
-                                    'Pesan',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.grey[700],
-                                    ),
-                                  ),
-                          ),
-                          Expanded(
-                            flex: 2,
-                            child: isMobile
-                                ? Icon(
-                                    Icons.calendar_today,
-                                    size: 18,
-                                    color: Colors.grey[700],
-                                  )
-                                : Text(
-                                    'Tanggal',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.grey[700],
-                                    ),
-                                  ),
-                          ),
-                          Expanded(
-                            flex: 2,
-                            child: isMobile
-                                ? Icon(
-                                    Icons.info_outline,
-                                    size: 18,
-                                    color: Colors.grey[700],
-                                  )
-                                : Text(
-                                    'Status',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.grey[700],
-                                    ),
-                                  ),
-                          ),
-                          const SizedBox(width: 80),
-                        ],
-                      ),
-                    ),
-
-                    // Table Body
-                    Expanded(
-                      child: _isLoading
-                          ? const Center(child: CircularProgressIndicator())
-                          : _notifikasiList.isEmpty
-                          ? Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.notifications_none,
-                                    size: 64,
-                                    color: Colors.grey[400],
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    'Belum ada notifikasi',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 16,
-                                      color: Colors.grey[600],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            )
-                          : ListView.builder(
-                              itemCount: _notifikasiList.length,
-                              itemBuilder: (context, index) {
-                                final notif = _notifikasiList[index];
-                                final tanggal = notif['create_at'] != null
-                                    ? DateFormat('dd-MM-yyyy HH:mm').format(
-                                        DateTime.parse(notif['create_at']),
-                                      )
-                                    : '-';
-                                return Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 24,
-                                    vertical: 16,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    border: Border(
-                                      bottom: BorderSide(
-                                        color: Colors.grey[200]!,
-                                      ),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Expanded(
-                                        flex: 2,
-                                        child: Text(
-                                          notif['judul'] ?? '-',
-                                          style: GoogleFonts.inter(
-                                            fontSize: 14,
-                                            color: Colors.grey[800],
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ),
-                                      Expanded(
-                                        flex: 3,
-                                        child: Text(
-                                          notif['pesan'] ?? '-',
-                                          style: GoogleFonts.inter(
-                                            fontSize: 14,
-                                            color: Colors.grey[800],
-                                          ),
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                      Expanded(
-                                        flex: 2,
-                                        child: Text(
-                                          tanggal,
-                                          style: GoogleFonts.inter(
-                                            fontSize: 14,
-                                            color: Colors.grey[800],
-                                          ),
-                                        ),
-                                      ),
-                                      Expanded(
-                                        flex: 2,
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                            vertical: 4,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFFE8F0FE),
-                                            borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            notif['type'] ?? 'info',
-                                            style: GoogleFonts.inter(
-                                              fontSize: 12,
-                                              color: const Color(0xFF4169E1),
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                            textAlign: TextAlign.center,
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 80),
-                                    ],
-                                  ),
-                                );
-                              },
-                            ),
-                    ),
-
-                    // Pagination
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        border: Border(
-                          top: BorderSide(color: Colors.grey[200]!),
-                        ),
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                      child: const Icon(
+                        Icons.notifications_rounded,
+                        color: Colors.white,
+                        size: 32,
+                      ),
+                    ),
+                    const SizedBox(width: 20),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          IconButton(
-                            onPressed: _currentPage > 1
-                                ? () {
-                                    setState(() {
-                                      _currentPage--;
-                                    });
-                                  }
-                                : null,
-                            icon: const Icon(Icons.chevron_left),
-                            color: const Color(0xFF4169E1),
-                          ),
-                          const SizedBox(width: 16),
                           Text(
-                            '$_currentPage',
+                            'Notifikasi',
                             style: GoogleFonts.inter(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFF4169E1),
+                              fontSize: 28,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
                             ),
                           ),
-                          const SizedBox(width: 16),
-                          IconButton(
-                            onPressed: () {
-                              setState(() {
-                                _currentPage++;
-                              });
-                            },
-                            icon: const Icon(Icons.chevron_right),
-                            color: const Color(0xFF4169E1),
+                          Text(
+                            'Semua notifikasi sudah dibaca',
+                            style: GoogleFonts.inter(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white.withOpacity(0.9),
+                            ),
                           ),
                         ],
                       ),
                     ),
                   ],
-                );
-              },
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const SendNotifikasiUKMPage(),
+                        ),
+                      );
+                      if (result == true) {
+                        _loadNotifications();
+                      }
+                    },
+                    icon: const Icon(Icons.send, size: 18),
+                    label: Text(
+                      'Kirim Notifikasi',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: const Color(0xFF4169E1),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-        ),
-      ],
+          const SizedBox(height: 24),
+
+          // Filter Tabs
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey[200]!),
+            ),
+            child: Row(
+              children: [
+                _buildTab('Semua', Icons.notifications_rounded),
+                const SizedBox(width: 6),
+                _buildTab('Belum Dibaca', Icons.mark_email_unread_rounded),
+                const SizedBox(width: 6),
+                _buildTab('Sudah Dibaca', Icons.mark_email_read_rounded),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Notifications List
+          _isLoading
+              ? const Center(child: Padding(padding: EdgeInsets.all(40), child: CircularProgressIndicator()))
+              : _notifikasiList.isEmpty
+              ? _buildEmptyState()
+              : ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _notifikasiList.length,
+                  itemBuilder: (context, index) {
+                    final notif = _notifikasiList[index];
+                    return _buildNotificationCard(notif);
+                  },
+                ),
+        ],
+      ),
     );
+  }
+
+  Widget _buildTab(String label, IconData icon) {
+    final isSelected = _selectedTab == label;
+
+    return Expanded(
+      child: InkWell(
+        onTap: () => setState(() => _selectedTab = label),
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            gradient: isSelected
+                ? const LinearGradient(colors: [Color(0xFF4169E1), Color(0xFF5B7FE8)])
+                : null,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 18, color: isSelected ? Colors.white : Colors.grey[600]),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: isSelected ? Colors.white : Colors.grey[700],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNotificationCard(Map<String, dynamic> notif) {
+    final type = notif['type'] ?? 'info';
+    final isWarning = type.toLowerCase() == 'warning' || type.toLowerCase() == 'peringatan';
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isWarning ? Colors.red.withOpacity(0.2) : const Color(0xFF4169E1).withOpacity(0.2),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: isWarning ? Colors.red.withOpacity(0.08) : const Color(0xFF4169E1).withOpacity(0.08),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: isWarning ? Colors.red : const Color(0xFF4169E1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              isWarning ? Icons.warning_rounded : Icons.info_rounded,
+              color: Colors.white,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isWarning ? Colors.red : const Color(0xFF4169E1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        isWarning ? 'PERINGATAN' : 'INFO',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    Icon(Icons.access_time, size: 14, color: Colors.grey[500]),
+                    const SizedBox(width: 4),
+                    Text(
+                      _getTimeAgo(notif['create_at']),
+                      style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[500]),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  notif['judul'] ?? 'Tanpa Judul',
+                  style: GoogleFonts.inter(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: isWarning ? Colors.red : const Color(0xFF4169E1),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  notif['pesan'] ?? '-',
+                  style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[700]),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(48),
+        child: Column(
+          children: [
+            Icon(Icons.notifications_none_rounded, size: 80, color: Colors.grey[300]),
+            const SizedBox(height: 16),
+            Text(
+              'Belum ada notifikasi',
+              style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.grey[600]),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _getTimeAgo(dynamic createAt) {
+    if (createAt == null) return 'Baru saja';
+    
+    try {
+      final dateTime = DateTime.parse(createAt.toString());
+      final now = DateTime.now();
+      final difference = now.difference(dateTime);
+
+      if (difference.inDays > 0) {
+        return '${difference.inDays} hari yang lalu';
+      } else if (difference.inHours > 0) {
+        return '${difference.inHours} jam yang lalu';
+      } else if (difference.inMinutes > 0) {
+        return '${difference.inMinutes} menit yang lalu';
+      }
+      return 'Baru saja';
+    } catch (e) {
+      return 'Baru saja';
+    }
   }
 }

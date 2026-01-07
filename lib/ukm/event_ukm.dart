@@ -183,22 +183,104 @@ class _EventUKMPageState extends State<EventUKMPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isDesktop = MediaQuery.of(context).size.width >= 768;
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Header
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Daftar Event',
-              style: GoogleFonts.inter(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey[800],
-              ),
+        const SizedBox(height: 16),
+        
+        // Modern Header with Gradient
+        Container(
+          padding: EdgeInsets.all(isMobile ? 20 : (isDesktop ? 32 : 24)),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF4169E1), Color(0xFF5B7FE8)],
             ),
-            ElevatedButton.icon(
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF4169E1).withOpacity(0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(isMobile ? 12 : 16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.event_rounded,
+                  color: Colors.white,
+                  size: isMobile ? 24 : (isDesktop ? 32 : 28),
+                ),
+              ),
+              const SizedBox(width: 20),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Daftar Event',
+                      style: GoogleFonts.inter(
+                        fontSize: isDesktop ? 28 : 24,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Total ${_filteredEventList.length} Event',
+                      style: GoogleFonts.inter(
+                        fontSize: isDesktop ? 16 : 14,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.white.withOpacity(0.9),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (!isMobile)
+                ElevatedButton.icon(
+                  onPressed: _navigateToAddEvent,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: const Color(0xFF4169E1),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 14,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    elevation: 0,
+                  ),
+                  icon: const Icon(Icons.add, size: 20),
+                  label: Text(
+                    'Tambah Event',
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        
+        if (isMobile) ...[
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
               onPressed: _navigateToAddEvent,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF4169E1),
@@ -221,8 +303,8 @@ class _EventUKMPageState extends State<EventUKMPage> {
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
         const SizedBox(height: 24),
 
         // Search and Filter
@@ -379,27 +461,36 @@ class _EventUKMPageState extends State<EventUKMPage> {
     final tanggalMulai = event['tanggal_mulai'] != null
         ? DateTime.parse(event['tanggal_mulai'])
         : null;
-    final tanggalAkhir = event['tanggal_akhir'] != null
-        ? DateTime.parse(event['tanggal_akhir'])
-        : null;
+    final jamStr = event['jam'] ?? '00:00';
 
-    final tanggalStr = tanggalMulai != null && tanggalAkhir != null
-        ? '${DateFormat('dd MMM yyyy').format(tanggalMulai)} - ${DateFormat('dd MMM yyyy').format(tanggalAkhir)}'
+    final tanggalStr = tanggalMulai != null
+        ? DateFormat('dd MMM yyyy').format(tanggalMulai)
         : '-';
 
-    final statusProposal = event['status_proposal'] ?? 'belum_ajukan';
-    final statusLPJ = event['status_lpj'] ?? 'belum_ajukan';
-
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colors.white, const Color(0xFF4169E1).withOpacity(0.03)],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFF4169E1).withOpacity(0.2),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF4169E1).withOpacity(0.08),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: InkWell(
         onTap: () {
-          // Navigate to event detail
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -408,130 +499,166 @@ class _EventUKMPageState extends State<EventUKMPage> {
                 eventData: event,
               ),
             ),
-          ).then((_) => _loadEvents()); // Reload events when returning
+          ).then((_) => _loadEvents());
         },
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              // Event Icon
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF4169E1).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(16),
+        child: Row(
+          children: [
+            // Event Icon
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF4169E1), Color(0xFF5B7FE8)],
                 ),
-                child: const Icon(
-                  Icons.event,
-                  color: Color(0xFF4169E1),
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 16),
-
-              // Event Info
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      event['nama_event'] ?? 'Unnamed Event',
-                      style: GoogleFonts.inter(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey[800],
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 4,
-                      children: [
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.calendar_today,
-                              size: 14,
-                              color: Colors.grey[600],
-                            ),
-                            const SizedBox(width: 4),
-                            Flexible(
-                              child: Text(
-                                tanggalStr,
-                                style: GoogleFonts.inter(
-                                  fontSize: 13,
-                                  color: Colors.grey[600],
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.location_on,
-                              size: 14,
-                              color: Colors.grey[600],
-                            ),
-                            const SizedBox(width: 4),
-                            Flexible(
-                              child: Text(
-                                event['lokasi'] ?? '-',
-                                style: GoogleFonts.inter(
-                                  fontSize: 13,
-                                  color: Colors.grey[600],
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        _buildStatusChip('Proposal', statusProposal),
-                        const SizedBox(width: 8),
-                        _buildStatusChip('LPJ', statusLPJ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              // Actions
-              Row(
-                children: [
-                  IconButton(
-                    onPressed: () {
-                      // TODO: Navigate to edit event page
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Fitur edit akan segera hadir'),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.edit_outlined),
-                    color: const Color(0xFF4169E1),
-                    tooltip: 'Edit Event',
-                  ),
-                  IconButton(
-                    onPressed: () =>
-                        _deleteEvent(event['id_events'], event['nama_event']),
-                    icon: const Icon(Icons.delete_outline),
-                    color: Colors.red,
-                    tooltip: 'Hapus',
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF4169E1).withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
                   ),
                 ],
               ),
-            ],
-          ),
+              child: const Icon(
+                Icons.event_rounded,
+                color: Colors.white,
+                size: 28,
+              ),
+            ),
+            const SizedBox(width: 16),
+
+            // Event Info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    event['nama_event'] ?? 'Unnamed Event',
+                    style: GoogleFonts.inter(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black87,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF4169E1).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.location_on_rounded,
+                              size: 14,
+                              color: Color(0xFF4169E1),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              event['lokasi'] ?? '-',
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFF4169E1),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[100],
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.calendar_today_rounded,
+                              size: 12,
+                              color: Colors.grey[700],
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              tanggalStr,
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[700],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[100],
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.access_time_rounded,
+                              size: 12,
+                              color: Colors.grey[700],
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              jamStr,
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[700],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // Eye Icon for Detail
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF4169E1).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.visibility_rounded,
+                color: Color(0xFF4169E1),
+                size: 24,
+              ),
+            ),
+          ],
         ),
       ),
     );

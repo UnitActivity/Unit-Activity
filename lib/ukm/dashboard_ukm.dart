@@ -36,6 +36,7 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
   // Statistics data
   Map<String, dynamic>? _dashboardStats;
   List<dynamic> _informasiList = [];
+  List<dynamic> _upcomingEventsList = [];
   bool _isLoadingStats = true;
   bool _isLoadingInformasi = true;
   String? _errorMessage;
@@ -115,7 +116,7 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
         });
       }
 
-      // Load stats and informasi in parallel
+      // Load stats, informasi, and events in parallel
       final results = await Future.wait([
         _dashboardService.getUkmStats(_ukmId!, periodeId: _periodeId),
         _dashboardService.getUkmInformasi(
@@ -123,6 +124,7 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
           limit: 5,
           periodeId: _periodeId,
         ),
+        _loadUpcomingEvents(),
       ]);
 
       if (mounted) {
@@ -172,6 +174,32 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
         curve: Curves.easeInOut,
       );
     });
+  }
+
+  Future<Map<String, dynamic>> _loadUpcomingEvents() async {
+    try {
+      if (_ukmId == null) return {'success': false};
+      
+      // Get events for this UKM that are upcoming (tanggal_mulai >= today)
+      final now = DateTime.now();
+      final events = await _dashboardService.supabase
+          .from('events')
+          .select('*')
+          .eq('id_ukm', _ukmId!)
+          .gte('tanggal_mulai', now.toIso8601String().split('T')[0])
+          .order('tanggal_mulai', ascending: true)
+          .limit(5);
+      
+      if (mounted) {
+        setState(() {
+          _upcomingEventsList = events ?? [];
+        });
+      }
+      return {'success': true};
+    } catch (e) {
+      print('Error loading upcoming events: $e');
+      return {'success': false};
+    }
   }
 
   void _handleMenuSelected(String menu) {
@@ -437,35 +465,425 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Title
-        Text(
-          'Informasi Terkini',
-          style: GoogleFonts.inter(
-            fontSize: isDesktop ? 20 : 18,
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
-          ),
-        ),
-        const SizedBox(height: 16),
-
-        // Carousel Section
-        _buildInformasiCarousel(isDesktop),
+        // Alerts & Warnings Section
+        _buildAlertsSection(isDesktop),
         const SizedBox(height: 24),
-
-        // Section Title for Statistics
-        Text(
-          'Statistik',
-          style: GoogleFonts.inter(
-            fontSize: isDesktop ? 20 : 18,
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
-          ),
-        ),
-        const SizedBox(height: 16),
 
         // Statistics Cards
         _buildStatisticsCards(isDesktop),
+        const SizedBox(height: 24),
+
+        // Event Trend & Top Members Row
+        isDesktop
+            ? Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(flex: 2, child: _buildEventTrend()),
+                  const SizedBox(width: 16),
+                  Expanded(child: _buildTopMembers()),
+                ],
+              )
+            : Column(
+                children: [
+                  _buildEventTrend(),
+                  const SizedBox(height: 16),
+                  _buildTopMembers(),
+                ],
+              ),
+        const SizedBox(height: 24),
+
+        // Recent Activities & Upcoming Events
+        isDesktop
+            ? Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: _buildRecentActivities()),
+                  const SizedBox(width: 16),
+                  Expanded(child: _buildUpcomingEvents()),
+                ],
+              )
+            : Column(
+                children: [
+                  _buildRecentActivities(),
+                  const SizedBox(height: 16),
+                  _buildUpcomingEvents(),
+                ],
+              ),
       ],
+    );
+  }
+
+  Widget _buildAlertsSection(bool isDesktop) {
+    final totalPeserta = _dashboardStats?['totalPeserta'] ?? 0;
+    final totalEvent = _dashboardStats?['totalEvent'] ?? 0;
+    
+    // Create sample alerts based on data
+    final alerts = <Map<String, dynamic>>[];
+    
+    if (totalEvent == 0) {
+      alerts.add({
+        'type': 'warning',
+        'title': 'Event Tanpa Proposal',
+        'message': 'Belum ada event aktif yang memiliki proposal',
+        'count': 0,
+      });
+    }
+    
+    if (totalPeserta < 10) {
+      alerts.add({
+        'type': 'info',
+        'title': 'Rekrutmen Anggota',
+        'message': 'Tambah anggota baru untuk memperkuat UKM',
+        'count': 0,
+      });
+    }
+
+    if (alerts.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.warning_rounded, color: Colors.orange[700], size: 20),
+            const SizedBox(width: 8),
+            Text(
+              'Alerts & Warnings',
+              style: GoogleFonts.inter(
+                fontSize: isDesktop ? 20 : 18,
+                fontWeight: FontWeight.w700,
+                color: Colors.black87,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        ...alerts.map((alert) => _buildAlertCard(alert)),
+      ],
+    );
+  }
+
+  Widget _buildAlertCard(Map<String, dynamic> alert) {
+    final isWarning = alert['type'] == 'warning';
+    final color = isWarning ? Colors.orange : const Color(0xFF4169E1);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              isWarning ? Icons.warning_rounded : Icons.info_rounded,
+              color: color,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  alert['title'],
+                  style: GoogleFonts.inter(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: color,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  alert['message'],
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    color: Colors.grey[700],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (alert['count'] != null && alert['count'] > 0)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                '${alert['count']}',
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEventTrend() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.show_chart, color: Colors.blue[700], size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Event Trend',
+                style: GoogleFonts.inter(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            height: 200,
+            child: Center(
+              child: Text(
+                'Tidak ada data event',
+                style: GoogleFonts.inter(color: Colors.grey[400]),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTopMembers() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.emoji_events, color: Colors.amber[700], size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Top Anggota',
+                style: GoogleFonts.inter(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Center(
+            child: Text(
+              'Belum ada data',
+              style: GoogleFonts.inter(color: Colors.grey[400]),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecentActivities() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.history, color: Colors.grey[700], size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Recent Activities',
+                style: GoogleFonts.inter(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Center(
+            child: Text(
+              'Belum ada aktivitas',
+              style: GoogleFonts.inter(color: Colors.grey[400]),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUpcomingEvents() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.event_available, color: Colors.green[700], size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Upcoming Events',
+                style: GoogleFonts.inter(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          _upcomingEventsList.isEmpty
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      children: [
+                        Icon(Icons.event_busy, size: 48, color: Colors.grey[300]),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Tidak ada event mendatang',
+                          style: GoogleFonts.inter(color: Colors.grey[400]),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _upcomingEventsList.length > 3 ? 3 : _upcomingEventsList.length,
+                  itemBuilder: (context, index) {
+                    final event = _upcomingEventsList[index];
+                    final tanggal = event['tanggal_mulai'] != null
+                        ? DateTime.parse(event['tanggal_mulai'])
+                        : null;
+                    final tanggalStr = tanggal != null
+                        ? '${tanggal.day}/${tanggal.month}/${tanggal.year}'
+                        : '-';
+                    
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.green.withOpacity(0.2)),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(Icons.event, color: Colors.green[700], size: 20),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  event['nama_event'] ?? 'Event',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black87,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Icon(Icons.calendar_today, size: 12, color: Colors.grey[600]),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      tanggalStr,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 12,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+        ],
+      ),
     );
   }
 
