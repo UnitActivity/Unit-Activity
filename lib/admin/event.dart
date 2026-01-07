@@ -33,16 +33,36 @@ class _EventPageState extends State<EventPage> {
     setState(() => _isLoading = true);
 
     try {
+      // Load events without periode_ukm (no FK constraint)
       final eventData = await _supabase
           .from('events')
-          .select(
-            '*, ukm(nama_ukm), periode_ukm(nama_periode), users(username)',
-          )
+          .select('*, ukm(nama_ukm), users(username)')
           .order('tanggal_mulai', ascending: false);
+
+      // Load all periode separately
+      final periodeData = await _supabase
+          .from('periode_ukm')
+          .select('id_periode, nama_periode');
+
+      final periodeMap = <String, String>{};
+      for (var p in periodeData) {
+        periodeMap[p['id_periode']] = p['nama_periode'];
+      }
+
+      // Manually attach periode data to events
+      final events = List<Map<String, dynamic>>.from(eventData);
+      for (var event in events) {
+        if (event['id_periode'] != null &&
+            periodeMap.containsKey(event['id_periode'])) {
+          event['periode_ukm'] = {
+            'nama_periode': periodeMap[event['id_periode']],
+          };
+        }
+      }
 
       if (mounted) {
         setState(() {
-          _allEvents = List<Map<String, dynamic>>.from(eventData);
+          _allEvents = events;
           _isLoading = false;
         });
       }
@@ -399,7 +419,7 @@ class _EventPageState extends State<EventPage> {
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
-                        event['tipe_event'] ?? '-',
+                        event['tipevent'] ?? '-',
                         style: GoogleFonts.inter(
                           fontSize: 10,
                           fontWeight: FontWeight.w600,
@@ -471,7 +491,7 @@ class _EventPageState extends State<EventPage> {
                 child: _buildInfoChip(
                   icon: Icons.access_time_rounded,
                   label: 'Jam',
-                  value: _formatTime(event['tanggal_mulai']),
+                  value: _formatTime(event['jam_mulai']),
                 ),
               ),
             ],
@@ -735,10 +755,20 @@ class _EventPageState extends State<EventPage> {
     }
   }
 
-  String _formatTime(String? dateStr) {
-    if (dateStr == null) return '-';
+  String _formatTime(String? timeStr) {
+    if (timeStr == null) return '-';
     try {
-      final date = DateTime.parse(dateStr);
+      // Check if it's a time string (HH:mm:ss format)
+      if (timeStr.contains(':') && !timeStr.contains('T')) {
+        // It's already a time string, just format it
+        final parts = timeStr.split(':');
+        if (parts.length >= 2) {
+          return '${parts[0]}:${parts[1]}';
+        }
+        return timeStr;
+      }
+      // Otherwise try to parse as datetime
+      final date = DateTime.parse(timeStr);
       return DateFormat('HH:mm', 'id_ID').format(date);
     } catch (e) {
       return '-';

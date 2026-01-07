@@ -881,127 +881,144 @@ class _PenggunaPageState extends State<PenggunaPage> {
               final user = _allUsers[index];
               final userId = user['id_user'].toString();
 
-              return Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 16,
-                ),
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(color: Colors.grey[100]!, width: 1),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      flex: 3,
-                      child: Row(
-                        children: [
-                          Container(
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.1),
-                                  blurRadius: 6,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: CircleAvatar(
-                              radius: 20,
-                              backgroundColor: const Color(
-                                0xFF4169E1,
-                              ).withOpacity(0.12),
-                              backgroundImage:
-                                  user['picture'] != null &&
-                                      user['picture'].toString().isNotEmpty
-                                  ? NetworkImage(user['picture'])
-                                  : null,
-                              child:
-                                  user['picture'] == null ||
-                                      user['picture'].toString().isEmpty
-                                  ? Text(
-                                      (user['username'] ?? 'U')
-                                          .toString()[0]
-                                          .toUpperCase(),
-                                      style: GoogleFonts.inter(
-                                        fontWeight: FontWeight.w700,
-                                        color: const Color(0xFF4169E1),
-                                        fontSize: 16,
-                                      ),
-                                    )
-                                  : null,
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Text(
-                              user['username'] ?? '-',
-                              style: GoogleFonts.inter(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.black87,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
+              return InkWell(
+                onTap: () async {
+                  // Navigate to detail page
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => DetailPenggunaPage(user: user),
                     ),
+                  );
 
-                    // NIM Column
-                    if (_columnVisibility['nim']!)
-                      Expanded(
-                        flex: 2,
-                        child: Text(
-                          user['nim'] ?? '-',
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            color: Colors.grey[700],
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-
-                    // Email Column
-                    if (_columnVisibility['email']!)
+                  // Reload if data changed
+                  if (result == true) {
+                    _loadUsers();
+                  }
+                },
+                hoverColor: const Color(0xFF4169E1).withOpacity(0.03),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 16,
+                  ),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(color: Colors.grey[100]!, width: 1),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
                       Expanded(
                         flex: 3,
-                        child: Text(
-                          user['email'] ?? '-',
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            color: Colors.grey[700],
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-
-                    // Actions Column
-                    if (_columnVisibility['actions']!)
-                      SizedBox(
-                        width: 100,
                         child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            _buildActionButton(
-                              icon: Icons.edit_rounded,
-                              color: Colors.blue,
-                              onPressed: () => _showEditUserDialog(user),
-                              tooltip: 'Edit',
+                            Container(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.1),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: CircleAvatar(
+                                radius: 20,
+                                backgroundColor: const Color(
+                                  0xFF4169E1,
+                                ).withOpacity(0.12),
+                                backgroundImage:
+                                    user['picture'] != null &&
+                                        user['picture'].toString().isNotEmpty
+                                    ? NetworkImage(user['picture'])
+                                    : null,
+                                child:
+                                    user['picture'] == null ||
+                                        user['picture'].toString().isEmpty
+                                    ? Text(
+                                        (user['username'] ?? 'U')
+                                            .toString()[0]
+                                            .toUpperCase(),
+                                        style: GoogleFonts.inter(
+                                          fontWeight: FontWeight.w700,
+                                          color: const Color(0xFF4169E1),
+                                          fontSize: 16,
+                                        ),
+                                      )
+                                    : null,
+                              ),
                             ),
-                            const SizedBox(width: 8),
-                            _buildActionButton(
-                              icon: Icons.delete_rounded,
-                              color: Colors.red,
-                              onPressed: () => _showDeleteDialog(user),
-                              tooltip: 'Hapus',
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Text(
+                                user['username'] ?? '-',
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black87,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
                           ],
                         ),
                       ),
-                  ],
+
+                      // NIM Column
+                      if (_columnVisibility['nim']!)
+                        Expanded(
+                          flex: 2,
+                          child: Text(
+                            user['nim'] ?? '-',
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: Colors.grey[700],
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+
+                      // Email Column
+                      if (_columnVisibility['email']!)
+                        Expanded(
+                          flex: 3,
+                          child: Text(
+                            user['email'] ?? '-',
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: Colors.grey[700],
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+
+                      // Actions Column
+                      if (_columnVisibility['actions']!)
+                        SizedBox(
+                          width: 100,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              _buildActionButton(
+                                icon: Icons.edit_rounded,
+                                color: Colors.blue,
+                                onPressed: () => _showEditUserDialog(user),
+                                tooltip: 'Edit',
+                              ),
+                              const SizedBox(width: 8),
+                              _buildActionButton(
+                                icon: Icons.delete_rounded,
+                                color: Colors.red,
+                                onPressed: () => _showDeleteDialog(user),
+                                tooltip: 'Hapus',
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               );
             },

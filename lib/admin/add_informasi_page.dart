@@ -145,13 +145,39 @@ class _AddInformasiPageState extends State<AddInformasiPage> {
     }
 
     try {
+      String? idAdmin;
+
+      // Get admin ID only if UKM is not selected
+      if (_selectedUkmId == null) {
+        try {
+          // Try to get current session user
+          final session = _supabase.auth.currentSession;
+          if (session != null && session.user.email != null) {
+            // Get admin ID from admin table using email
+            final adminData = await _supabase
+                .from('admin')
+                .select('id_admin')
+                .eq('email_admin', session.user.email!)
+                .maybeSingle();
+
+            if (adminData != null) {
+              idAdmin = adminData['id_admin'];
+            }
+          }
+        } catch (e) {
+          print('Could not get admin ID: $e');
+          // Continue without admin ID if there's an error
+        }
+      }
+
       await _supabase.from('informasi').insert({
         'judul': _judulController.text.trim(),
         'deskripsi': _deskripsiController.text.trim(),
         'gambar': _uploadedImagePath,
         'status': _selectedStatus,
-        'id_ukm': _selectedUkmId != null ? _selectedUkmId : null,
-        'id_periode': _selectedPeriodeId != null ? _selectedPeriodeId : null,
+        'id_ukm': _selectedUkmId,
+        'id_periode': _selectedPeriodeId,
+        'id_admin': idAdmin,
         'status_aktif': true,
       });
 

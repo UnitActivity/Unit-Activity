@@ -31,7 +31,7 @@ class _DetailEventPageState extends State<DetailEventPage> {
     setState(() => _isLoading = true);
 
     try {
-      final idEvent = widget.event['id_event'];
+      final idEvent = widget.event['id_events'];
 
       // Load dokumen proposal dari event_documents
       final proposalData = await _supabase
@@ -83,13 +83,41 @@ class _DetailEventPageState extends State<DetailEventPage> {
     }
   }
 
-  String _formatTime(String? dateStr) {
-    if (dateStr == null) return '-';
+  String _formatTime(String? timeStr) {
+    if (timeStr == null) return '-';
     try {
-      final date = DateTime.parse(dateStr);
+      // Check if it's a time string (HH:mm:ss format)
+      if (timeStr.contains(':') && !timeStr.contains('T')) {
+        // It's already a time string, just format it
+        final parts = timeStr.split(':');
+        if (parts.length >= 2) {
+          return '${parts[0]}:${parts[1]}';
+        }
+        return timeStr;
+      }
+      // Otherwise try to parse as datetime
+      final date = DateTime.parse(timeStr);
       return DateFormat('HH:mm', 'id_ID').format(date);
     } catch (e) {
       return '-';
+    }
+  }
+
+  String _formatDocumentStatus(String? status) {
+    if (status == null) return 'Belum Diajukan';
+    switch (status.toLowerCase()) {
+      case 'belum_ajukan':
+        return 'Belum Diajukan';
+      case 'menunggu':
+        return 'Menunggu Review';
+      case 'disetujui':
+        return 'Disetujui';
+      case 'ditolak':
+        return 'Ditolak';
+      case 'revisi':
+        return 'Perlu Revisi';
+      default:
+        return status;
     }
   }
 
@@ -332,7 +360,7 @@ class _DetailEventPageState extends State<DetailEventPage> {
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            widget.event['tipe_event'] ?? '-',
+                            widget.event['tipevent'] ?? '-',
                             style: GoogleFonts.inter(
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
@@ -354,7 +382,9 @@ class _DetailEventPageState extends State<DetailEventPage> {
   }
 
   Widget _buildStatsCards(bool isDesktop, bool isMobile) {
-    final status = widget.event['status_event'] ?? 'Aktif';
+    // Get status as boolean from database and convert to text
+    final statusBool = widget.event['status'] ?? true;
+    final status = statusBool == true ? 'Aktif' : 'Tidak Aktif';
     final totalDokumen = _dokumenProposal.length + _dokumenLpj.length;
 
     return Row(
@@ -378,7 +408,7 @@ class _DetailEventPageState extends State<DetailEventPage> {
             label: 'Status',
             value: status,
             gradient: LinearGradient(
-              colors: status == 'Selesai'
+              colors: statusBool == false
                   ? [const Color(0xFF6B7280), const Color(0xFF9CA3AF)]
                   : [const Color(0xFF10B981), const Color(0xFF34D399)],
             ),
@@ -530,20 +560,51 @@ class _DetailEventPageState extends State<DetailEventPage> {
           const SizedBox(height: 16),
           _buildInfoRow(
             Icons.calendar_month_rounded,
-            'Tanggal Selesai',
-            _formatDate(widget.event['tanggal_selesai']),
+            'Tanggal Akhir',
+            _formatDate(widget.event['tanggal_akhir']),
           ),
           const SizedBox(height: 16),
           _buildInfoRow(
             Icons.access_time_rounded,
-            'Waktu',
-            _formatTime(widget.event['tanggal_mulai']),
+            'Waktu Mulai',
+            _formatTime(widget.event['jam_mulai']),
+          ),
+          const SizedBox(height: 16),
+          _buildInfoRow(
+            Icons.access_time_filled_rounded,
+            'Waktu Akhir',
+            _formatTime(widget.event['jam_akhir']),
           ),
           const SizedBox(height: 16),
           _buildInfoRow(
             Icons.people_outline_rounded,
             'Max Peserta',
             widget.event['max_participant']?.toString() ?? '-',
+          ),
+          const SizedBox(height: 16),
+          _buildInfoRow(
+            Icons.event_available_rounded,
+            'Tanggal Pendaftaran',
+            _formatDate(widget.event['tanggal_pendaftaran']),
+          ),
+          const SizedBox(height: 16),
+          _buildInfoRow(
+            Icons.person_outline_rounded,
+            'Dibuat Oleh',
+            (widget.event['users'] as Map<String, dynamic>?)?['username'] ??
+                '-',
+          ),
+          const SizedBox(height: 16),
+          _buildInfoRow(
+            Icons.description_outlined,
+            'Status Proposal',
+            _formatDocumentStatus(widget.event['status_proposal']),
+          ),
+          const SizedBox(height: 16),
+          _buildInfoRow(
+            Icons.assignment_outlined,
+            'Status LPJ',
+            _formatDocumentStatus(widget.event['status_lpj']),
           ),
 
           const SizedBox(height: 24),
@@ -569,7 +630,7 @@ class _DetailEventPageState extends State<DetailEventPage> {
               border: Border.all(color: Colors.grey[200]!),
             ),
             child: Text(
-              widget.event['deskripsi_event'] ?? 'Tidak ada deskripsi',
+              widget.event['deskripsi'] ?? 'Tidak ada deskripsi',
               style: GoogleFonts.inter(
                 fontSize: 14,
                 color: Colors.black87,
@@ -749,189 +810,208 @@ class _DetailEventPageState extends State<DetailEventPage> {
         statusColor = Colors.blue;
     }
 
-    return Container(
-      margin: EdgeInsets.only(bottom: isMobile ? 8 : 12),
-      padding: EdgeInsets.all(isMobile ? 12 : 18),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.grey[50]!, Colors.white],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+    return InkWell(
+      onTap: () {
+        // Navigate to Detail Document Page
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => DetailDocumentPage(
+              documentId: doc['id'],
+              documentType: doc['type'],
+            ),
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              // Icon
-              Container(
-                padding: EdgeInsets.all(isMobile ? 10 : 14),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      (doc['color'] as Color).withOpacity(0.2),
-                      (doc['color'] as Color).withOpacity(0.1),
+        );
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        margin: EdgeInsets.only(bottom: isMobile ? 8 : 12),
+        padding: EdgeInsets.all(isMobile ? 12 : 18),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.grey[50]!, Colors.white],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey[200]!),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.02),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                // Icon
+                Container(
+                  padding: EdgeInsets.all(isMobile ? 10 : 14),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        (doc['color'] as Color).withOpacity(0.2),
+                        (doc['color'] as Color).withOpacity(0.1),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    doc['icon'] as IconData,
+                    color: doc['color'] as Color,
+                    size: isMobile ? 22 : 28,
+                  ),
+                ),
+                SizedBox(width: isMobile ? 10 : 16),
+
+                // Info
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        doc['name'],
+                        style: GoogleFonts.inter(
+                          fontSize: isMobile ? 13 : 15,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: (doc['color'] as Color).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              doc['type'],
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: doc['color'] as Color,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: statusColor.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              status,
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: statusColor,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.person_outline,
+                            size: 14,
+                            color: Colors.grey[500],
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            doc['uploadedBy'],
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Icon(Icons.circle, size: 4, color: Colors.grey[400]),
+                          const SizedBox(width: 8),
+                          Icon(
+                            Icons.access_time_rounded,
+                            size: 14,
+                            color: Colors.grey[500],
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            _formatDate(doc['uploadedAt']),
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
-                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(
-                  doc['icon'] as IconData,
-                  color: doc['color'] as Color,
-                  size: isMobile ? 22 : 28,
+              ],
+            ),
+            if (doc['catatan_admin'] != null &&
+                doc['catatan_admin'].toString().isNotEmpty)
+              const SizedBox(height: 12),
+            if (doc['catatan_admin'] != null &&
+                doc['catatan_admin'].toString().isNotEmpty)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.amber[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.amber[200]!),
                 ),
-              ),
-              SizedBox(width: isMobile ? 10 : 16),
-
-              // Info
-              Expanded(
-                child: Column(
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      doc['name'],
-                      style: GoogleFonts.inter(
-                        fontSize: isMobile ? 13 : 15,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.black87,
+                    Icon(
+                      Icons.info_outline,
+                      size: 16,
+                      color: Colors.amber[700],
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Catatan Admin:',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.amber[900],
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            doc['catatan_admin'],
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: Colors.amber[800],
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: (doc['color'] as Color).withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            doc['type'],
-                            style: GoogleFonts.inter(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: doc['color'] as Color,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: statusColor.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            status,
-                            style: GoogleFonts.inter(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: statusColor,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.person_outline,
-                          size: 14,
-                          color: Colors.grey[500],
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          doc['uploadedBy'],
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Icon(Icons.circle, size: 4, color: Colors.grey[400]),
-                        const SizedBox(width: 8),
-                        Icon(
-                          Icons.access_time_rounded,
-                          size: 14,
-                          color: Colors.grey[500],
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          _formatDate(doc['uploadedAt']),
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                      ],
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
-          if (doc['catatan_admin'] != null &&
-              doc['catatan_admin'].toString().isNotEmpty)
-            const SizedBox(height: 12),
-          if (doc['catatan_admin'] != null &&
-              doc['catatan_admin'].toString().isNotEmpty)
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.amber[50],
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.amber[200]!),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.info_outline, size: 16, color: Colors.amber[700]),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Catatan Admin:',
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.amber[900],
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          doc['catatan_admin'],
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            color: Colors.amber[800],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }

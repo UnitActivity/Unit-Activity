@@ -40,15 +40,35 @@ class _InformasiPageState extends State<InformasiPage> {
     setState(() => _isLoading = true);
 
     try {
+      // Load informasi with ukm, users, and admin data
       final response = await _supabase
           .from('informasi')
-          .select(
-            '*, ukm(nama_ukm), periode_ukm(nama_periode), users(username)',
-          )
+          .select('*, ukm(nama_ukm), users(username), admin(username_admin)')
           .order('create_at', ascending: false);
 
+      // Load all periode separately
+      final periodeData = await _supabase
+          .from('periode_ukm')
+          .select('id_periode, nama_periode');
+
+      final periodeMap = <String, String>{};
+      for (var p in periodeData) {
+        periodeMap[p['id_periode']] = p['nama_periode'];
+      }
+
+      // Manually attach periode data to informasi
+      final informasiList = List<Map<String, dynamic>>.from(response);
+      for (var info in informasiList) {
+        if (info['id_periode'] != null &&
+            periodeMap.containsKey(info['id_periode'])) {
+          info['periode_ukm'] = {
+            'nama_periode': periodeMap[info['id_periode']],
+          };
+        }
+      }
+
       setState(() {
-        _allInformasi = List<Map<String, dynamic>>.from(response);
+        _allInformasi = informasiList;
         _isLoading = false;
       });
     } catch (e) {
@@ -699,8 +719,33 @@ class _InformasiPageState extends State<InformasiPage> {
   }
 
   Widget _buildGridCard(Map<String, dynamic> info, bool isMobile) {
-    final ukmName =
-        (info['ukm'] as Map<String, dynamic>?)?['nama_ukm'] ?? 'UKM';
+    // Determine creator type
+    final hasUkm = info['id_ukm'] != null;
+    final hasAdmin = info['id_admin'] != null;
+
+    String chipLabel;
+    Color chipColor;
+    IconData chipIcon;
+
+    if (hasUkm) {
+      // Created by UKM
+      chipLabel = (info['ukm'] as Map<String, dynamic>?)?['nama_ukm'] ?? 'UKM';
+      chipColor = const Color(0xFF4169E1);
+      chipIcon = Icons.groups;
+    } else if (hasAdmin) {
+      // Created by Admin
+      chipLabel =
+          (info['admin'] as Map<String, dynamic>?)?['username_admin'] ??
+          'Admin';
+      chipColor = const Color(0xFFF59E0B);
+      chipIcon = Icons.admin_panel_settings;
+    } else {
+      // No creator (system/unknown)
+      chipLabel = 'System';
+      chipColor = const Color(0xFF6B7280);
+      chipIcon = Icons.settings;
+    }
+
     final status = info['status'] ?? 'Draft';
 
     return GestureDetector(
@@ -794,25 +839,36 @@ class _InformasiPageState extends State<InformasiPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // UKM Badge
+                    // Creator Badge (UKM, Admin, or System)
                     Container(
                       padding: EdgeInsets.symmetric(
                         horizontal: isMobile ? 6 : 8,
                         vertical: isMobile ? 3 : 4,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF4169E1).withOpacity(0.1),
+                        color: chipColor.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      child: Text(
-                        ukmName,
-                        style: GoogleFonts.inter(
-                          fontSize: isMobile ? 10 : 11,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF4169E1),
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            chipIcon,
+                            size: isMobile ? 12 : 14,
+                            color: chipColor,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            chipLabel,
+                            style: GoogleFonts.inter(
+                              fontSize: isMobile ? 10 : 11,
+                              fontWeight: FontWeight.w600,
+                              color: chipColor,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
                       ),
                     ),
                     SizedBox(height: isMobile ? 6 : 8),
@@ -875,8 +931,30 @@ class _InformasiPageState extends State<InformasiPage> {
   }
 
   Widget _buildListCard(Map<String, dynamic> info, bool isMobile) {
-    final ukmName =
-        (info['ukm'] as Map<String, dynamic>?)?['nama_ukm'] ?? 'UKM';
+    // Determine creator type
+    final hasUkm = info['id_ukm'] != null;
+    final hasAdmin = info['id_admin'] != null;
+
+    String chipLabel;
+    Color chipColor;
+    IconData chipIcon;
+
+    if (hasUkm) {
+      chipLabel = (info['ukm'] as Map<String, dynamic>?)?['nama_ukm'] ?? 'UKM';
+      chipColor = const Color(0xFF4169E1); // Blue
+      chipIcon = Icons.groups;
+    } else if (hasAdmin) {
+      chipLabel =
+          (info['admin'] as Map<String, dynamic>?)?['username_admin'] ??
+          'Admin';
+      chipColor = const Color(0xFFF59E0B); // Orange
+      chipIcon = Icons.admin_panel_settings;
+    } else {
+      chipLabel = 'System';
+      chipColor = const Color(0xFF6B7280); // Grey
+      chipIcon = Icons.settings;
+    }
+
     final periodeName =
         (info['periode_ukm'] as Map<String, dynamic>?)?['nama_periode'];
     final status = info['status'] ?? 'Draft';
@@ -948,23 +1026,34 @@ class _InformasiPageState extends State<InformasiPage> {
                   children: [
                     Row(
                       children: [
-                        // UKM Badge
+                        // Creator Badge (Admin or UKM)
                         Container(
                           padding: EdgeInsets.symmetric(
                             horizontal: isMobile ? 6 : 8,
                             vertical: isMobile ? 3 : 4,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF4169E1).withOpacity(0.1),
+                            color: chipColor.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(6),
                           ),
-                          child: Text(
-                            ukmName,
-                            style: GoogleFonts.inter(
-                              fontSize: isMobile ? 10 : 11,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFF4169E1),
-                            ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                chipIcon,
+                                size: isMobile ? 12 : 14,
+                                color: chipColor,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                chipLabel,
+                                style: GoogleFonts.inter(
+                                  fontSize: isMobile ? 10 : 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: chipColor,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                         SizedBox(width: isMobile ? 6 : 8),

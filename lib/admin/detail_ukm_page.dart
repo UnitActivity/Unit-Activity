@@ -337,11 +337,10 @@ class _DetailUkmPageState extends State<DetailUkmPage>
         }
       }
 
-      // Load all periode
+      // Load all periode (global - tidak ada filter id_ukm lagi)
       final periodeData = await _supabase
           .from('periode_ukm')
           .select()
-          .eq('id_ukm', idUkm)
           .order('create_at', ascending: false);
       _periodeList = List<Map<String, dynamic>>.from(periodeData);
 
@@ -357,18 +356,46 @@ class _DetailUkmPageState extends State<DetailUkmPage>
       // Load pertemuan
       final pertemuanData = await _supabase
           .from('pertemuan')
-          .select('*, periode_ukm(nama_periode)')
+          .select('*')
           .eq('id_ukm', idUkm)
           .order('tanggal_pertemuan', ascending: false);
       _pertemuanList = List<Map<String, dynamic>>.from(pertemuanData);
 
+      // Manually attach periode data to pertemuan
+      for (var pertemuan in _pertemuanList) {
+        if (pertemuan['id_periode'] != null) {
+          final periode = _periodeList.firstWhere(
+            (p) => p['id_periode'] == pertemuan['id_periode'],
+            orElse: () => {},
+          );
+          if (periode.isNotEmpty) {
+            pertemuan['periode_ukm'] = {
+              'nama_periode': periode['nama_periode'],
+            };
+          }
+        }
+      }
+
       // Load events
       final eventData = await _supabase
           .from('events')
-          .select('*, periode_ukm(nama_periode), users(username)')
+          .select('*, users(username)')
           .eq('id_ukm', idUkm)
           .order('tanggal_mulai', ascending: false);
       _eventList = List<Map<String, dynamic>>.from(eventData);
+
+      // Manually attach periode data to events
+      for (var event in _eventList) {
+        if (event['id_periode'] != null) {
+          final periode = _periodeList.firstWhere(
+            (p) => p['id_periode'] == event['id_periode'],
+            orElse: () => {},
+          );
+          if (periode.isNotEmpty) {
+            event['periode_ukm'] = {'nama_periode': periode['nama_periode']};
+          }
+        }
+      }
 
       // Load dokumen proposal
       final proposalData = await _supabase
