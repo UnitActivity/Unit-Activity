@@ -451,7 +451,7 @@ class _PeriodePageState extends State<PeriodePage> {
         crossAxisCount: 2,
         crossAxisSpacing: 20,
         mainAxisSpacing: 20,
-        childAspectRatio: 1.5,
+        childAspectRatio: 1.3,
       ),
       itemCount: _paginatedPeriode.length,
       itemBuilder: (context, index) {
