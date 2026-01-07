@@ -136,7 +136,7 @@ class _HistoryPageState extends State<HistoryPage> with QRScannerMixin {
                   child: SingleChildScrollView(
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.only(
-                      top: 70,
+                      top: 90,
                       left: 12,
                       right: 12,
                       bottom: 80,

@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 import 'package:unit_activity/services/ukm_dashboard_service.dart';
+import 'package:unit_activity/widgets/dynamic_qr_widget.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class DetailPertemuanUKMPage extends StatefulWidget {
@@ -126,11 +126,9 @@ class _DetailPertemuanUKMPageState extends State<DetailPertemuanUKMPage>
     });
   }
 
-  int get _presentCount =>
-      _attendanceData.values.where((v) => v).length;
+  int get _presentCount => _attendanceData.values.where((v) => v).length;
 
-  int get _absentCount =>
-      _attendanceData.values.where((v) => !v).length;
+  int get _absentCount => _attendanceData.values.where((v) => !v).length;
 
   @override
   Widget build(BuildContext context) {
@@ -166,10 +164,7 @@ class _DetailPertemuanUKMPageState extends State<DetailPertemuanUKMPage>
           SliverFillRemaining(
             child: TabBarView(
               controller: _tabController,
-              children: [
-                _buildKehadiranTab(isMobile),
-                _buildQRTab(isMobile),
-              ],
+              children: [_buildKehadiranTab(isMobile), _buildQRTab(isMobile)],
             ),
           ),
         ],
@@ -305,15 +300,35 @@ class _DetailPertemuanUKMPageState extends State<DetailPertemuanUKMPage>
             ],
           ),
           const SizedBox(height: 20),
-          _buildInfoRow(Icons.calendar_today_rounded, 'Tanggal', widget.pertemuan['tanggal'] ?? '-', isMobile),
-          _buildInfoRow(Icons.access_time_rounded, 'Waktu', '${widget.pertemuan['jamMulai'] ?? '-'} - ${widget.pertemuan['jamAkhir'] ?? '-'}', isMobile),
-          _buildInfoRow(Icons.location_on_rounded, 'Lokasi', widget.pertemuan['lokasi'] ?? '-', isMobile),
+          _buildInfoRow(
+            Icons.calendar_today_rounded,
+            'Tanggal',
+            widget.pertemuan['tanggal'] ?? '-',
+            isMobile,
+          ),
+          _buildInfoRow(
+            Icons.access_time_rounded,
+            'Waktu',
+            '${widget.pertemuan['jamMulai'] ?? '-'} - ${widget.pertemuan['jamAkhir'] ?? '-'}',
+            isMobile,
+          ),
+          _buildInfoRow(
+            Icons.location_on_rounded,
+            'Lokasi',
+            widget.pertemuan['lokasi'] ?? '-',
+            isMobile,
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildInfoRow(IconData icon, String label, String value, bool isMobile) {
+  Widget _buildInfoRow(
+    IconData icon,
+    String label,
+    String value,
+    bool isMobile,
+  ) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
@@ -324,15 +339,32 @@ class _DetailPertemuanUKMPageState extends State<DetailPertemuanUKMPage>
               color: Colors.grey[100],
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(icon, size: isMobile ? 16 : 18, color: Colors.grey[600]),
+            child: Icon(
+              icon,
+              size: isMobile ? 16 : 18,
+              color: Colors.grey[600],
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: GoogleFonts.inter(fontSize: isMobile ? 11 : 12, color: Colors.grey[500])),
-                Text(value, style: GoogleFonts.inter(fontSize: isMobile ? 13 : 14, fontWeight: FontWeight.w600, color: Colors.black87)),
+                Text(
+                  label,
+                  style: GoogleFonts.inter(
+                    fontSize: isMobile ? 11 : 12,
+                    color: Colors.grey[500],
+                  ),
+                ),
+                Text(
+                  value,
+                  style: GoogleFonts.inter(
+                    fontSize: isMobile ? 13 : 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
               ],
             ),
           ),
@@ -377,7 +409,13 @@ class _DetailPertemuanUKMPageState extends State<DetailPertemuanUKMPage>
     );
   }
 
-  Widget _buildStatCard(String label, String value, IconData icon, Color color, bool isMobile) {
+  Widget _buildStatCard(
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+    bool isMobile,
+  ) {
     return Container(
       padding: EdgeInsets.all(isMobile ? 12 : 16),
       decoration: BoxDecoration(
@@ -435,7 +473,10 @@ class _DetailPertemuanUKMPageState extends State<DetailPertemuanUKMPage>
         unselectedLabelColor: Colors.grey[600],
         indicatorColor: const Color(0xFF4169E1),
         indicatorWeight: 3,
-        labelStyle: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600),
+        labelStyle: GoogleFonts.inter(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+        ),
         unselectedLabelStyle: GoogleFonts.inter(fontSize: 14),
         tabs: const [
           Tab(text: 'Kehadiran', icon: Icon(Icons.people_rounded, size: 20)),
@@ -457,7 +498,10 @@ class _DetailPertemuanUKMPageState extends State<DetailPertemuanUKMPage>
             onChanged: _filterMembers,
             decoration: InputDecoration(
               hintText: 'Cari nama atau NIM...',
-              hintStyle: GoogleFonts.inter(fontSize: 14, color: Colors.grey[400]),
+              hintStyle: GoogleFonts.inter(
+                fontSize: 14,
+                color: Colors.grey[400],
+              ),
               prefixIcon: Icon(Icons.search_rounded, color: Colors.grey[400]),
               filled: true,
               fillColor: Colors.white,
@@ -479,7 +523,12 @@ class _DetailPertemuanUKMPageState extends State<DetailPertemuanUKMPage>
 
           // Members List
           if (_isLoadingMembers)
-            const Center(child: Padding(padding: EdgeInsets.all(40), child: CircularProgressIndicator()))
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(40),
+                child: CircularProgressIndicator(),
+              ),
+            )
           else if (_filteredMembersList.isEmpty)
             _buildEmptyState()
           else
@@ -487,14 +536,22 @@ class _DetailPertemuanUKMPageState extends State<DetailPertemuanUKMPage>
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: _filteredMembersList.length,
-              itemBuilder: (context, index) => _buildMemberCard(_filteredMembersList[index], index, isMobile),
+              itemBuilder: (context, index) => _buildMemberCard(
+                _filteredMembersList[index],
+                index,
+                isMobile,
+              ),
             ),
         ],
       ),
     );
   }
 
-  Widget _buildMemberCard(Map<String, dynamic> member, int index, bool isMobile) {
+  Widget _buildMemberCard(
+    Map<String, dynamic> member,
+    int index,
+    bool isMobile,
+  ) {
     final userId = member['id_user'] as String;
     final isPresent = _attendanceData[userId] ?? false;
 
@@ -543,14 +600,20 @@ class _DetailPertemuanUKMPageState extends State<DetailPertemuanUKMPage>
                 const SizedBox(height: 2),
                 Text(
                   'NIM: ${member['nim']}',
-                  style: GoogleFonts.inter(fontSize: isMobile ? 11 : 12, color: Colors.grey[600]),
+                  style: GoogleFonts.inter(
+                    fontSize: isMobile ? 11 : 12,
+                    color: Colors.grey[600],
+                  ),
                 ),
               ],
             ),
           ),
           // Status badge
           Container(
-            padding: EdgeInsets.symmetric(horizontal: isMobile ? 10 : 14, vertical: isMobile ? 6 : 8),
+            padding: EdgeInsets.symmetric(
+              horizontal: isMobile ? 10 : 14,
+              vertical: isMobile ? 6 : 8,
+            ),
             decoration: BoxDecoration(
               color: isPresent ? Colors.green : Colors.red,
               borderRadius: BorderRadius.circular(8),
@@ -595,15 +658,31 @@ class _DetailPertemuanUKMPageState extends State<DetailPertemuanUKMPage>
                     color: const Color(0xFF4169E1).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.qr_code_2_rounded, color: Color(0xFF4169E1), size: 32),
+                  child: const Icon(
+                    Icons.qr_code_2_rounded,
+                    color: Color(0xFF4169E1),
+                    size: 32,
+                  ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('QR Code Absensi', style: GoogleFonts.inter(fontSize: isMobile ? 16 : 20, fontWeight: FontWeight.bold)),
-                      Text('QR code berganti setiap 10 detik', style: GoogleFonts.inter(fontSize: isMobile ? 12 : 14, color: Colors.grey[600])),
+                      Text(
+                        'QR Code Absensi',
+                        style: GoogleFonts.inter(
+                          fontSize: isMobile ? 16 : 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        'QR code berganti setiap 10 detik',
+                        style: GoogleFonts.inter(
+                          fontSize: isMobile ? 12 : 14,
+                          color: Colors.grey[600],
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -637,7 +716,14 @@ class _DetailPertemuanUKMPageState extends State<DetailPertemuanUKMPage>
                       ),
                     ),
                     const SizedBox(height: 16),
-                    Text('QR Code Aktif', style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green)),
+                    Text(
+                      'QR Code Aktif',
+                      style: GoogleFonts.inter(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green,
+                      ),
+                    ),
                     if (_qrExpiresAt != null)
                       TweenAnimationBuilder<int>(
                         key: ValueKey(_currentQRCode),
@@ -671,7 +757,9 @@ class _DetailPertemuanUKMPageState extends State<DetailPertemuanUKMPage>
                                       strokeWidth: 6,
                                       backgroundColor: Colors.grey[300],
                                       valueColor: AlwaysStoppedAnimation<Color>(
-                                        value <= 3 ? Colors.red : const Color(0xFF4169E1),
+                                        value <= 3
+                                            ? Colors.red
+                                            : const Color(0xFF4169E1),
                                       ),
                                     ),
                                   ),
@@ -680,18 +768,26 @@ class _DetailPertemuanUKMPageState extends State<DetailPertemuanUKMPage>
                                     style: GoogleFonts.inter(
                                       fontSize: 24,
                                       fontWeight: FontWeight.bold,
-                                      color: value <= 3 ? Colors.red : const Color(0xFF4169E1),
+                                      color: value <= 3
+                                          ? Colors.red
+                                          : const Color(0xFF4169E1),
                                     ),
                                   ),
                                 ],
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                value <= 3 ? 'QR baru dalam $value detik' : 'Berlaku $value detik lagi',
+                                value <= 3
+                                    ? 'QR baru dalam $value detik'
+                                    : 'Berlaku $value detik lagi',
                                 style: GoogleFonts.inter(
                                   fontSize: 14,
-                                  color: value <= 3 ? Colors.red : Colors.grey[600],
-                                  fontWeight: value <= 3 ? FontWeight.bold : FontWeight.normal,
+                                  color: value <= 3
+                                      ? Colors.red
+                                      : Colors.grey[600],
+                                  fontWeight: value <= 3
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
                                 ),
                               ),
                             ],
@@ -706,7 +802,13 @@ class _DetailPertemuanUKMPageState extends State<DetailPertemuanUKMPage>
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text('Auto Regenerate:', style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[700])),
+                  Text(
+                    'Auto Regenerate:',
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      color: Colors.grey[700],
+                    ),
+                  ),
                   const SizedBox(width: 8),
                   Switch(
                     value: _autoRegenerateQR,
@@ -727,12 +829,17 @@ class _DetailPertemuanUKMPageState extends State<DetailPertemuanUKMPage>
                     });
                   },
                   icon: const Icon(Icons.stop_rounded),
-                  label: Text('Stop QR Code', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+                  label: Text(
+                    'Stop QR Code',
+                    style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                  ),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.red,
                     side: const BorderSide(color: Colors.red),
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
               ),
@@ -747,9 +854,20 @@ class _DetailPertemuanUKMPageState extends State<DetailPertemuanUKMPage>
                 ),
                 child: Column(
                   children: [
-                    Icon(Icons.qr_code_2_rounded, size: 80, color: Colors.grey[400]),
+                    Icon(
+                      Icons.qr_code_2_rounded,
+                      size: 80,
+                      color: Colors.grey[400],
+                    ),
                     const SizedBox(height: 16),
-                    Text('Klik tombol di bawah untuk generate QR Code', style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]), textAlign: TextAlign.center),
+                    Text(
+                      'Klik tombol di bawah untuk generate QR Code',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        color: Colors.grey[600],
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
                   ],
                 ),
               ),
@@ -759,12 +877,20 @@ class _DetailPertemuanUKMPageState extends State<DetailPertemuanUKMPage>
                 child: ElevatedButton.icon(
                   onPressed: _generateQRCode,
                   icon: const Icon(Icons.qr_code_rounded),
-                  label: Text('Generate QR Code', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600)),
+                  label: Text(
+                    'Generate QR Code',
+                    style: GoogleFonts.inter(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF4169E1),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     elevation: 0,
                   ),
                 ),
@@ -784,7 +910,10 @@ class _DetailPertemuanUKMPageState extends State<DetailPertemuanUKMPage>
                   Expanded(
                     child: Text(
                       'Peserta scan QR untuk absensi kehadiran',
-                      style: GoogleFonts.inter(fontSize: 13, color: Colors.blue[700]),
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: Colors.blue[700],
+                      ),
                     ),
                   ),
                 ],
@@ -802,14 +931,85 @@ class _DetailPertemuanUKMPageState extends State<DetailPertemuanUKMPage>
         padding: const EdgeInsets.all(48),
         child: Column(
           children: [
-            Icon(Icons.people_outline_rounded, size: 80, color: Colors.grey[300]),
+            Icon(
+              Icons.people_outline_rounded,
+              size: 80,
+              color: Colors.grey[300],
+            ),
             const SizedBox(height: 16),
-            Text('Belum ada anggota', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.grey[600])),
+            Text(
+              'Belum ada anggota',
+              style: GoogleFonts.inter(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[600],
+              ),
+            ),
             const SizedBox(height: 8),
-            Text('Anggota yang follow UKM akan muncul di sini', style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[500]), textAlign: TextAlign.center),
+            Text(
+              'Anggota yang follow UKM akan muncul di sini',
+              style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[500]),
+              textAlign: TextAlign.center,
+            ),
           ],
         ),
       ),
+    );
+  }
+
+  void _showQRCodeDialog() {
+    // Check if meeting has ended
+    bool isMeetingEnded() {
+      try {
+        final tanggal = widget.pertemuan['tanggal'].split('-');
+        final jamAkhir = widget.pertemuan['jamAkhir'].split(':');
+
+        final endDateTime = DateTime(
+          int.parse(tanggal[2]), // year
+          int.parse(tanggal[1]), // month
+          int.parse(tanggal[0]), // day
+          int.parse(jamAkhir[0]), // hour
+          int.parse(jamAkhir[1]), // minute
+        );
+
+        return DateTime.now().isAfter(endDateTime);
+      } catch (e) {
+        return false;
+      }
+    }
+
+    final meetingEnded = isMeetingEnded();
+
+    if (meetingEnded) {
+      // Show ended message dialog
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(
+            'Pertemuan Telah Selesai',
+            style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+          ),
+          content: Text(
+            'QR Code tidak dapat ditampilkan karena pertemuan telah berakhir.',
+            style: GoogleFonts.inter(),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // Show dynamic QR code dialog
+    DynamicQRCodeDialog.show(
+      context: context,
+      type: 'PERTEMUAN',
+      id: widget.pertemuan['id'],
+      title: 'QR Code Absensi\n${widget.pertemuan['topik']}',
     );
   }
 }

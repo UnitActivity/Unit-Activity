@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'push_notification_service.dart';
 
 class CustomAuthService {
   // Singleton pattern
@@ -62,6 +64,23 @@ class CustomAuthService {
 
           await _saveSession();
 
+          // Update FCM token association with user ID
+          if (!kIsWeb) {
+            try {
+              final pushNotificationService = PushNotificationService();
+              await pushNotificationService.updateUserAssociation(
+                _currentUserId!,
+              );
+
+              // Migrate anonymous notifications to user notifications
+              await _migrateAnonymousNotifications(_currentUserId!);
+
+              print('✅ FCM token associated with user');
+            } catch (e) {
+              print('❌ Error associating FCM token: $e');
+            }
+          }
+
           return {
             'success': true,
             'role': adminResult['role'],
@@ -102,6 +121,23 @@ class CustomAuthService {
             };
 
             await _saveSession();
+
+            // Update FCM token association with user ID
+            if (!kIsWeb) {
+              try {
+                final pushNotificationService = PushNotificationService();
+                await pushNotificationService.updateUserAssociation(
+                  _currentUserId!,
+                );
+
+                // Migrate anonymous notifications to user notifications
+                await _migrateAnonymousNotifications(_currentUserId!);
+
+                print('✅ FCM token associated with user');
+              } catch (e) {
+                print('❌ Error associating FCM token: $e');
+              }
+            }
 
             return {'success': true, 'role': 'user', 'user': _currentUserData};
           } else {
@@ -181,6 +217,17 @@ class CustomAuthService {
 
   /// Logout
   Future<void> logout() async {
+    // Clear user association from FCM token but keep token for anonymous notifications
+    if (!kIsWeb) {
+      try {
+        final pushNotificationService = PushNotificationService();
+        await pushNotificationService.clearUserAssociation();
+        print('✅ FCM token preserved for anonymous notifications');
+      } catch (e) {
+        print('❌ Error clearing FCM user association: $e');
+      }
+    }
+
     _currentUserId = null;
     _currentUserRole = null;
     _currentUserData = null;
@@ -271,4 +318,46 @@ class CustomAuthService {
   bool get isAdmin => _currentUserRole == 'admin';
   bool get isUKM => _currentUserRole == 'ukm';
   bool get isUser => _currentUserRole == 'user';
+
+  /// Migrate anonymous notifications to user notifications on login
+  Future<void> _migrateAnonymousNotifications(String userId) async {
+    try {
+      if (kIsWeb) return; // Only for mobile apps
+
+      // Get device token
+      final prefs = await SharedPreferences.getInstance();
+      final deviceToken = prefs.getString('fcm_token');
+
+      if (deviceToken == null) {
+        print('ℹ️ No FCM token found, skipping notification migration');
+        return;
+      }
+
+      print('🔄 Migrating anonymous notifications for device: $deviceToken');
+
+      // NOTE: Migration function requires notifikasi table to exist
+      // For now, skip migration if using notification_preference table
+      // Uncomment when proper notifikasi table is created:
+      /*
+      final result = await _supabase.rpc(
+        'migrate_anonymous_notifications_to_user',
+        params: {'p_device_token': deviceToken, 'p_user_id': userId},
+      );
+
+      final migratedCount = result as int? ?? 0;
+
+      if (migratedCount > 0) {
+        print('✅ Migrated $migratedCount anonymous notifications to user');
+      } else {
+        print('ℹ️ No anonymous notifications to migrate');
+      }
+      */
+      print(
+        'ℹ️ Migration skipped - using existing notification_preference table',
+      );
+    } catch (e) {
+      print('❌ Error migrating anonymous notifications: $e');
+      // Don't throw - migration is optional, login should still succeed
+    }
+  }
 }

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:device_preview/device_preview.dart';
 import 'package:unit_activity/auth/login.dart';
@@ -12,6 +14,7 @@ import 'package:unit_activity/ukm/dashboard_ukm.dart';
 import 'package:unit_activity/user/dashboard_user.dart';
 import 'package:unit_activity/config/config.dart';
 import 'package:unit_activity/services/custom_auth_service.dart';
+import 'package:unit_activity/services/push_notification_service.dart';
 import 'package:unit_activity/widgets/auth_guard.dart';
 
 Future<void> main() async {
@@ -31,6 +34,11 @@ Future<void> main() async {
     anonKey: SupabaseConfig.supabaseAnonKey,
   );
 
+  // Initialize Firebase Messaging background handler (must be before runApp)
+  if (!kIsWeb) {
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  }
+
   // Initialize CustomAuthService and restore session
   print('========== INITIALIZING AUTH SERVICE ==========');
   final authService = CustomAuthService();
@@ -40,6 +48,24 @@ Future<void> main() async {
     print(
       'Current user: ${authService.currentUserRole} - ${authService.currentUser?['name']}',
     );
+  }
+
+  // Initialize Push Notifications (works for all users, even logged out)
+  if (!kIsWeb) {
+    print('========== INITIALIZING PUSH NOTIFICATIONS ==========');
+    final pushNotificationService = PushNotificationService();
+    await pushNotificationService.initialize();
+
+    // Subscribe to admin broadcast notifications
+    await pushNotificationService.subscribeToAdminNotifications();
+    print('Subscribed to admin notifications');
+
+    // If user is logged in, update token association
+    if (authService.isLoggedIn && authService.currentUserId != null) {
+      await pushNotificationService.updateUserAssociation(
+        authService.currentUserId!,
+      );
+    }
   }
 
   runApp(
@@ -96,5 +122,53 @@ class MyApp extends StatelessWidget {
         '/user/dashboard': (context) => const DashboardUser(),
       },
     );
+  }
+}
+
+/// Background message handler untuk notifikasi saat app tertutup
+/// CRITICAL: Function ini harus top-level function (tidak boleh di dalam class)
+@pragma('vm:entry-point')
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // Initialize Supabase for background context
+  await Supabase.initialize(
+    url: SupabaseConfig.supabaseUrl,
+    anonKey: SupabaseConfig.supabaseAnonKey,
+  );
+
+  print('========== BACKGROUND MESSAGE (APP CLOSED) ==========');
+  print('Title: ${message.notification?.title}');
+  print('Body: ${message.notification?.body}');
+  print('Data: ${message.data}');
+
+  // Save notification to database
+  try {
+    final supabase = Supabase.instance.client;
+    final notification = message.notification;
+
+    if (notification != null) {
+      final userId = supabase.auth.currentUser?.id;
+
+      final notificationData = {
+        'judul': notification.title ?? 'Notifikasi',
+        'pesan': notification.body ?? '',
+        'type': message.data['type'] ?? 'info',
+        'is_read': false,
+        'create_at': DateTime.now().toIso8601String(),
+      };
+
+      if (userId != null) {
+        // Save to user-specific notifications
+        await supabase.from('notification_preference').insert({
+          ...notificationData,
+          'id_user': userId,
+        });
+        print('✅ Background notification saved for user: $userId');
+      } else {
+        // Anonymous notifications not supported without proper table
+        print('ℹ️ No user logged in, background notification not saved');
+      }
+    }
+  } catch (e) {
+    print('❌ Error saving background notification: $e');
   }
 }

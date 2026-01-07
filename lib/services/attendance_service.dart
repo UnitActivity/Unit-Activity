@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dynamic_qr_service.dart';
 
 class AttendanceService {
   final SupabaseClient _supabase = Supabase.instance.client;
@@ -25,22 +26,11 @@ class AttendanceService {
         };
       }
 
-      // Validate QR code format
-      if (!_validateQRCode(qrCode, 'EVENT')) {
-        return {
-          'success': false,
-          'message': 'QR Code tidak valid untuk event ini.',
-        };
-      }
-
-      // Extract event ID from QR code if needed
-      final extractedEventId = _extractIdFromQRCode(qrCode) ?? eventId;
-
       // Check if event exists
       final eventResponse = await _supabase
           .from('events')
           .select('id_events, nama_event, status, tanggal_mulai, tanggal_akhir')
-          .eq('id_events', extractedEventId)
+          .eq('id_events', eventId)
           .maybeSingle();
 
       if (eventResponse == null) {
@@ -55,7 +45,7 @@ class AttendanceService {
       final existingAttendance = await _supabase
           .from('absen_event')
           .select('id_absen')
-          .eq('id_event', extractedEventId)
+          .eq('id_event', eventId)
           .eq('id_user', userId)
           .maybeSingle();
 
@@ -70,7 +60,7 @@ class AttendanceService {
       // Record attendance
       final now = DateTime.now();
       await _supabase.from('absen_event').insert({
-        'id_event': extractedEventId,
+        'id_event': eventId,
         'id_user': userId,
         'jam':
             '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
@@ -84,7 +74,7 @@ class AttendanceService {
         'success': true,
         'message': 'Berhasil absen di event "${eventResponse['nama_event']}"!',
         'event_name': eventResponse['nama_event'],
-        'event_id': extractedEventId,
+        'event_id': eventId,
         'time':
             '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
       };
@@ -116,22 +106,11 @@ class AttendanceService {
         };
       }
 
-      // Validate QR code format
-      if (!_validateQRCode(qrCode, 'MEETING')) {
-        return {
-          'success': false,
-          'message': 'QR Code tidak valid untuk pertemuan ini.',
-        };
-      }
-
-      // Extract pertemuan ID from QR code if needed
-      final extractedPertemuanId = _extractIdFromQRCode(qrCode) ?? pertemuanId;
-
       // Check if pertemuan exists
       final pertemuanResponse = await _supabase
           .from('pertemuan')
           .select('id_pertemuan, topik, id_ukm, tanggal')
-          .eq('id_pertemuan', extractedPertemuanId)
+          .eq('id_pertemuan', pertemuanId)
           .maybeSingle();
 
       if (pertemuanResponse == null) {
@@ -154,7 +133,7 @@ class AttendanceService {
       final existingAttendance = await _supabase
           .from('absen_pertemuan')
           .select('id_absen')
-          .eq('id_pertemuan', extractedPertemuanId)
+          .eq('id_pertemuan', pertemuanId)
           .eq('id_user', userId)
           .maybeSingle();
 
@@ -169,7 +148,7 @@ class AttendanceService {
       // Record attendance
       final now = DateTime.now();
       await _supabase.from('absen_pertemuan').insert({
-        'id_pertemuan': extractedPertemuanId,
+        'id_pertemuan': pertemuanId,
         'id_user': userId,
         'jam':
             '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
@@ -184,7 +163,7 @@ class AttendanceService {
         'message':
             'Berhasil absen di pertemuan "${pertemuanResponse['topik']}"!',
         'pertemuan_name': pertemuanResponse['topik'],
-        'pertemuan_id': extractedPertemuanId,
+        'pertemuan_id': pertemuanId,
         'time':
             '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
       };
@@ -203,25 +182,44 @@ class AttendanceService {
       print('========== PROCESS QR CODE ==========');
       print('QR Code: $qrCode');
 
-      // Parse QR code format: TYPE:ID:TOKEN
-      // e.g., EVENT_ATTENDANCE:event-uuid-here:timestamp-random
-      // e.g., MEETING_ATTENDANCE:pertemuan-uuid-here:timestamp-random
+      // Validate dynamic QR code first
+      final validation = DynamicQRService.validateDynamicQR(qrCode);
 
-      final parts = qrCode.split(':');
+      if (validation['valid'] != true) {
+        final errorType = validation['error_type'];
+        String message = validation['message'] ?? 'QR Code tidak valid.';
 
-      if (parts.isEmpty) {
-        return {'success': false, 'message': 'Format QR Code tidak valid.'};
+        // Custom messages based on error type
+        if (errorType == 'EXPIRED') {
+          final expiredSeconds = validation['expired_seconds_ago'] ?? 0;
+          message =
+              'QR Code sudah kadaluarsa ${expiredSeconds} detik yang lalu.\n\nSilakan scan QR Code yang baru.';
+        } else if (errorType == 'INVALID_SIGNATURE') {
+          message =
+              'QR Code tidak valid atau telah dimodifikasi.\n\nPastikan Anda menscan QR Code yang benar.';
+        } else if (errorType == 'INVALID_FORMAT') {
+          message =
+              'Format QR Code tidak sesuai.\n\nPastikan Anda menscan QR Code untuk absensi.';
+        }
+
+        return {'success': false, 'message': message, 'error_type': errorType};
       }
 
-      final type = parts[0].toUpperCase();
-      final id = parts.length > 1 ? parts[1] : '';
+      // QR code is valid, extract data
+      final type = validation['type'] as String;
+      final id = validation['id'] as String;
+      final ageSeconds = validation['age_seconds'] as int;
 
-      if (type.contains('EVENT')) {
+      print('✅ QR Code valid - Type: $type, ID: $id, Age: ${ageSeconds}s');
+
+      // Process based on type
+      if (type.toUpperCase().contains('EVENT')) {
         return await recordEventAttendance(eventId: id, qrCode: qrCode);
-      } else if (type.contains('MEETING') || type.contains('PERTEMUAN')) {
+      } else if (type.toUpperCase().contains('PERTEMUAN') ||
+          type.toUpperCase().contains('MEETING')) {
         return await recordPertemuanAttendance(pertemuanId: id, qrCode: qrCode);
       } else {
-        // Try to determine type by checking database
+        // Try to auto-detect
         return await _autoDetectAndRecordAttendance(qrCode, id);
       }
     } catch (e) {
@@ -265,32 +263,6 @@ class AttendanceService {
       'message':
           'QR Code tidak terkait dengan event atau pertemuan yang valid.',
     };
-  }
-
-  /// Validate QR code format
-  bool _validateQRCode(String qrCode, String expectedType) {
-    // Check if QR code contains the expected type
-    final upperCode = qrCode.toUpperCase();
-
-    if (expectedType == 'EVENT') {
-      return upperCode.contains('EVENT') ||
-          !upperCode.contains(
-            'MEETING',
-          ); // Default to event if no type specified
-    } else if (expectedType == 'MEETING') {
-      return upperCode.contains('MEETING') || upperCode.contains('PERTEMUAN');
-    }
-
-    return true; // Allow if no specific type check needed
-  }
-
-  /// Extract ID from QR code
-  String? _extractIdFromQRCode(String qrCode) {
-    final parts = qrCode.split(':');
-    if (parts.length >= 2) {
-      return parts[1];
-    }
-    return null;
   }
 
   /// Check if user is member of UKM

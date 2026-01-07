@@ -18,6 +18,13 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
   bool _isSaving = false;
   bool _changePassword = false;
 
+  // Data from Supabase
+  List<Map<String, dynamic>> _userEvents = [];
+  List<Map<String, dynamic>> _userMeetings = [];
+  List<Map<String, dynamic>> _userUKMs = [];
+  List<Map<String, dynamic>> _userActivities = [];
+  bool _isLoadingData = true;
+
   // Controllers for edit mode
   late TextEditingController _usernameController;
   late TextEditingController _emailController;
@@ -37,6 +44,135 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
     _nimController = TextEditingController(text: widget.user['nim']);
     _passwordController = TextEditingController();
     _confirmPasswordController = TextEditingController();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      setState(() => _isLoadingData = true);
+      final userId = widget.user['id_user'];
+      print('Loading data for user: $userId');
+
+      // Load user's UKMs
+      await _loadUserUKMs(userId);
+
+      // Load user's events attendance
+      await _loadUserEvents(userId);
+
+      // Load user's meetings attendance
+      await _loadUserMeetings(userId);
+
+      // Load user's activity log
+      await _loadUserActivities(userId);
+
+      if (mounted) {
+        setState(() => _isLoadingData = false);
+      }
+    } catch (e) {
+      print('Error loading user data: $e');
+      if (mounted) {
+        setState(() => _isLoadingData = false);
+      }
+    }
+  }
+
+  Future<void> _loadUserUKMs(String userId) async {
+    try {
+      final response = await _supabase
+          .from('user_halaman_ukm')
+          .select('id_ukm, status, created_at, ukm(nama_ukm, logo)')
+          .eq('id_user', userId)
+          .order('created_at', ascending: false);
+
+      _userUKMs = List<Map<String, dynamic>>.from(response);
+      print('Loaded ${_userUKMs.length} UKMs for user');
+    } catch (e) {
+      print('Error loading user UKMs: $e');
+      _userUKMs = [];
+    }
+  }
+
+  Future<void> _loadUserEvents(String userId) async {
+    try {
+      final response = await _supabase
+          .from('event_participant')
+          .select(
+            'id_events, status, created_at, events(nama_event, tanggal_mulai, ukm(nama_ukm))',
+          )
+          .eq('id_user', userId)
+          .order('created_at', ascending: false);
+
+      _userEvents = List<Map<String, dynamic>>.from(response);
+      print('Loaded ${_userEvents.length} events for user');
+    } catch (e) {
+      print('Error loading user events: $e');
+      _userEvents = [];
+    }
+  }
+
+  Future<void> _loadUserMeetings(String userId) async {
+    try {
+      final response = await _supabase
+          .from('absen')
+          .select(
+            'id_pertemuan, status, waktu_absen, pertemuan(topik, tanggal, jam_mulai, ukm(nama_ukm))',
+          )
+          .eq('id_user', userId)
+          .order('waktu_absen', ascending: false);
+
+      _userMeetings = List<Map<String, dynamic>>.from(response);
+      print('Loaded ${_userMeetings.length} meetings for user');
+    } catch (e) {
+      print('Error loading user meetings: $e');
+      _userMeetings = [];
+    }
+  }
+
+  Future<void> _loadUserActivities(String userId) async {
+    try {
+      // Combine activities from different sources
+      List<Map<String, dynamic>> activities = [];
+
+      // UKM join activities
+      for (var ukm in _userUKMs) {
+        activities.add({
+          'action': 'Bergabung ${ukm['ukm']?['nama_ukm'] ?? 'UKM'}',
+          'timestamp': ukm['created_at'],
+          'type': 'ukm',
+        });
+      }
+
+      // Event participation
+      for (var event in _userEvents) {
+        activities.add({
+          'action': 'Mengikuti ${event['events']?['nama_event'] ?? 'Event'}',
+          'timestamp': event['created_at'],
+          'type': 'event',
+        });
+      }
+
+      // Meeting attendance
+      for (var meeting in _userMeetings) {
+        activities.add({
+          'action': 'Hadir ${meeting['pertemuan']?['topik'] ?? 'Pertemuan'}',
+          'timestamp': meeting['waktu_absen'],
+          'type': 'meeting',
+        });
+      }
+
+      // Sort by timestamp
+      activities.sort((a, b) {
+        final dateA = DateTime.tryParse(a['timestamp'] ?? '') ?? DateTime(1970);
+        final dateB = DateTime.tryParse(b['timestamp'] ?? '') ?? DateTime(1970);
+        return dateB.compareTo(dateA);
+      });
+
+      _userActivities = activities.take(20).toList();
+      print('Loaded ${_userActivities.length} activities for user');
+    } catch (e) {
+      print('Error loading user activities: $e');
+      _userActivities = [];
+    }
   }
 
   @override
@@ -707,34 +843,45 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
   }
 
   Widget _buildEventsTab() {
-    // Dummy events data
-    final events = [
-      {
-        'nama': 'Sparing w/ UWIKA',
-        'tanggal': '22 Des 2024',
-        'status': 'Hadir',
-        'ukm': 'Basket',
-      },
-      {
-        'nama': 'Friendly Match Futsal',
-        'tanggal': '15 Des 2024',
-        'status': 'Hadir',
-        'ukm': 'Futsal',
-      },
-      {
-        'nama': 'Mini Tournament Badminton',
-        'tanggal': '10 Des 2024',
-        'status': 'Tidak Hadir',
-        'ukm': 'Badminton',
-      },
-    ];
+    if (_isLoadingData) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_userEvents.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.event_busy, size: 48, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              'Belum ada event yang diikuti',
+              style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
+            ),
+          ],
+        ),
+      );
+    }
 
     return ListView.builder(
       padding: const EdgeInsets.all(24),
-      itemCount: events.length,
+      itemCount: _userEvents.length,
       itemBuilder: (context, index) {
-        final event = events[index];
-        final isPresent = event['status'] == 'Hadir';
+        final eventData = _userEvents[index];
+        final event = eventData['events'] as Map<String, dynamic>?;
+        final isPresent =
+            eventData['status'] == 'hadir' ||
+            eventData['status'] == 'registered';
+
+        String formattedDate = '';
+        if (event?['tanggal_mulai'] != null) {
+          try {
+            final date = DateTime.parse(event!['tanggal_mulai']);
+            formattedDate = DateFormat('dd MMM yyyy').format(date);
+          } catch (e) {
+            formattedDate = event?['tanggal_mulai'] ?? '';
+          }
+        }
 
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
@@ -742,12 +889,12 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
           decoration: BoxDecoration(
             color: isPresent
                 ? Colors.green.withOpacity(0.1)
-                : Colors.red.withOpacity(0.1),
+                : Colors.orange.withOpacity(0.1),
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: isPresent
                   ? Colors.green.withOpacity(0.3)
-                  : Colors.red.withOpacity(0.3),
+                  : Colors.orange.withOpacity(0.3),
               width: 1.5,
             ),
           ),
@@ -758,12 +905,12 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
                 decoration: BoxDecoration(
                   color: isPresent
                       ? Colors.green.withOpacity(0.2)
-                      : Colors.red.withOpacity(0.2),
+                      : Colors.orange.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
                   Icons.event,
-                  color: isPresent ? Colors.green[700] : Colors.red[700],
+                  color: isPresent ? Colors.green[700] : Colors.orange[700],
                   size: 20,
                 ),
               ),
@@ -773,7 +920,7 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      event['nama']!,
+                      event?['nama_event'] ?? 'Event',
                       style: GoogleFonts.inter(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -784,7 +931,7 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
                     Row(
                       children: [
                         Text(
-                          event['ukm']!,
+                          event?['ukm']?['nama_ukm'] ?? 'UKM',
                           style: GoogleFonts.inter(
                             fontSize: 12,
                             color: Colors.grey[700],
@@ -798,7 +945,7 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
                           ),
                         ),
                         Text(
-                          event['tanggal']!,
+                          formattedDate,
                           style: GoogleFonts.inter(
                             fontSize: 12,
                             color: Colors.grey[700],
@@ -809,6 +956,21 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
                   ],
                 ),
               ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isPresent ? Colors.green : Colors.orange,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  eventData['status'] ?? 'registered',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
             ],
           ),
         );
@@ -817,27 +979,13 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
   }
 
   Widget _buildMeetingsTab() {
-    // Dummy meetings data
-    final meetings = [
-      {
-        'judul': 'Pertemuan Rutin Basket',
-        'tanggal': '20 Des 2024',
-        'waktu': '16:00',
-        'status': 'Hadir',
-      },
-      {
-        'judul': 'Rapat Koordinasi UKM',
-        'tanggal': '18 Des 2024',
-        'waktu': '14:00',
-        'status': 'Hadir',
-      },
-      {
-        'judul': 'Evaluasi Bulanan',
-        'tanggal': '15 Des 2024',
-        'waktu': '15:00',
-        'status': 'Tidak Hadir',
-      },
-    ];
+    if (_isLoadingData) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final presentCount = _userMeetings
+        .where((m) => m['status'] == 'hadir')
+        .length;
 
     return Column(
       children: [
@@ -861,7 +1009,7 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
               Column(
                 children: [
                   Text(
-                    '${meetings.where((m) => m['status'] == 'Hadir').length}',
+                    '$presentCount',
                     style: GoogleFonts.inter(
                       fontSize: 32,
                       fontWeight: FontWeight.bold,
@@ -881,7 +1029,7 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
               Column(
                 children: [
                   Text(
-                    '${meetings.length}',
+                    '${_userMeetings.length}',
                     style: GoogleFonts.inter(
                       fontSize: 32,
                       fontWeight: FontWeight.bold,
@@ -903,115 +1051,160 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
 
         // Meetings List
         Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-            itemCount: meetings.length,
-            itemBuilder: (context, index) {
-              final meeting = meetings[index];
-              final isPresent = meeting['status'] == 'Hadir';
-
-              return Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: isPresent
-                      ? Colors.green.withOpacity(0.1)
-                      : Colors.red.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: isPresent
-                        ? Colors.green.withOpacity(0.3)
-                        : Colors.red.withOpacity(0.3),
-                    width: 1.5,
+          child: _userMeetings.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.meeting_room_outlined,
+                        size: 48,
+                        color: Colors.grey[400],
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Belum ada riwayat pertemuan',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                  itemCount: _userMeetings.length,
+                  itemBuilder: (context, index) {
+                    final meetingData = _userMeetings[index];
+                    final meeting =
+                        meetingData['pertemuan'] as Map<String, dynamic>?;
+                    final isPresent = meetingData['status'] == 'hadir';
+
+                    String formattedDate = '';
+                    String time = meeting?['jam_mulai'] ?? '';
+                    if (meeting?['tanggal'] != null) {
+                      try {
+                        final date = DateTime.parse(meeting!['tanggal']);
+                        formattedDate = DateFormat('dd MMM yyyy').format(date);
+                      } catch (e) {
+                        formattedDate = meeting?['tanggal'] ?? '';
+                      }
+                    }
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: isPresent
-                            ? Colors.green.withOpacity(0.2)
-                            : Colors.red.withOpacity(0.2),
+                            ? Colors.green.withOpacity(0.1)
+                            : Colors.red.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: isPresent
+                              ? Colors.green.withOpacity(0.3)
+                              : Colors.red.withOpacity(0.3),
+                          width: 1.5,
+                        ),
                       ),
-                      child: Icon(
-                        Icons.meeting_room,
-                        color: isPresent ? Colors.green[700] : Colors.red[700],
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      child: Row(
                         children: [
-                          Text(
-                            meeting['judul']!,
-                            style: GoogleFonts.inter(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.black87,
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: isPresent
+                                  ? Colors.green.withOpacity(0.2)
+                                  : Colors.red.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              Icons.meeting_room,
+                              color: isPresent
+                                  ? Colors.green[700]
+                                  : Colors.red[700],
+                              size: 20,
                             ),
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '${meeting['tanggal']} • ${meeting['waktu']}',
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              color: Colors.grey[700],
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  meeting?['topik'] ?? 'Pertemuan',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '$formattedDate • $time',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    color: Colors.grey[700],
+                                  ),
+                                ),
+                                if (meeting?['ukm']?['nama_ukm'] != null)
+                                  Text(
+                                    meeting!['ukm']['nama_ukm'],
+                                    style: GoogleFonts.inter(
+                                      fontSize: 11,
+                                      color: Colors.blue[700],
+                                    ),
+                                  ),
+                              ],
                             ),
                           ),
                         ],
                       ),
-                    ),
-                  ],
+                    );
+                  },
                 ),
-              );
-            },
-          ),
         ),
       ],
     );
   }
 
   Widget _buildUKMTab() {
-    // Dummy UKM data
-    final ukmList = [
-      {
-        'nama': 'UKM Basket',
-        'status': 'Aktif',
-        'bergabung': '20 Nov 2024',
-        'posisi': 'Anggota',
-        'icon': Icons.sports_basketball,
-        'color': Colors.orange,
-      },
-      {
-        'nama': 'UKM Futsal',
-        'status': 'Aktif',
-        'bergabung': '15 Nov 2024',
-        'posisi': 'Anggota',
-        'icon': Icons.sports_soccer,
-        'color': Colors.green,
-      },
-      {
-        'nama': 'UKM Badminton',
-        'status': 'Tidak Aktif',
-        'bergabung': '10 Nov 2024',
-        'posisi': 'Anggota',
-        'icon': Icons.sports_tennis,
-        'color': Colors.blue,
-      },
-    ];
+    if (_isLoadingData) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_userUKMs.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.groups_outlined, size: 48, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              'Belum bergabung dengan UKM manapun',
+              style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
+            ),
+          ],
+        ),
+      );
+    }
 
     return ListView.builder(
       padding: const EdgeInsets.all(24),
-      itemCount: ukmList.length,
+      itemCount: _userUKMs.length,
       itemBuilder: (context, index) {
-        final ukm = ukmList[index];
-        final isActive = ukm['status'] == 'Aktif';
-        final color = ukm['color'] as Color;
-        final icon = ukm['icon'] as IconData;
+        final ukmData = _userUKMs[index];
+        final ukm = ukmData['ukm'] as Map<String, dynamic>?;
+        final isActive = ukmData['status'] == 'active';
+
+        String formattedDate = '';
+        if (ukmData['created_at'] != null) {
+          try {
+            final date = DateTime.parse(ukmData['created_at']);
+            formattedDate = DateFormat('dd MMM yyyy').format(date);
+          } catch (e) {
+            formattedDate = '';
+          }
+        }
 
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
@@ -1019,12 +1212,12 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
           decoration: BoxDecoration(
             color: isActive
                 ? Colors.green.withOpacity(0.1)
-                : Colors.red.withOpacity(0.1),
+                : Colors.grey.withOpacity(0.1),
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: isActive
                   ? Colors.green.withOpacity(0.3)
-                  : Colors.red.withOpacity(0.3),
+                  : Colors.grey.withOpacity(0.3),
               width: 1.5,
             ),
           ),
@@ -1035,12 +1228,12 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
                 decoration: BoxDecoration(
                   color: isActive
                       ? Colors.green.withOpacity(0.2)
-                      : Colors.red.withOpacity(0.2),
+                      : Colors.grey.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
-                  icon,
-                  color: isActive ? Colors.green[700] : Colors.red[700],
+                  Icons.groups,
+                  color: isActive ? Colors.green[700] : Colors.grey[700],
                   size: 24,
                 ),
               ),
@@ -1050,7 +1243,7 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      ukm['nama'].toString(),
+                      ukm?['nama_ukm'] ?? 'UKM',
                       style: GoogleFonts.inter(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
@@ -1067,7 +1260,7 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          ukm['posisi'].toString(),
+                          'Anggota',
                           style: GoogleFonts.inter(
                             fontSize: 12,
                             color: Colors.grey[600],
@@ -1087,7 +1280,7 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          ukm['bergabung'].toString(),
+                          formattedDate,
                           style: GoogleFonts.inter(
                             fontSize: 12,
                             color: Colors.grey[600],
@@ -1098,6 +1291,21 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
                   ],
                 ),
               ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isActive ? Colors.green : Colors.grey,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  isActive ? 'Aktif' : 'Tidak Aktif',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
             ],
           ),
         );
@@ -1106,40 +1314,41 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
   }
 
   Widget _buildActivityLogTab() {
-    // Dummy activity log data
-    final activities = [
-      {
-        'action': 'Mendaftar UKM Basket',
-        'timestamp': '20 Nov 2024, 10:30',
-        'type': 'ukm',
-      },
-      {
-        'action': 'Mengikuti Event Sparing',
-        'timestamp': '22 Des 2024, 17:00',
-        'type': 'event',
-      },
-      {
-        'action': 'Hadir Pertemuan Rutin',
-        'timestamp': '20 Des 2024, 16:00',
-        'type': 'meeting',
-      },
-      {
-        'action': 'Unfollow UKM Futsal',
-        'timestamp': '15 Des 2024, 14:20',
-        'type': 'ukm',
-      },
-      {
-        'action': 'Mengupdate Profil',
-        'timestamp': '10 Des 2024, 09:15',
-        'type': 'profile',
-      },
-    ];
+    if (_isLoadingData) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_userActivities.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.history, size: 48, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              'Belum ada aktivitas',
+              style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
+            ),
+          ],
+        ),
+      );
+    }
 
     return ListView.builder(
       padding: const EdgeInsets.all(24),
-      itemCount: activities.length,
+      itemCount: _userActivities.length,
       itemBuilder: (context, index) {
-        final activity = activities[index];
+        final activity = _userActivities[index];
+
+        String formattedTime = '';
+        if (activity['timestamp'] != null) {
+          try {
+            final date = DateTime.parse(activity['timestamp']);
+            formattedTime = DateFormat('dd MMM yyyy, HH:mm').format(date);
+          } catch (e) {
+            formattedTime = activity['timestamp'] ?? '';
+          }
+        }
 
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
@@ -1153,11 +1362,11 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
                     width: 12,
                     height: 12,
                     decoration: BoxDecoration(
-                      color: _getActivityColor(activity['type']!),
+                      color: _getActivityColor(activity['type'] ?? 'other'),
                       shape: BoxShape.circle,
                     ),
                   ),
-                  if (index < activities.length - 1)
+                  if (index < _userActivities.length - 1)
                     Container(width: 2, height: 60, color: Colors.grey[300]),
                 ],
               ),
@@ -1178,14 +1387,16 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
                       Row(
                         children: [
                           Icon(
-                            _getActivityIcon(activity['type']!),
+                            _getActivityIcon(activity['type'] ?? 'other'),
                             size: 16,
-                            color: _getActivityColor(activity['type']!),
+                            color: _getActivityColor(
+                              activity['type'] ?? 'other',
+                            ),
                           ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              activity['action']!,
+                              activity['action'] ?? '',
                               style: GoogleFonts.inter(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w600,
@@ -1197,7 +1408,7 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        activity['timestamp']!,
+                        formattedTime,
                         style: GoogleFonts.inter(
                           fontSize: 12,
                           color: Colors.grey[600],

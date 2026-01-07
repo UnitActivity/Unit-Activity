@@ -353,15 +353,17 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
         // Continue anyway, history is optional
       }
 
-      // Update local state
+      // Update local state immediately
       setState(() {
         final index = _allUKMs.indexWhere((e) => e['id'] == ukm['id']);
         if (index != -1) {
           _allUKMs[index]['isRegistered'] = false;
           _allUKMs[index]['status'] = 'Belum Terdaftar';
+          _allUKMs[index]['attendance'] = 0;
+
+          // Update selected UKM to reflect changes immediately in detail view
           if (_selectedUKM != null && _selectedUKM!['id'] == ukm['id']) {
-            _selectedUKM!['isRegistered'] = false;
-            _selectedUKM!['status'] = 'Belum Terdaftar';
+            _selectedUKM = Map<String, dynamic>.from(_allUKMs[index]);
           }
         }
       });
@@ -369,12 +371,13 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Berhasil keluar dari ${ukm['name']}'),
-          backgroundColor: Colors.blue[600],
+          backgroundColor: Colors.green[600],
+          duration: const Duration(seconds: 2),
         ),
       );
 
-      // Reload data
-      await _loadUKMs();
+      // Don't reload to prevent UI flickering
+      // The local state is already updated correctly
     } catch (e) {
       print('Error unjoining UKM: $e');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -556,7 +559,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                               'DEBUG: Berhasil insert user_halaman_ukm untuk ${ukm['name']}',
                             );
 
-                            // Update local state
+                            // Update local state immediately
                             setState(() {
                               final index = _allUKMs.indexWhere(
                                 (element) => element['id'] == ukm['id'],
@@ -565,7 +568,14 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                                 _allUKMs[index]['isRegistered'] = true;
                                 _allUKMs[index]['status'] = 'Sudah Terdaftar';
                                 _allUKMs[index]['attendance'] = 0;
-                                _selectedUKM = _allUKMs[index];
+
+                                // Update selected UKM to reflect changes immediately
+                                if (_selectedUKM != null &&
+                                    _selectedUKM!['id'] == ukm['id']) {
+                                  _selectedUKM = Map<String, dynamic>.from(
+                                    _allUKMs[index],
+                                  );
+                                }
                               }
                             });
 
@@ -574,6 +584,18 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
 
                             // Reload data to ensure consistency
                             await _loadUKMs();
+
+                            // After reload, update selected UKM again
+                            if (_selectedUKM != null) {
+                              final updatedIndex = _allUKMs.indexWhere(
+                                (e) => e['id'] == _selectedUKM!['id'],
+                              );
+                              if (updatedIndex != -1) {
+                                setState(() {
+                                  _selectedUKM = _allUKMs[updatedIndex];
+                                });
+                              }
+                            }
 
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
@@ -1485,21 +1507,16 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                 ),
               ),
             ),
-            Container(
-              padding: EdgeInsets.all(isMobile ? 10 : 12),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.95),
-                borderRadius: const BorderRadius.vertical(
-                  bottom: Radius.circular(15),
-                ),
-              ),
+            Padding(
+              padding: EdgeInsets.all(isMobile ? 8 : 10),
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (isRegistered) ...[
                     // Progress bar untuk pertemuan
                     Container(
-                      padding: const EdgeInsets.all(8),
+                      padding: EdgeInsets.all(isMobile ? 6 : 8),
                       decoration: BoxDecoration(
                         color: Colors.blue[50],
                         borderRadius: BorderRadius.circular(8),
@@ -1509,6 +1526,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                         ),
                       ),
                       child: Column(
+                        mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
@@ -1533,16 +1551,16 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                           Stack(
                             children: [
                               Container(
-                                height: 8,
+                                height: 6,
                                 decoration: BoxDecoration(
                                   color: Colors.blue[100],
-                                  borderRadius: BorderRadius.circular(4),
+                                  borderRadius: BorderRadius.circular(3),
                                 ),
                               ),
                               FractionallySizedBox(
                                 widthFactor: attendance / 3,
                                 child: Container(
-                                  height: 8,
+                                  height: 6,
                                   decoration: BoxDecoration(
                                     gradient: LinearGradient(
                                       colors: [
@@ -1554,18 +1572,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                                             : Colors.blue[600]!,
                                       ],
                                     ),
-                                    borderRadius: BorderRadius.circular(4),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color:
-                                            (attendance >= 3
-                                                    ? Colors.green
-                                                    : Colors.blue)
-                                                .withOpacity(0.4),
-                                        blurRadius: 4,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
+                                    borderRadius: BorderRadius.circular(3),
                                   ),
                                 ),
                               ),
@@ -1577,7 +1584,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                   ] else ...[
                     // Belum terdaftar
                     Container(
-                      padding: const EdgeInsets.all(8),
+                      padding: EdgeInsets.all(isMobile ? 6 : 8),
                       decoration: BoxDecoration(
                         color: Colors.grey[100],
                         borderRadius: BorderRadius.circular(8),
@@ -1587,6 +1594,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                         ),
                       ),
                       child: Column(
+                        mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
@@ -1609,17 +1617,17 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                           ),
                           const SizedBox(height: 6),
                           Container(
-                            height: 8,
+                            height: 6,
                             decoration: BoxDecoration(
                               color: Colors.grey[300],
-                              borderRadius: BorderRadius.circular(4),
+                              borderRadius: BorderRadius.circular(3),
                             ),
                           ),
                         ],
                       ),
                     ),
                   ],
-                  const SizedBox(height: 10),
+                  SizedBox(height: isMobile ? 6 : 8),
                   Container(
                     padding: EdgeInsets.symmetric(
                       horizontal: isMobile ? 10 : 12,
@@ -2074,51 +2082,27 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                   ),
                 )
               else
-                Row(
-                  children: [
-                    Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: isMobile ? 8 : 12,
-                        vertical: isMobile ? 4 : 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.blue[50],
-                        border: Border.all(color: Colors.blue[700]!),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        'Terdaftar',
-                        style: TextStyle(
-                          fontSize: isMobile ? 10 : 12,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.blue[700],
-                        ),
-                      ),
+                ElevatedButton(
+                  onPressed: () => _unjoinUKM(_selectedUKM!),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red[50],
+                    foregroundColor: Colors.red[700],
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isMobile ? 8 : 12,
+                      vertical: isMobile ? 6 : 12,
                     ),
-                    const SizedBox(width: 8),
-                    ElevatedButton(
-                      onPressed: () => _unjoinUKM(_selectedUKM!),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red[50],
-                        foregroundColor: Colors.red[700],
-                        padding: EdgeInsets.symmetric(
-                          horizontal: isMobile ? 8 : 12,
-                          vertical: isMobile ? 6 : 12,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          side: BorderSide(color: Colors.red[300]!),
-                        ),
-                      ),
-                      child: Text(
-                        'Keluar',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: isMobile ? 11 : 14,
-                        ),
-                      ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      side: BorderSide(color: Colors.red[300]!),
                     ),
-                  ],
+                  ),
+                  child: Text(
+                    'Keluar',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: isMobile ? 11 : 14,
+                    ),
+                  ),
                 ),
             ],
           ),

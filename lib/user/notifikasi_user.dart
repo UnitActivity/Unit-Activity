@@ -142,31 +142,116 @@ class _NotifikasiUserPageState extends State<NotifikasiUserPage>
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop = MediaQuery.of(context).size.width >= 768;
+    final isMobile = MediaQuery.of(context).size.width < 768;
+    final isTablet =
+        MediaQuery.of(context).size.width >= 768 &&
+        MediaQuery.of(context).size.width < 1024;
+    final isDesktop = MediaQuery.of(context).size.width >= 1024;
 
+    if (isMobile) {
+      return _buildMobileLayout();
+    } else if (isTablet) {
+      return _buildTabletLayout();
+    } else {
+      return _buildDesktopLayout();
+    }
+  }
+
+  Widget _buildMobileLayout() {
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: Colors.grey[50],
-      drawer: isDesktop
-          ? null
-          : Drawer(
-              child: UserSidebar(
-                selectedMenu: _selectedMenu,
-                onMenuSelected: _handleMenuSelected,
-                onLogout: _handleLogout,
+      body: Stack(
+        children: [
+          RefreshIndicator(
+            onRefresh: () => _notificationService.loadNotifications(),
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.only(
+                top: 70,
+                left: 12,
+                right: 12,
+                bottom: 80,
               ),
+              child: _buildNotificationContent(),
             ),
+          ),
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: _buildFloatingTopBar(isMobile: true),
+          ),
+        ],
+      ),
+      bottomNavigationBar: _buildBottomNavBar(),
+    );
+  }
+
+  Widget _buildTabletLayout() {
+    return Scaffold(
+      key: _scaffoldKey,
+      backgroundColor: Colors.grey[50],
+      body: Stack(
+        children: [
+          Column(
+            children: [
+              const SizedBox(height: 70),
+              Expanded(
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 200,
+                      child: UserSidebar(
+                        selectedMenu: _selectedMenu,
+                        onMenuSelected: _handleMenuSelected,
+                        onLogout: _handleLogout,
+                      ),
+                    ),
+                    Expanded(
+                      child: RefreshIndicator(
+                        onRefresh: () =>
+                            _notificationService.loadNotifications(),
+                        child: SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.all(24),
+                          child: _buildNotificationContent(),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          Positioned(
+            top: 0,
+            left: 200,
+            right: 0,
+            child: _buildFloatingTopBar(isMobile: false),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDesktopLayout() {
+    return Scaffold(
+      key: _scaffoldKey,
+      backgroundColor: Colors.grey[50],
       body: Stack(
         children: [
           Row(
             children: [
               // Sidebar - Desktop only
-              if (isDesktop)
-                UserSidebar(
+              SizedBox(
+                width: 260,
+                child: UserSidebar(
                   selectedMenu: _selectedMenu,
                   onMenuSelected: _handleMenuSelected,
                   onLogout: _handleLogout,
                 ),
+              ),
 
               // Main Content
               Expanded(
@@ -191,13 +276,12 @@ class _NotifikasiUserPageState extends State<NotifikasiUserPage>
           ),
           Positioned(
             top: 0,
-            left: isDesktop ? 260 : 0,
+            left: 260,
             right: 0,
-            child: _buildFloatingTopBar(isMobile: !isDesktop),
+            child: _buildFloatingTopBar(isMobile: false),
           ),
         ],
       ),
-      bottomNavigationBar: isDesktop ? null : _buildBottomNavBar(),
     );
   }
 
@@ -222,13 +306,6 @@ class _NotifikasiUserPageState extends State<NotifikasiUserPage>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          if (isMobile)
-            IconButton(
-              onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-              icon: const Icon(Icons.menu),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-            ),
           Text(
             'Pemberitahuan',
             style: GoogleFonts.inter(
