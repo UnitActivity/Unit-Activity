@@ -350,25 +350,24 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
 
   Widget _buildFilterTabs(bool isMobile) {
     return Container(
-      padding: EdgeInsets.all(isMobile ? 4 : 6),
+      padding: EdgeInsets.all(isMobile ? 6 : 8),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
+        color: Colors.grey[100],
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Row(
         children: [
           _buildFilterTab('Semua', isMobile),
-          SizedBox(width: isMobile ? 4 : 6),
+          SizedBox(width: isMobile ? 6 : 8),
           _buildFilterTab('Belum Dibaca', isMobile),
-          SizedBox(width: isMobile ? 4 : 6),
+          SizedBox(width: isMobile ? 6 : 8),
           _buildFilterTab('Sudah Dibaca', isMobile),
         ],
       ),
@@ -379,34 +378,42 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
     final isSelected = _filterStatus == label;
 
     return Expanded(
+      flex: label == 'Semua' ? 1 : 2, // Give more space to longer labels
       child: InkWell(
         onTap: () {
           setState(() => _filterStatus = label);
           _loadNotifications();
         },
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
         child: Container(
-          padding: EdgeInsets.symmetric(vertical: isMobile ? 10 : 14),
+          constraints: const BoxConstraints(minHeight: 50),
+          padding: EdgeInsets.symmetric(
+            vertical: isMobile ? 8 : 12,
+            horizontal: isMobile ? 4 : 12,
+          ),
           decoration: BoxDecoration(
             gradient: isSelected
                 ? const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                     colors: [Color(0xFF4169E1), Color(0xFF5B7FE8)],
                   )
                 : null,
-            color: isSelected ? null : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
+            color: isSelected ? null : Colors.white,
+            borderRadius: BorderRadius.circular(12),
             boxShadow: isSelected
                 ? [
                     BoxShadow(
-                      color: const Color(0xFF4169E1).withOpacity(0.3),
+                      color: const Color(0xFF4169E1).withOpacity(0.25),
                       blurRadius: 8,
-                      offset: const Offset(0, 4),
+                      offset: const Offset(0, 3),
                     ),
                   ]
                 : null,
           ),
-          child: Row(
+          child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
                 label == 'Semua'
@@ -414,17 +421,26 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
                     : label == 'Belum Dibaca'
                     ? Icons.mark_email_unread_rounded
                     : Icons.mark_email_read_rounded,
-                size: isMobile ? 16 : 18,
+                size: isMobile ? 18 : 22,
                 color: isSelected ? Colors.white : Colors.grey[600],
               ),
-              SizedBox(width: isMobile ? 6 : 8),
-              Text(
-                label,
-                textAlign: TextAlign.center,
-                style: GoogleFonts.inter(
-                  fontSize: isMobile ? 11 : 14,
-                  fontWeight: FontWeight.w600,
-                  color: isSelected ? Colors.white : Colors.grey[700],
+              SizedBox(height: isMobile ? 4 : 6),
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.inter(
+                      fontSize: isMobile ? 10 : 13,
+                      fontWeight: isSelected
+                          ? FontWeight.w700
+                          : FontWeight.w600,
+                      color: isSelected ? Colors.white : Colors.grey[700],
+                      letterSpacing: 0,
+                      height: 1.2,
+                    ),
+                  ),
                 ),
               ),
             ],

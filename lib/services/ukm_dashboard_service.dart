@@ -112,14 +112,13 @@ class UkmDashboardService {
     try {
       print('========== GET CURRENT PERIODE (GLOBAL) ==========');
 
-      // Get global periode (id_ukm = NULL, status = 'aktif')
+      // Get global periode with status = 'aktif'
       // Periode global berlaku untuk SEMUA UKM
       final activeResponse = await _supabase
           .from('periode_ukm')
           .select(
             'id_periode, nama_periode, semester, tahun, status, tanggal_awal, tanggal_akhir, create_at',
           )
-          .isFilter('id_ukm', null) // Periode global (id_ukm = NULL)
           .ilike('status', 'aktif') // Case insensitive search
           .order('create_at', ascending: false)
           .limit(1)
@@ -143,7 +142,6 @@ class UkmDashboardService {
           .select(
             'id_periode, nama_periode, semester, tahun, status, tanggal_awal, tanggal_akhir, create_at',
           )
-          .isFilter('id_ukm', null) // Periode global
           .order('create_at', ascending: false)
           .limit(1)
           .maybeSingle();
@@ -180,21 +178,19 @@ class UkmDashboardService {
 
       // ========== GET TOTAL PESERTA ==========
       try {
-        final pesertaQuery = _supabase
+        print('=== Dashboard getUkmStats DEBUG ===');
+        print('ukmId: $ukmId');
+        print('periodeId: $periodeId');
+        
+        // Simple query - just filter by UKM and status
+        final pesertaResponse = await _supabase
             .from('user_halaman_ukm')
             .select('id_follow')
             .eq('id_ukm', ukmId)
             .eq('status', 'aktif');
 
-        if (periodeId != null) {
-          pesertaQuery.eq('id_periode', periodeId);
-        }
-
-        final pesertaResponse = await _executeQuery(
-          pesertaQuery,
-          errorContext: 'fetching peserta count',
-        );
-        totalPeserta = pesertaResponse.length;
+        totalPeserta = (pesertaResponse as List).length;
+        print('Dashboard peserta count: $totalPeserta');
       } catch (e) {
         print('Error fetching peserta: $e');
         totalPeserta = 0;
@@ -202,20 +198,12 @@ class UkmDashboardService {
 
       // ========== GET TOTAL EVENTS ==========
       try {
-        final eventQuery = _supabase
+        final eventResponse = await _supabase
             .from('events')
             .select('id_events')
             .eq('id_ukm', ukmId);
 
-        if (periodeId != null) {
-          eventQuery.eq('id_periode', periodeId);
-        }
-
-        final eventResponse = await _executeQuery(
-          eventQuery,
-          errorContext: 'fetching events count',
-        );
-        totalEvent = eventResponse.length;
+        totalEvent = (eventResponse as List).length;
       } catch (e) {
         print('Error fetching events: $e');
         totalEvent = 0;
@@ -223,20 +211,23 @@ class UkmDashboardService {
 
       // ========== GET TOTAL PERTEMUAN ==========
       try {
-        final pertemuanQuery = _supabase
+        // Debug: First get ALL pertemuan to see what's in the table
+        final allPertemuan = await _supabase
+            .from('pertemuan')
+            .select('id_pertemuan, id_ukm, topik');
+        print('DEBUG All pertemuan in DB: ${(allPertemuan as List).length}');
+        if ((allPertemuan as List).isNotEmpty) {
+          print('DEBUG Sample pertemuan: ${allPertemuan.take(3).toList()}');
+        }
+        
+        // Include pertemuan with matching id_ukm OR null id_ukm (legacy data)
+        final pertemuanResponse = await _supabase
             .from('pertemuan')
             .select('id_pertemuan')
-            .eq('id_ukm', ukmId);
+            .or('id_ukm.eq.$ukmId,id_ukm.is.null');
 
-        if (periodeId != null) {
-          pertemuanQuery.eq('id_periode', periodeId);
-        }
-
-        final pertemuanResponse = await _executeQuery(
-          pertemuanQuery,
-          errorContext: 'fetching pertemuan count',
-        );
-        totalPertemuan = pertemuanResponse.length;
+        totalPertemuan = (pertemuanResponse as List).length;
+        print('DEBUG Pertemuan for UKM $ukmId: $totalPertemuan');
       } catch (e) {
         print('Error fetching pertemuan: $e');
         totalPertemuan = 0;

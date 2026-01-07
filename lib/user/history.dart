@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:unit_activity/widgets/user_sidebar.dart';
 import 'package:unit_activity/widgets/qr_scanner_mixin.dart';
 import 'package:unit_activity/widgets/notification_bell_widget.dart';
@@ -136,7 +137,7 @@ class _HistoryPageState extends State<HistoryPage> with QRScannerMixin {
                   child: SingleChildScrollView(
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.only(
-                      top: 70,
+                      top: 90,
                       left: 12,
                       right: 12,
                       bottom: 80,
@@ -419,13 +420,48 @@ class _HistoryPageState extends State<HistoryPage> with QRScannerMixin {
                   },
                 ),
                 const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const ProfilePage(),
-                    ),
+                PopupMenuButton<String>(
+                  offset: const Offset(0, 45),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
+                  onSelected: (value) {
+                    if (value == 'profile') {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ProfilePage(),
+                        ),
+                      );
+                    } else if (value == 'logout') {
+                      _showLogoutDialog();
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      value: 'profile',
+                      child: Row(
+                        children: [
+                          Icon(Icons.person, size: 20, color: Colors.blue[700]),
+                          const SizedBox(width: 12),
+                          const Text('Profile'),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'logout',
+                      child: Row(
+                        children: [
+                          Icon(Icons.logout, size: 20, color: Colors.red[600]),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Logout',
+                            style: TextStyle(color: Colors.red[600]),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   child: const CircleAvatar(
                     radius: 16,
                     backgroundColor: Colors.blue,
@@ -463,13 +499,48 @@ class _HistoryPageState extends State<HistoryPage> with QRScannerMixin {
                   },
                 ),
                 const SizedBox(width: 12),
-                GestureDetector(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const ProfilePage(),
-                    ),
+                PopupMenuButton<String>(
+                  offset: const Offset(0, 45),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
+                  onSelected: (value) {
+                    if (value == 'profile') {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ProfilePage(),
+                        ),
+                      );
+                    } else if (value == 'logout') {
+                      _showLogoutDialog();
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      value: 'profile',
+                      child: Row(
+                        children: [
+                          Icon(Icons.person, size: 20, color: Colors.blue[700]),
+                          const SizedBox(width: 12),
+                          const Text('Profile'),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'logout',
+                      child: Row(
+                        children: [
+                          Icon(Icons.logout, size: 20, color: Colors.red[600]),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Logout',
+                            style: TextStyle(color: Colors.red[600]),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   child: const CircleAvatar(
                     radius: 16,
                     backgroundColor: Colors.blue,
@@ -478,6 +549,60 @@ class _HistoryPageState extends State<HistoryPage> with QRScannerMixin {
                 ),
               ],
             ),
+    );
+  }
+
+  void _showLogoutDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.logout, color: Colors.red[600]),
+            const SizedBox(width: 12),
+            Text(
+              'Logout',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: Text(
+          'Apakah Anda yakin ingin keluar?',
+          style: GoogleFonts.inter(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Batal', style: GoogleFonts.inter()),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              try {
+                await Supabase.instance.client.auth.signOut();
+              } catch (e) {
+                debugPrint('Error signing out: $e');
+              }
+              if (mounted) {
+                Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  '/login',
+                  (route) => false,
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red[600],
+              foregroundColor: Colors.white,
+            ),
+            child: Text(
+              'Logout',
+              style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

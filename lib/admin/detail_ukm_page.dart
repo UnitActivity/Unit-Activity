@@ -349,7 +349,7 @@ class _DetailUkmPageState extends State<DetailUkmPage>
           .from('user_halaman_ukm')
           .select('*, users(*)')
           .eq('id_ukm', idUkm)
-          .eq('status', 'active')
+          .eq('status', 'aktif')
           .order('follow', ascending: false);
       _anggotaList = List<Map<String, dynamic>>.from(anggotaData);
 

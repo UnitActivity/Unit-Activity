@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:unit_activity/services/event_service_new.dart';
 import 'package:unit_activity/services/custom_auth_service.dart';
+import 'package:unit_activity/ukm/detail_document_ukm_page.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -1884,39 +1886,55 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
       filename = doc['original_filename_laporan'] ?? 'lpj_laporan.pdf';
     }
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: statusColor.withOpacity(0.3), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: statusColor.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: statusColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(
-              Icons.description_rounded,
-              color: statusColor,
-              size: 24,
+    // Check if document can be viewed (not draft)
+    final canViewDetail = status != 'draft';
+
+    return InkWell(
+      onTap: canViewDetail ? () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => DetailDocumentUKMPage(
+              documentId: docId,
+              documentType: documentType,
             ),
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        ).then((_) => _loadEventDetails());
+      } : null,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: statusColor.withOpacity(0.3), width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: statusColor.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: statusColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                Icons.description_rounded,
+                color: statusColor,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   filename,
@@ -2043,22 +2061,64 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
               ],
             ),
           ] else
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: statusColor,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                statusLabel,
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
+            Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: statusColor,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    statusLabel,
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
-              ),
+                const SizedBox(height: 8),
+                // Lihat Detail button for non-draft documents
+                InkWell(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => DetailDocumentUKMPage(
+                          documentId: docId,
+                          documentType: documentType,
+                        ),
+                      ),
+                    ).then((_) => _loadEventDetails());
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF4169E1).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.visibility_rounded, size: 14, color: Color(0xFF4169E1)),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Detail',
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF4169E1),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
         ],
+      ),
       ),
     );
   }
@@ -2288,29 +2348,17 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
                     child: Column(
                       children: [
                         Container(
-                          width: 250,
-                          height: 250,
+                          padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: Colors.grey[100],
+                            color: Colors.white,
                             borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey[300]!),
                           ),
-                          child: Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(
-                                  Icons.qr_code_2,
-                                  size: 150,
-                                  color: Color(0xFF4169E1),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  _currentQRCode!,
-                                  style: GoogleFonts.robotoMono(fontSize: 10),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ],
-                            ),
+                          child: QrImageView(
+                            data: _currentQRCode!,
+                            version: QrVersions.auto,
+                            size: 220,
+                            backgroundColor: Colors.white,
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -2416,7 +2464,7 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
                                   _autoRegenerateQR = value;
                                 });
                               },
-                              activeColor: const Color(0xFF4169E1),
+                              activeThumbColor: const Color(0xFF4169E1),
                             ),
                           ],
                         ),

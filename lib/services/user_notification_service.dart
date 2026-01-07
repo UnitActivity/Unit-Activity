@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:unit_activity/services/custom_auth_service.dart';
 
 class UserNotification {
   final String id;
@@ -42,15 +43,29 @@ class UserNotification {
       }
     }
 
+    // Parse the ID from various possible fields
+    String notifId = '';
+    if (json['id_notifikasi'] != null) {
+      notifId = json['id_notifikasi'].toString();
+    } else if (json['id_notifikasi_ukm_member'] != null) {
+      notifId = json['id_notifikasi_ukm_member'].toString();
+    } else if (json['id_broadcast'] != null) {
+      notifId = json['id_broadcast'].toString();
+    } else if (json['id'] != null) {
+      notifId = json['id'].toString();
+    }
+
     return UserNotification(
-      id: json['id_notifikasi'] ?? json['id'] ?? '',
+      id: notifId,
       title: json['judul'] ?? json['title'] ?? '',
       message: json['pesan'] ?? json['message'] ?? '',
       type: json['tipe'] ?? json['type'] ?? 'info',
       isRead: json['is_read'] ?? json['isRead'] ?? false,
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'])
-          : DateTime.now(),
+          : (json['create_at'] != null
+                ? DateTime.parse(json['create_at'])
+                : DateTime.now()),
       metadata: json['metadata'],
       sender: senderName,
     );
@@ -137,6 +152,7 @@ class UserNotification {
 
 class UserNotificationService extends ChangeNotifier {
   final SupabaseClient _supabase = Supabase.instance.client;
+  final CustomAuthService _authService = CustomAuthService();
 
   List<UserNotification> _notifications = [];
   bool _isLoading = false;
@@ -144,8 +160,8 @@ class UserNotificationService extends ChangeNotifier {
 
   List<UserNotification> get notifications => _notifications;
 
-  /// Get current user ID
-  String? get currentUserId => _supabase.auth.currentUser?.id;
+  /// Get current user ID from custom auth service
+  String? get currentUserId => _authService.currentUserId;
   bool get isLoading => _isLoading;
   String? get error => _error;
 
@@ -172,27 +188,62 @@ class UserNotificationService extends ChangeNotifier {
 
       List<UserNotification> allNotifications = [];
 
-      // 1. Load user-specific notifications (direct to this user)
+      // 1. Load user-specific notifications from notification_preference
       try {
+        print('Fetching from notification_preference...');
         final userNotifications = await _supabase
-            .from('notifikasi')
+            .from('notification_preference')
             .select('*')
             .eq('id_user', userId)
-            .order('created_at', ascending: false)
+            .order('create_at', ascending: false)
             .limit(50);
 
         print('Found ${userNotifications.length} user-specific notifications');
 
+        // Debug: Print first notification details
+        if (userNotifications.isNotEmpty) {
+          print('Sample notification_preference record:');
+          print('  - ID: ${userNotifications[0]['id_notification_pref']}');
+          print('  - Judul: ${userNotifications[0]['judul']}');
+          print('  - Type: ${userNotifications[0]['type']}');
+          print('  - Is Read: ${userNotifications[0]['is_read']}');
+        }
+
         for (var json in userNotifications) {
+          // Determine sender based on type and linked IDs
+          String senderName = 'Admin';
+          if (json['id_ukm'] != null) {
+            senderName = 'UKM';
+          } else if (json['type'] == 'event') {
+            senderName = 'Event';
+          }
+
           allNotifications.add(
-            UserNotification.fromJson({
-              ...json,
-              'sender': 'Sistem', // Default sender for direct notifications
-            }),
+            UserNotification(
+              id:
+                  json['id_notification_pref']?.toString() ??
+                  json['id']?.toString() ??
+                  '',
+              title: json['judul'] ?? 'Notifikasi',
+              message: json['pesan'] ?? '',
+              type: json['type'] ?? 'info',
+              isRead: json['is_read'] ?? false,
+              createdAt: json['create_at'] != null
+                  ? DateTime.parse(json['create_at'])
+                  : DateTime.now(),
+              metadata: {
+                'id_events': json['id_events'],
+                'id_pertemuan': json['id_pertemuan'],
+                'id_informasi': json['id_informasi'],
+                'id_ukm': json['id_ukm'],
+              },
+              sender: senderName,
+            ),
           );
         }
       } catch (e) {
         print('Error loading user notifications: $e');
+        print('Stack trace: ${StackTrace.current}');
       }
 
       // 2. Load broadcast notifications (from Admin to all users)
@@ -200,80 +251,169 @@ class UserNotificationService extends ChangeNotifier {
         final broadcastNotifications = await _supabase
             .from('notifikasi_broadcast')
             .select('*')
+            .eq('status_aktif', true)
             .order('created_at', ascending: false)
             .limit(30);
 
-        print('Found ${broadcastNotifications.length} broadcast notifications');
+        print(
+          'Found ${broadcastNotifications.length} broadcast notifications from Admin',
+        );
 
         for (var json in broadcastNotifications) {
           allNotifications.add(
             UserNotification.fromJson({
               ...json,
+              'id':
+                  json['id_broadcast'] ??
+                  json['id_notifikasi_broadcast'] ??
+                  json['id'],
               'type': json['tipe'] ?? 'announcement',
-              'sender': 'Admin', // Broadcast notifications are from Admin
+              'sender':
+                  json['pengirim'] ??
+                  'Admin', // Broadcast notifications are from Admin
             }),
           );
         }
       } catch (e) {
         print('Error loading broadcast notifications: $e');
+        print('Broadcast error details: ${e.toString()}');
       }
 
       // 3. Load notifications from UKMs that user has joined
       try {
-        // Get user's joined UKMs
+        // Get user's joined UKMs (accept both 'aktif' and 'active')
         final userUkms = await _supabase
             .from('user_halaman_ukm')
             .select('id_ukm')
-            .eq('id_user', userId);
+            .eq('id_user', userId)
+            .or('status.eq.aktif,status.eq.active');
+
+        print('User is in ${userUkms.length} UKMs');
 
         if (userUkms.isNotEmpty) {
           final ukmIds = (userUkms as List).map((e) => e['id_ukm']).toList();
+          print('UKM IDs: $ukmIds');
 
-          // Get notifications from those UKMs
-          final ukmNotifications = await _supabase
-              .from('notifikasi_ukm_member')
-              .select('*, ukm(nama_ukm)')
-              .inFilter('id_ukm', ukmIds)
-              .order('created_at', ascending: false)
-              .limit(30);
+          // Get notifications from those UKMs from notification_preference table
+          try {
+            final ukmNotifications = await _supabase
+                .from('notification_preference')
+                .select('*, ukm!inner(nama_ukm)')
+                .inFilter('id_ukm', ukmIds)
+                .order('create_at', ascending: false)
+                .limit(30);
 
-          print('Found ${ukmNotifications.length} UKM notifications');
+            print('Found ${ukmNotifications.length} UKM notifications');
 
-          for (var json in ukmNotifications) {
-            final ukmName = json['ukm']?['nama_ukm'] ?? 'UKM';
-            allNotifications.add(
-              UserNotification.fromJson({
-                ...json,
-                'type': json['tipe'] ?? 'info',
-                'sender': ukmName, // Use UKM name as sender
-                'metadata': {'sender_type': 'ukm', 'sender_name': ukmName},
-              }),
+            for (var json in ukmNotifications) {
+              final ukmName =
+                  json['ukm']?['nama_ukm'] ?? json['judul'] ?? 'UKM';
+              allNotifications.add(
+                UserNotification(
+                  id:
+                      json['id_notification_pref']?.toString() ??
+                      json['id']?.toString() ??
+                      '',
+                  title: json['judul'] ?? 'Notifikasi UKM',
+                  message: json['pesan'] ?? '',
+                  type: json['type'] ?? 'info',
+                  isRead: json['is_read'] ?? false,
+                  createdAt: json['create_at'] != null
+                      ? DateTime.parse(json['create_at'])
+                      : DateTime.now(),
+                  sender: ukmName,
+                  metadata: {
+                    'sender_type': 'ukm',
+                    'sender_name': ukmName,
+                    'id_ukm': json['id_ukm'],
+                    'id_events': json['id_events'],
+                    'id_pertemuan': json['id_pertemuan'],
+                  },
+                ),
+              );
+            }
+          } catch (joinError) {
+            print('Error with join query, trying without join: $joinError');
+
+            // Fallback: query without join
+            final ukmNotifications = await _supabase
+                .from('notification_preference')
+                .select('*')
+                .inFilter('id_ukm', ukmIds)
+                .order('create_at', ascending: false)
+                .limit(30);
+
+            print(
+              'Found ${ukmNotifications.length} UKM notifications (without join)',
             );
+
+            for (var json in ukmNotifications) {
+              final ukmName = json['judul'] ?? 'UKM';
+              allNotifications.add(
+                UserNotification(
+                  id:
+                      json['id_notification_pref']?.toString() ??
+                      json['id']?.toString() ??
+                      '',
+                  title: json['judul'] ?? 'Notifikasi UKM',
+                  message: json['pesan'] ?? '',
+                  type: json['type'] ?? 'info',
+                  isRead: json['is_read'] ?? false,
+                  createdAt: json['create_at'] != null
+                      ? DateTime.parse(json['create_at'])
+                      : DateTime.now(),
+                  sender: ukmName,
+                  metadata: {
+                    'sender_type': 'ukm',
+                    'sender_name': ukmName,
+                    'id_ukm': json['id_ukm'],
+                    'id_events': json['id_events'],
+                    'id_pertemuan': json['id_pertemuan'],
+                  },
+                ),
+              );
+            }
           }
         }
       } catch (e) {
         print('Error loading UKM notifications: $e');
+        print('Stack trace: $e');
       }
 
-      // 4. Load event-related notifications
+      // 4. Load event-related notifications (broadcast to all users with null id_user)
       try {
         final eventNotifications = await _supabase
-            .from('notifikasi')
+            .from('notification_preference')
             .select('*')
-            .eq('target_type', 'all_users')
-            .order('created_at', ascending: false)
+            .isFilter('id_user', null)
+            .order('create_at', ascending: false)
             .limit(20);
 
         print('Found ${eventNotifications.length} event notifications');
 
         for (var json in eventNotifications) {
           // Avoid duplicates
-          if (!allNotifications.any((n) => n.id == json['id_notifikasi'])) {
+          final notifId =
+              json['id_notification_pref']?.toString() ??
+              json['id']?.toString() ??
+              '';
+          if (!allNotifications.any((n) => n.id == notifId)) {
             allNotifications.add(
-              UserNotification.fromJson({
-                ...json,
-                'sender': 'Admin', // All-user notifications are from Admin
-              }),
+              UserNotification(
+                id: notifId,
+                title: json['judul'] ?? 'Notifikasi Event',
+                message: json['pesan'] ?? '',
+                type: json['type'] ?? 'info',
+                isRead: json['is_read'] ?? false,
+                createdAt: json['create_at'] != null
+                    ? DateTime.parse(json['create_at'])
+                    : DateTime.now(),
+                sender: 'Admin',
+                metadata: {
+                  'id_events': json['id_events'],
+                  'id_informasi': json['id_informasi'],
+                },
+              ),
             );
           }
         }
@@ -299,85 +439,21 @@ class UserNotificationService extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       print('Error loading notifications: $e');
+      print('Stack trace: ${StackTrace.current}');
       _error = e.toString();
       _isLoading = false;
 
-      // Load sample notifications if database fails
-      _loadSampleNotifications();
+      // Don't load sample data - keep empty list to show no notifications
+      _notifications = [];
       notifyListeners();
     }
   }
 
-  /// Load sample notifications for development/testing
+  /// Load sample notifications for development/testing - NOT USED IN PRODUCTION
+  @Deprecated('Use loadNotifications() instead - sample data removed')
   void _loadSampleNotifications() {
-    _notifications = [
-      UserNotification(
-        id: '1',
-        title: 'Selamat Datang!',
-        message:
-            'Selamat datang di Unit Activity. Jelajahi berbagai UKM dan event menarik yang tersedia.',
-        type: 'info',
-        isRead: false,
-        createdAt: DateTime.now().subtract(const Duration(hours: 1)),
-        metadata: {'sender_type': 'admin', 'sender_name': 'Admin'},
-        sender: 'Admin',
-      ),
-      UserNotification(
-        id: '2',
-        title: 'Pertemuan UKM Minggu Ini',
-        message:
-            'Jangan lupa hadir di pertemuan UKM E-Sport hari Jumat pukul 16.00 di Ruang Multimedia.',
-        type: 'event',
-        isRead: false,
-        createdAt: DateTime.now().subtract(const Duration(hours: 3)),
-        metadata: {'sender_type': 'ukm', 'sender_name': 'UKM E-Sport'},
-        sender: 'UKM E-Sport',
-      ),
-      UserNotification(
-        id: '3',
-        title: 'Pendaftaran Event Dibuka',
-        message:
-            'Pendaftaran event Sparing Badminton telah dibuka. Segera daftar sebelum kuota penuh!',
-        type: 'announcement',
-        isRead: false,
-        createdAt: DateTime.now().subtract(const Duration(hours: 6)),
-        metadata: {'sender_type': 'ukm', 'sender_name': 'UKM Badminton'},
-        sender: 'UKM Badminton',
-      ),
-      UserNotification(
-        id: '4',
-        title: 'Pengumuman Penting',
-        message:
-            'Perhatian untuk seluruh anggota UKM. Harap lengkapi data profil Anda paling lambat akhir bulan ini.',
-        type: 'announcement',
-        isRead: true,
-        createdAt: DateTime.now().subtract(const Duration(days: 1)),
-        metadata: {'sender_type': 'admin', 'sender_name': 'Admin'},
-        sender: 'Admin',
-      ),
-      UserNotification(
-        id: '5',
-        title: 'Absensi Berhasil Tercatat',
-        message:
-            'Kehadiran Anda di pertemuan UKM Basket tanggal 15 Januari telah tercatat dalam sistem.',
-        type: 'success',
-        isRead: true,
-        createdAt: DateTime.now().subtract(const Duration(days: 2)),
-        metadata: {'sender_type': 'system'},
-        sender: 'Sistem',
-      ),
-      UserNotification(
-        id: '6',
-        title: 'Event Baru dari UKM Musik',
-        message:
-            'UKM Musik akan mengadakan konser mini di aula kampus. Yuk daftar sekarang!',
-        type: 'event',
-        isRead: false,
-        createdAt: DateTime.now().subtract(const Duration(hours: 12)),
-        metadata: {'sender_type': 'ukm', 'sender_name': 'UKM Musik'},
-        sender: 'UKM Musik',
-      ),
-    ];
+    // Empty - we don't want dummy data
+    _notifications = [];
   }
 
   /// Mark notification as read
@@ -386,27 +462,29 @@ class UserNotificationService extends ChangeNotifier {
       final user = _supabase.auth.currentUser;
       if (user == null) return;
 
-      // Try to update in database
-      await _supabase
-          .from('notifikasi')
-          .update({'is_read': true})
-          .eq('id_notifikasi', notificationId)
-          .eq('id_user', user.id);
-
-      // Update local state
+      // Update local state first for instant feedback
       final index = _notifications.indexWhere((n) => n.id == notificationId);
       if (index != -1) {
         _notifications[index] = _notifications[index].copyWith(isRead: true);
         notifyListeners();
       }
+
+      // Try to update in database - try multiple tables
+      try {
+        // Try notification_preference table (user-specific notifications)
+        await _supabase
+            .from('notification_preference')
+            .update({'is_read': true})
+            .eq('id_notifikasi', notificationId)
+            .eq('id_user', user.id);
+      } catch (e) {
+        print('Not in notification_preference table: $e');
+      }
+
+      // Note: Broadcast and UKM member notifications don't track read status per user
+      // They are marked as read only in local state
     } catch (e) {
       print('Error marking notification as read: $e');
-      // Update local state anyway
-      final index = _notifications.indexWhere((n) => n.id == notificationId);
-      if (index != -1) {
-        _notifications[index] = _notifications[index].copyWith(isRead: true);
-        notifyListeners();
-      }
     }
   }
 
@@ -418,7 +496,7 @@ class UserNotificationService extends ChangeNotifier {
 
       // Try to update in database
       await _supabase
-          .from('notifikasi')
+          .from('notification_preference')
           .update({'is_read': true})
           .eq('id_user', user.id)
           .eq('is_read', false);
@@ -446,7 +524,7 @@ class UserNotificationService extends ChangeNotifier {
 
       // Try to delete from database
       await _supabase
-          .from('notifikasi')
+          .from('notification_preference')
           .delete()
           .eq('id_notifikasi', notificationId)
           .eq('id_user', user.id);

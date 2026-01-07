@@ -74,10 +74,21 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
 
   /// Start auto-slide timer for slider
   void _startAutoSlide() {
-    _autoSlideTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+    _autoSlideTimer?.cancel(); // Cancel previous timer if exists
+    print('🔄 Starting auto-slide timer (6 seconds)...');
+    print('   Current slider items: ${_sliderEvents.length}');
+
+    if (_sliderEvents.length <= 1) {
+      print('⚠️ Auto-slide disabled: ${_sliderEvents.length} item(s) only');
+      return;
+    }
+
+    _autoSlideTimer = Timer.periodic(const Duration(seconds: 6), (timer) {
       if (_sliderEvents.isNotEmpty && mounted) {
         setState(() {
+          final oldIndex = _currentSlideIndex;
           _currentSlideIndex = (_currentSlideIndex + 1) % _sliderEvents.length;
+          print('🔄 Auto-slide: $oldIndex → $_currentSlideIndex');
         });
       }
     });
@@ -88,7 +99,9 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
     try {
       setState(() => _isLoadingSchedule = true);
 
+      print('========== LOADING SCHEDULE DATA ==========');
       final schedules = await _dashboardService.getUpcomingSchedules(limit: 10);
+      print('✅ Fetched ${schedules.length} schedules from service');
 
       // Convert to UI format with icons and colors
       final colors = [
@@ -105,6 +118,9 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
           _ukmSchedule = schedules.asMap().entries.map((entry) {
             final item = entry.value;
             final index = entry.key;
+            print(
+              '  ${index + 1}. ${item['type']}: ${item['subtitle']} (${item['title']})',
+            );
             return {
               'id': item['id'],
               'type': item['type'],
@@ -119,10 +135,13 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
           }).toList();
 
           _isLoadingSchedule = false;
+          print('📋 Total schedules in UI: ${_ukmSchedule.length}');
+          print('==========================================');
         });
       }
     } catch (e) {
-      print('Error loading schedule: $e');
+      print('❌ Error loading schedule: $e');
+      print('Stack trace: ${StackTrace.current}');
       if (mounted) {
         setState(() {
           _ukmSchedule = [];
@@ -286,91 +305,193 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
     }
   }
 
+  void _showLogoutDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.logout, color: Colors.red[600]),
+            const SizedBox(width: 12),
+            Text(
+              'Logout',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: Text(
+          'Apakah Anda yakin ingin keluar?',
+          style: GoogleFonts.inter(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Batal', style: GoogleFonts.inter()),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              try {
+                await _supabase.auth.signOut();
+              } catch (e) {
+                debugPrint('Error signing out: $e');
+              }
+              if (mounted) {
+                Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  '/login',
+                  (route) => false,
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red[600],
+              foregroundColor: Colors.white,
+            ),
+            child: Text(
+              'Logout',
+              style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _loadStatisticsData() async {
     try {
-      // Get top 2 UKMs by number of events/activities
-      final ukmResponse = await _supabase
-          .from('ukm')
-          .select('id_ukm, nama_ukm')
-          .limit(2);
+      print('========== LOADING STATISTICS DATA ==========');
 
-      if (ukmResponse.isEmpty) {
+      // Get current user's joined UKMs first, fallback to top 2 UKMs
+      final userId = _supabase.auth.currentUser?.id;
+      List<dynamic> ukmList = [];
+
+      if (userId != null) {
+        // Try to get user's joined UKMs first
+        final userUkms = await _supabase
+            .from('user_halaman_ukm')
+            .select('ukm(id_ukm, nama_ukm)')
+            .eq('id_user', userId)
+            .eq('status', 'active')
+            .limit(2);
+
+        if (userUkms.isNotEmpty) {
+          ukmList = (userUkms as List)
+              .map((e) => e['ukm'])
+              .where((e) => e != null)
+              .toList();
+          print('✅ Using user joined UKMs: ${ukmList.length}');
+        }
+      }
+
+      // Fallback to any 2 UKMs if user hasn't joined any
+      if (ukmList.isEmpty) {
+        ukmList = await _supabase
+            .from('ukm')
+            .select('id_ukm, nama_ukm')
+            .limit(2);
+        print('ℹ️ Using fallback UKMs: ${ukmList.length}');
+      }
+
+      if (ukmList.isEmpty) {
+        print('⚠️ No UKMs found');
         if (mounted) {
           setState(() {
+            _statistikData1 = List.generate(12, (_) => 0);
+            _statistikData2 = List.generate(12, (_) => 0);
+            _statistikLabel1 = 'Tidak ada data';
+            _statistikLabel2 = 'Tidak ada data';
             _isLoadingStats = false;
           });
         }
         return;
       }
 
-      List<int> data1 = [];
-      List<int> data2 = [];
+      final currentYear = DateTime.now().year;
+      List<int> data1 = List.generate(12, (_) => 0);
+      List<int> data2 = List.generate(12, (_) => 0);
 
-      // Load meeting counts for first UKM
-      if (ukmResponse.isNotEmpty) {
-        final ukm1Id = ukmResponse[0]['id_ukm'];
+      // Load meeting counts for first UKM - with real monthly data
+      if (ukmList.isNotEmpty) {
+        final ukm1Id = ukmList[0]['id_ukm'];
+        _statistikLabel1 = ukmList[0]['nama_ukm'] ?? 'UKM 1';
+
+        print('Loading pertemuan for UKM 1: $_statistikLabel1 (ID: $ukm1Id)');
+
         final meetings1 = await _supabase
             .from('pertemuan')
-            .select('id_pertemuan')
+            .select('id_pertemuan, tanggal')
             .eq('id_ukm', ukm1Id);
 
-        _statistikLabel1 = ukmResponse[0]['nama_ukm'] ?? 'UKM 1';
+        print('  Found ${meetings1.length} meetings');
 
-        // Generate monthly data based on available meetings
-        int meetingCount = meetings1.length;
-        data1 = List.generate(12, (index) {
-          // Distribute meetings throughout the year
-          if (meetingCount > 0) {
-            final monthData = (meetingCount / (index + 1)).toInt();
-            return monthData.clamp(0, 10).toInt();
+        // Count meetings per month for current year
+        for (var meeting in meetings1) {
+          if (meeting['tanggal'] != null) {
+            try {
+              final date = DateTime.parse(meeting['tanggal']);
+              if (date.year == currentYear) {
+                data1[date.month - 1]++;
+              }
+            } catch (e) {
+              // Skip invalid dates
+            }
           }
-          return (4 + (index % 4)).toInt();
-        });
+        }
+        print('  Monthly data: $data1');
       }
 
       // Load meeting counts for second UKM
-      if (ukmResponse.length > 1) {
-        final ukm2Id = ukmResponse[1]['id_ukm'];
+      if (ukmList.length > 1) {
+        final ukm2Id = ukmList[1]['id_ukm'];
+        _statistikLabel2 = ukmList[1]['nama_ukm'] ?? 'UKM 2';
+
+        print('Loading pertemuan for UKM 2: $_statistikLabel2 (ID: $ukm2Id)');
+
         final meetings2 = await _supabase
             .from('pertemuan')
-            .select('id_pertemuan')
+            .select('id_pertemuan, tanggal')
             .eq('id_ukm', ukm2Id);
 
-        _statistikLabel2 = ukmResponse[1]['nama_ukm'] ?? 'UKM 2';
+        print('  Found ${meetings2.length} meetings');
 
-        int meetingCount = meetings2.length;
-        data2 = List.generate(12, (index) {
-          if (meetingCount > 0) {
-            final monthData = (meetingCount / (index + 1)).toInt();
-            return monthData.clamp(0, 10).toInt();
+        // Count meetings per month for current year
+        for (var meeting in meetings2) {
+          if (meeting['tanggal'] != null) {
+            try {
+              final date = DateTime.parse(meeting['tanggal']);
+              if (date.year == currentYear) {
+                data2[date.month - 1]++;
+              }
+            } catch (e) {
+              // Skip invalid dates
+            }
           }
-          return (5 + (index % 3)).toInt();
-        });
+        }
+        print('  Monthly data: $data2');
       } else {
-        // If only 1 UKM, use fallback for second
-        _statistikLabel2 = 'UKM Lainnya';
-        data2 = List.generate(12, (index) => (5 + (index % 3)).toInt());
+        _statistikLabel2 = 'Tidak ada UKM lain';
       }
+
+      print('==========================================');
 
       if (mounted) {
         setState(() {
-          _statistikData1 = data1.isNotEmpty
-              ? data1
-              : [4, 4, 4, 4, 6, 7, 8, 7, 6, 5, 5, 5];
-          _statistikData2 = data2.isNotEmpty
-              ? data2
-              : [5, 5, 4, 3, 3, 4, 4, 5, 4, 4, 5, 5];
+          _statistikData1 = data1;
+          _statistikData2 = data2;
           _isLoadingStats = false;
         });
       }
     } catch (e) {
-      print('Error loading statistics: $e');
+      print('❌ Error loading statistics: $e');
+      print('Stack trace: ${StackTrace.current}');
       if (mounted) {
         setState(() {
-          _statistikData1 = [4, 4, 4, 4, 6, 7, 8, 7, 6, 5, 5, 5];
-          _statistikData2 = [5, 5, 4, 3, 3, 4, 4, 5, 4, 4, 5, 5];
-          _statistikLabel1 = 'UKM 1';
-          _statistikLabel2 = 'UKM 2';
+          _statistikData1 = List.generate(12, (_) => 0);
+          _statistikData2 = List.generate(12, (_) => 0);
+          _statistikLabel1 = 'Error';
+          _statistikLabel2 = 'Error';
           _isLoadingStats = false;
         });
       }
@@ -386,106 +507,143 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
 
       List<Map<String, dynamic>> allInformasi = [];
 
-      // 1. Load informasi from Admin (id_ukm is null or empty)
-      final adminResponse = await _supabase
+      // 1. Load ALL active informasi without filter
+      print('Fetching informasi from Supabase...');
+      final allInfoResponse = await _supabase
           .from('informasi')
           .select(
-            'id_informasi, judul, deskripsi, gambar, create_at, status_aktif, id_ukm',
+            'id_informasi, judul, deskripsi, gambar, create_at, status_aktif, id_ukm, ukm(nama_ukm)',
           )
-          .eq('status', 'Publish')
           .eq('status_aktif', true)
-          .filter('id_ukm', 'is', null)
           .order('create_at', ascending: false)
-          .limit(10);
+          .limit(20);
 
-      print('Admin informasi count: ${(adminResponse as List).length}');
+      print(
+        '✅ Supabase returned ${(allInfoResponse as List).length} informasi records',
+      );
 
-      for (var item in adminResponse) {
+      // Debug: Print first record details
+      if (allInfoResponse.isNotEmpty) {
+        print('Sample informasi record:');
+        print('  - ID: ${allInfoResponse[0]['id_informasi']}');
+        print('  - Judul: ${allInfoResponse[0]['judul']}');
+        print('  - Gambar: ${allInfoResponse[0]['gambar']}');
+        print('  - id_ukm: ${allInfoResponse[0]['id_ukm']}');
+        print('  - status_aktif: ${allInfoResponse[0]['status_aktif']}');
+      }
+
+      for (var item in allInfoResponse) {
+        final infoUkmId = item['id_ukm']?.toString() ?? '';
+        final isFromAdmin = infoUkmId.isEmpty || item['id_ukm'] == null;
+
         String? imageUrl;
-        if (item['gambar'] != null) {
+        if (item['gambar'] != null && item['gambar'].toString().isNotEmpty) {
           try {
+            final gambarPath = item['gambar'].toString();
             imageUrl = _supabase.storage
                 .from('informasi-images')
-                .getPublicUrl(item['gambar']);
+                .getPublicUrl(gambarPath);
+            print('✅ Image URL for "${item['judul']}": $imageUrl');
           } catch (e) {
-            print('Error getting image URL: $e');
+            print('❌ Error getting image URL for "${item['judul']}": $e');
           }
+        } else {
+          print('⚠️ No image for "${item['judul']}"');
         }
 
-        allInformasi.add({
+        final infoData = {
           'id': item['id_informasi'],
           'title': item['judul'] ?? 'Informasi',
           'description': item['deskripsi'] ?? '',
-          'subtitle': 'Admin',
-          'source': 'admin',
+          'subtitle': isFromAdmin
+              ? 'Admin'
+              : (item['ukm']?['nama_ukm'] ?? 'UKM'),
+          'source': isFromAdmin ? 'admin' : 'ukm',
           'date': _formatDate(item['create_at']),
+          'rawDate': item['create_at'] ?? '',
           'imageUrl': imageUrl,
           'image': null,
-        });
+        };
+
+        allInformasi.add(infoData);
+        print(
+          'Added informasi: ${infoData['title']} (${infoData['subtitle']})',
+        );
       }
 
-      // 2. Load informasi from UKM that user has joined
-      if (userId != null) {
-        try {
-          // Get UKMs user has joined
-          final userUkms = await _supabase
-              .from('user_halaman_ukm')
-              .select('id_ukm, ukm(nama_ukm)')
-              .eq('id_user', userId)
-              .eq('status', 'active');
+      print('📊 Total informasi added: ${allInformasi.length}');
 
-          print('User joined UKMs: ${(userUkms as List).length}');
+      // 2. Load upcoming events
+      try {
+        print('Fetching events from Supabase...');
+        final eventsResponse = await _supabase
+            .from('events')
+            .select(
+              'id_events, nama_event, deskripsi, gambar, tanggal_mulai, status, id_ukm, tipevent, ukm(nama_ukm)',
+            )
+            .eq('status', true)
+            .gte(
+              'tanggal_mulai',
+              DateTime.now().toIso8601String().split('T')[0],
+            )
+            .order('tanggal_mulai', ascending: true)
+            .limit(10);
 
-          if (userUkms.isNotEmpty) {
-            final ukmIds = userUkms.map((e) => e['id_ukm']).toList();
+        print(
+          '✅ Supabase returned ${(eventsResponse as List).length} event records',
+        );
 
-            // Get informasi from these UKMs
-            final ukmResponse = await _supabase
-                .from('informasi')
-                .select(
-                  'id_informasi, judul, deskripsi, gambar, create_at, status_aktif, id_ukm, ukm(nama_ukm)',
-                )
-                .inFilter('id_ukm', ukmIds)
-                .eq('status_aktif', true)
-                .order('create_at', ascending: false)
-                .limit(10);
-
-            print('UKM informasi count: ${(ukmResponse as List).length}');
-
-            for (var item in ukmResponse) {
-              String? imageUrl;
-              if (item['gambar'] != null) {
-                try {
-                  imageUrl = _supabase.storage
-                      .from('informasi-images')
-                      .getPublicUrl(item['gambar']);
-                } catch (e) {
-                  print('Error getting image URL: $e');
-                }
-              }
-
-              allInformasi.add({
-                'id': item['id_informasi'],
-                'title': item['judul'] ?? 'Informasi',
-                'description': item['deskripsi'] ?? '',
-                'subtitle': item['ukm']?['nama_ukm'] ?? 'UKM',
-                'source': 'ukm',
-                'date': _formatDate(item['create_at']),
-                'imageUrl': imageUrl,
-                'image': null,
-              });
-            }
-          }
-        } catch (e) {
-          print('Error loading UKM informasi: $e');
+        // Debug: Print first event record details
+        if (eventsResponse.isNotEmpty) {
+          print('Sample event record:');
+          print('  - ID: ${eventsResponse[0]['id_events']}');
+          print('  - Nama: ${eventsResponse[0]['nama_event']}');
+          print('  - Gambar: ${eventsResponse[0]['gambar']}');
+          print('  - status: ${eventsResponse[0]['status']}');
         }
+
+        for (var item in eventsResponse) {
+          String? imageUrl;
+          if (item['gambar'] != null && item['gambar'].toString().isNotEmpty) {
+            try {
+              final gambarPath = item['gambar'].toString();
+              imageUrl = _supabase.storage
+                  .from('event-images')
+                  .getPublicUrl(gambarPath);
+              print('✅ Event image URL for "${item['nama_event']}": $imageUrl');
+            } catch (e) {
+              print('❌ Error getting event image URL: $e');
+            }
+          } else {
+            print('⚠️ No image for event "${item['nama_event']}"');
+          }
+
+          final eventData = {
+            'id': item['id_events'],
+            'title': item['nama_event'] ?? 'Event',
+            'description': item['deskripsi'] ?? '',
+            'subtitle': item['ukm']?['nama_ukm'] ?? 'Event',
+            'source': 'event',
+            'date': _formatDate(item['tanggal_mulai']),
+            'rawDate': item['tanggal_mulai'] ?? '',
+            'imageUrl': imageUrl,
+            'image': null,
+          };
+
+          allInformasi.add(eventData);
+          print(
+            'Added event: ${eventData['title']} (${eventData['subtitle']})',
+          );
+        }
+      } catch (e) {
+        print('❌ Error loading events: $e');
       }
 
-      // Sort by date (newest first)
+      // Sort by date (newest first for informasi, soonest first for events)
       allInformasi.sort((a, b) {
         try {
-          final dateA = DateTime.parse(a['date']);
-          final dateB = DateTime.parse(b['date']);
+          final dateA = DateTime.tryParse(a['rawDate'] ?? '') ?? DateTime(1970);
+          final dateB = DateTime.tryParse(b['rawDate'] ?? '') ?? DateTime(1970);
           return dateB.compareTo(dateA);
         } catch (e) {
           return 0;
@@ -495,18 +653,32 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
       // Take top 5
       final topInformasi = allInformasi.take(5).toList();
 
-      print('Total informasi loaded: ${topInformasi.length}');
+      print('');
+      print('📋 FINAL SLIDER DATA (Top 5):');
+      for (var i = 0; i < topInformasi.length; i++) {
+        print(
+          '  ${i + 1}. ${topInformasi[i]['title']} (${topInformasi[i]['source']})',
+        );
+        print('     Subtitle: ${topInformasi[i]['subtitle']}');
+        print('     Image: ${topInformasi[i]['imageUrl'] ?? 'NO IMAGE'}');
+        print('     Date: ${topInformasi[i]['date']}');
+      }
       print('====================================');
 
       if (mounted) {
         setState(() {
           _sliderEvents = topInformasi;
           _isLoadingEvents = false;
+          print('✅ Slider events updated: ${_sliderEvents.length} items');
         });
+
+        // Restart auto-slide after data loads
+        _startAutoSlide();
       }
     } catch (e) {
       print('========== ERROR ==========');
       print('ERROR loading informasi: $e');
+      print('Stack trace: ${StackTrace.current}');
       print('===========================');
 
       if (mounted) {
@@ -541,7 +713,7 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
         children: [
           SingleChildScrollView(
             padding: const EdgeInsets.only(
-              top: 70,
+              top: 90,
               left: 12,
               right: 12,
               bottom: 80,
@@ -855,13 +1027,48 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
                   },
                 ),
                 const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const ProfilePage(),
-                    ),
+                PopupMenuButton<String>(
+                  offset: const Offset(0, 45),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
+                  onSelected: (value) {
+                    if (value == 'profile') {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ProfilePage(),
+                        ),
+                      );
+                    } else if (value == 'logout') {
+                      _showLogoutDialog();
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      value: 'profile',
+                      child: Row(
+                        children: [
+                          Icon(Icons.person, size: 20, color: Colors.blue[700]),
+                          const SizedBox(width: 12),
+                          const Text('Profile'),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'logout',
+                      child: Row(
+                        children: [
+                          Icon(Icons.logout, size: 20, color: Colors.red[600]),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Logout',
+                            style: TextStyle(color: Colors.red[600]),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   child: const CircleAvatar(
                     radius: 16,
                     backgroundColor: Colors.blue,
@@ -899,17 +1106,52 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
                   },
                 ),
                 const SizedBox(width: 12),
-                GestureDetector(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const ProfilePage(),
-                    ),
+                PopupMenuButton<String>(
+                  offset: const Offset(0, 45),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
+                  onSelected: (value) {
+                    if (value == 'profile') {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ProfilePage(),
+                        ),
+                      );
+                    } else if (value == 'logout') {
+                      _showLogoutDialog();
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      value: 'profile',
+                      child: Row(
+                        children: [
+                          Icon(Icons.person, size: 20, color: Colors.blue[700]),
+                          const SizedBox(width: 12),
+                          const Text('Profile'),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'logout',
+                      child: Row(
+                        children: [
+                          Icon(Icons.logout, size: 20, color: Colors.red[600]),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Logout',
+                            style: TextStyle(color: Colors.red[600]),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   child: const CircleAvatar(
-                    radius: 16,
+                    radius: 18,
                     backgroundColor: Colors.blue,
-                    child: Icon(Icons.person, color: Colors.white, size: 20),
+                    child: Icon(Icons.person, color: Colors.white, size: 22),
                   ),
                 ),
               ],
@@ -1333,87 +1575,113 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
                     ),
                   ],
                 ),
-                // Previous button (left)
-                if (_sliderEvents.length > 1)
-                  Positioned(
-                    left: isMobile ? 8 : 16,
-                    top: 0,
-                    bottom: 0,
-                    child: Center(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.4),
-                          borderRadius: BorderRadius.circular(4),
+                // Previous button (left) - Always show
+                Positioned(
+                  left: isMobile ? 8 : 16,
+                  top: 0,
+                  bottom: 0,
+                  child: Center(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: IconButton(
+                        onPressed: _sliderEvents.length > 1
+                            ? () {
+                                print('⬅️ Previous button clicked');
+                                _autoSlideTimer?.cancel(); // Pause auto-slide
+                                setState(() {
+                                  final oldIndex = _currentSlideIndex;
+                                  _currentSlideIndex =
+                                      (_currentSlideIndex -
+                                          1 +
+                                          _sliderEvents.length) %
+                                      _sliderEvents.length;
+                                  print(
+                                    '   Index: $oldIndex → $_currentSlideIndex',
+                                  );
+                                });
+                                _startAutoSlide(); // Restart auto-slide
+                              }
+                            : null,
+                        icon: const Icon(
+                          Icons.chevron_left,
+                          color: Colors.white,
                         ),
-                        child: IconButton(
-                          onPressed: () {
-                            setState(() {
-                              _currentSlideIndex =
-                                  (_currentSlideIndex -
-                                      1 +
-                                      _sliderEvents.length) %
-                                  _sliderEvents.length;
-                            });
-                          },
-                          icon: const Icon(
-                            Icons.chevron_left,
-                            color: Colors.white,
-                          ),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(
-                            minWidth: 36,
-                            minHeight: 36,
-                          ),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(
+                          minWidth: 36,
+                          minHeight: 36,
                         ),
                       ),
                     ),
                   ),
-                // Next button (right)
-                if (_sliderEvents.length > 1)
-                  Positioned(
-                    right: isMobile ? 8 : 16,
-                    top: 0,
-                    bottom: 0,
-                    child: Center(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.4),
-                          borderRadius: BorderRadius.circular(4),
+                ),
+                // Next button (right) - Always show
+                Positioned(
+                  right: isMobile ? 8 : 16,
+                  top: 0,
+                  bottom: 0,
+                  child: Center(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: IconButton(
+                        onPressed: _sliderEvents.length > 1
+                            ? () {
+                                print('➡️ Next button clicked');
+                                _autoSlideTimer?.cancel(); // Pause auto-slide
+                                setState(() {
+                                  final oldIndex = _currentSlideIndex;
+                                  _currentSlideIndex =
+                                      (_currentSlideIndex + 1) %
+                                      _sliderEvents.length;
+                                  print(
+                                    '   Index: $oldIndex → $_currentSlideIndex',
+                                  );
+                                });
+                                _startAutoSlide(); // Restart auto-slide
+                              }
+                            : null,
+                        icon: const Icon(
+                          Icons.chevron_right,
+                          color: Colors.white,
                         ),
-                        child: IconButton(
-                          onPressed: () {
-                            setState(() {
-                              _currentSlideIndex =
-                                  (_currentSlideIndex + 1) %
-                                  _sliderEvents.length;
-                            });
-                          },
-                          icon: const Icon(
-                            Icons.chevron_right,
-                            color: Colors.white,
-                          ),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(
-                            minWidth: 36,
-                            minHeight: 36,
-                          ),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(
+                          minWidth: 36,
+                          minHeight: 36,
                         ),
                       ),
                     ),
                   ),
-                // Dot indicators
-                if (_sliderEvents.length > 1)
-                  Positioned(
-                    bottom: 8,
-                    left: 0,
-                    right: 0,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: List.generate(
-                        _sliderEvents.length,
-                        (index) => Container(
-                          width: 6,
-                          height: 6,
+                ),
+                // Dot indicators - Always show count
+                Positioned(
+                  bottom: 8,
+                  left: 0,
+                  right: 0,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(
+                      _sliderEvents.length,
+                      (index) => GestureDetector(
+                        onTap: () {
+                          print('🔘 Dot $index clicked');
+                          _autoSlideTimer?.cancel();
+                          setState(() {
+                            final oldIndex = _currentSlideIndex;
+                            _currentSlideIndex = index;
+                            print('   Index: $oldIndex → $_currentSlideIndex');
+                          });
+                          _startAutoSlide();
+                        },
+                        child: Container(
+                          width: 8,
+                          height: 8,
                           margin: const EdgeInsets.symmetric(horizontal: 3),
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
@@ -1425,6 +1693,7 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
                       ),
                     ),
                   ),
+                ),
               ],
             ),
           ),
@@ -1648,7 +1917,7 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
@@ -1664,7 +1933,7 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
                   child: Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(8),
+                        padding: const EdgeInsets.all(6),
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
                             colors: [
@@ -1702,7 +1971,10 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   child: Column(
                     children: [
                       _buildJadwalInfo(
@@ -1711,14 +1983,14 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
                         isMobile,
                         item['color'] as Color,
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 6),
                       _buildJadwalInfo(
                         Icons.access_time,
                         item['time'],
                         isMobile,
                         item['color'] as Color,
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 6),
                       _buildJadwalInfo(
                         Icons.location_on,
                         item['location'],
@@ -1853,24 +2125,27 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
     Color color,
   ) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 6 : 8,
+        vertical: isMobile ? 4 : 6,
+      ),
       decoration: BoxDecoration(
         color: color.withOpacity(0.08),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
         children: [
-          Icon(icon, size: isMobile ? 14 : 16, color: color),
-          const SizedBox(width: 8),
+          Icon(icon, size: isMobile ? 12 : 16, color: color),
+          const SizedBox(width: 6),
           Expanded(
             child: Text(
               text,
               style: GoogleFonts.poppins(
-                fontSize: isMobile ? 11 : 12,
+                fontSize: isMobile ? 10 : 12,
                 color: Colors.grey[700],
                 fontWeight: FontWeight.w500,
               ),
-              maxLines: 2,
+              maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
           ),

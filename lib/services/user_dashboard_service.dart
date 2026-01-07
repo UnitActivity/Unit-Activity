@@ -1,10 +1,12 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:unit_activity/services/custom_auth_service.dart';
 
 class UserDashboardService {
   final SupabaseClient _supabase = Supabase.instance.client;
+  final CustomAuthService _authService = CustomAuthService();
 
-  /// Get current user ID from session
-  String? get currentUserId => _supabase.auth.currentUser?.id;
+  /// Get current user ID from custom auth service
+  String? get currentUserId => _authService.currentUserId;
 
   /// Load slider events from database
   Future<List<Map<String, dynamic>>> getSliderEvents({int limit = 5}) async {
@@ -74,29 +76,43 @@ class UserDashboardService {
       print('User ID: $userId');
 
       if (userId == null) {
-        print('No user logged in');
+        print('❌ No user logged in');
         return [];
       }
 
-      // Get user's joined UKMs
+      // Get user's joined UKMs (only active ones - accept both 'aktif' and 'active')
+      print('Fetching user joined UKMs...');
       final userUkms = await _supabase
           .from('user_halaman_ukm')
           .select('id_ukm, ukm(nama_ukm)')
           .eq('id_user', userId)
-          .eq('status', 'active');
+          .or('status.eq.aktif,status.eq.active');
 
-      print('User joined UKMs: ${(userUkms as List).length}');
+      print('✅ User joined UKMs: ${(userUkms as List).length}');
+
+      if (userUkms.isNotEmpty) {
+        print('User UKMs:');
+        for (var ukm in userUkms) {
+          print('  - ${ukm['ukm']?['nama_ukm']} (ID: ${ukm['id_ukm']})');
+        }
+      }
 
       if (userUkms.isEmpty) {
-        print('User has not joined any UKM');
+        print('⚠️ User has not joined any UKM - showing all upcoming events');
         // Return all upcoming events if user hasn't joined any UKM
         return await _getAllUpcomingSchedules(limit: limit);
       }
 
       final ukmIds = (userUkms as List).map((e) => e['id_ukm']).toList();
-      print('UKM IDs: $ukmIds');
+      print('UKM IDs to filter: $ukmIds');
 
-      // Get upcoming pertemuan for user's UKMs
+      List<Map<String, dynamic>> schedules = [];
+
+      // Get upcoming pertemuan for user's UKMs (today and future)
+      print('Fetching pertemuan...');
+      final today = DateTime.now();
+      final todayStr = today.toIso8601String().split('T')[0];
+
       final pertemuanResponse = await _supabase
           .from('pertemuan')
           .select('''
@@ -109,16 +125,14 @@ class UserDashboardService {
             ukm(id_ukm, nama_ukm)
           ''')
           .inFilter('id_ukm', ukmIds)
-          .gte('tanggal', DateTime.now().toIso8601String().split('T')[0])
+          .gte('tanggal', todayStr)
           .order('tanggal', ascending: true)
           .limit(limit);
 
-      print('Found ${(pertemuanResponse as List).length} pertemuan');
-
-      List<Map<String, dynamic>> schedules = [];
+      print('✅ Found ${(pertemuanResponse as List).length} upcoming pertemuan');
 
       for (var pertemuan in pertemuanResponse) {
-        schedules.add({
+        final schedule = {
           'type': 'pertemuan',
           'id': pertemuan['id_pertemuan'],
           'title': pertemuan['ukm']?['nama_ukm'] ?? 'UKM',
@@ -129,10 +143,15 @@ class UserDashboardService {
           'location': pertemuan['lokasi'] ?? '',
           'icon': 'groups',
           'color': 'blue',
-        });
+        };
+        schedules.add(schedule);
+        print(
+          '  + Pertemuan: ${schedule['title']}: ${schedule['subtitle']} on ${schedule['date']}',
+        );
       }
 
       // Also get upcoming events
+      print('Fetching events...');
       final eventsResponse = await _supabase
           .from('events')
           .select('''
@@ -146,14 +165,14 @@ class UserDashboardService {
             ukm(id_ukm, nama_ukm)
           ''')
           .inFilter('id_ukm', ukmIds)
-          .gte('tanggal_mulai', DateTime.now().toIso8601String())
+          .gte('tanggal_mulai', todayStr)
           .order('tanggal_mulai', ascending: true)
           .limit(limit);
 
-      print('Found ${(eventsResponse as List).length} events');
+      print('✅ Found ${(eventsResponse as List).length} upcoming events');
 
       for (var event in eventsResponse) {
-        schedules.add({
+        final schedule = {
           'type': 'event',
           'id': event['id_events'],
           'title': event['ukm']?['nama_ukm'] ?? 'UKM',
@@ -163,7 +182,56 @@ class UserDashboardService {
           'location': event['lokasi'] ?? '',
           'icon': 'event',
           'color': 'orange',
-        });
+        };
+        schedules.add(schedule);
+        print(
+          '  + Event: ${schedule['title']}: ${schedule['subtitle']} on ${schedule['date']}',
+        );
+      }
+
+      // If no upcoming schedules, get recent past schedules (last 7 days) as reference
+      if (schedules.isEmpty) {
+        print('⚠️ No upcoming schedules, checking recent past schedules...');
+        final weekAgo = today
+            .subtract(const Duration(days: 7))
+            .toIso8601String()
+            .split('T')[0];
+
+        final recentPertemuan = await _supabase
+            .from('pertemuan')
+            .select('''
+              id_pertemuan,
+              topik,
+              tanggal,
+              jam_mulai,
+              jam_akhir,
+              lokasi,
+              ukm(id_ukm, nama_ukm)
+            ''')
+            .inFilter('id_ukm', ukmIds)
+            .gte('tanggal', weekAgo)
+            .lt('tanggal', todayStr)
+            .order('tanggal', ascending: false)
+            .limit(5);
+
+        print(
+          'Found ${(recentPertemuan as List).length} recent past pertemuan',
+        );
+
+        for (var pertemuan in recentPertemuan) {
+          schedules.add({
+            'type': 'pertemuan',
+            'id': pertemuan['id_pertemuan'],
+            'title': pertemuan['ukm']?['nama_ukm'] ?? 'UKM',
+            'subtitle': '${pertemuan['topik'] ?? 'Pertemuan'} (Selesai)',
+            'date': pertemuan['tanggal'],
+            'time':
+                '${pertemuan['jam_mulai'] ?? ''} - ${pertemuan['jam_akhir'] ?? ''}',
+            'location': pertemuan['lokasi'] ?? '',
+            'icon': 'groups',
+            'color': 'grey',
+          });
+        }
       }
 
       // Sort by date
@@ -173,7 +241,7 @@ class UserDashboardService {
         return dateA.compareTo(dateB);
       });
 
-      print('Total schedules: ${schedules.length}');
+      print('📊 Total schedules after sorting: ${schedules.length}');
       print('=========================================');
 
       return schedules.take(limit).toList();

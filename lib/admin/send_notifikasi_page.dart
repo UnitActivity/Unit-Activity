@@ -134,7 +134,7 @@ class _SendNotifikasiPageState extends State<SendNotifikasiPage> {
     setState(() => _isSending = true);
 
     try {
-      // Prepare notification data
+      // Prepare notification data (without metadata - column doesn't exist in notification_preference)
       final notificationData = {
         'judul': _titleController.text.trim(),
         'pesan': _messageController.text.trim(),
@@ -143,7 +143,7 @@ class _SendNotifikasiPageState extends State<SendNotifikasiPage> {
         'create_at': DateTime.now().toIso8601String(),
       };
 
-      // Add optional foreign keys
+      // Add optional event/info IDs if the columns exist in the table
       if (_selectedEventId != null) {
         notificationData['id_events'] = _selectedEventId!;
       }
@@ -162,20 +162,40 @@ class _SendNotifikasiPageState extends State<SendNotifikasiPage> {
           });
         }
       } else if (_selectedTarget == 'all_ukm') {
-        // Get all UKM and insert notification for each
-        final ukms = await _supabase.from('ukm').select('id_ukm');
-        for (var ukm in ukms) {
+        // Get all UKM members and insert notification for each
+        final ukmMembers = await _supabase
+            .from('ukm_members')
+            .select('id_user')
+            .eq('status', 'approved');
+
+        final uniqueUserIds = <String>{};
+        for (var member in ukmMembers) {
+          uniqueUserIds.add(member['id_user']);
+        }
+
+        for (var userId in uniqueUserIds) {
           await _supabase.from('notification_preference').insert({
             ...notificationData,
-            'id_ukm': ukm['id_ukm'],
+            'id_user': userId,
           });
         }
       } else if (_selectedTarget == 'specific_ukm') {
-        // Insert for selected UKMs
-        for (var ukmId in _selectedUkmIds) {
+        // Get members from selected UKMs
+        final ukmMembers = await _supabase
+            .from('ukm_members')
+            .select('id_user')
+            .inFilter('id_ukm', _selectedUkmIds)
+            .eq('status', 'approved');
+
+        final uniqueUserIds = <String>{};
+        for (var member in ukmMembers) {
+          uniqueUserIds.add(member['id_user']);
+        }
+
+        for (var userId in uniqueUserIds) {
           await _supabase.from('notification_preference').insert({
             ...notificationData,
-            'id_ukm': ukmId,
+            'id_user': userId,
           });
         }
       } else if (_selectedTarget == 'specific_user') {

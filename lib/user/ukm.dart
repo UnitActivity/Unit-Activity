@@ -29,6 +29,10 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
   bool _isLoading = true;
 
   List<Map<String, dynamic>> _allUKMs = [];
+  List<Map<String, dynamic>> _ukmPertemuanList = [];
+  List<Map<String, dynamic>> _ukmEventsList = [];
+  bool _isLoadingPertemuan = false;
+  bool _isLoadingEvents = false;
   late final _LifecycleObserver _lifecycleObserver;
 
   @override
@@ -77,15 +81,25 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
       final Map<String, int> attendanceMap = {};
 
       try {
-        // Get all registered UKMs from database
-        final userUKMResponse = await _supabase
-            .from('user_halaman_ukm')
-            .select('id_ukm')
-            .order('created_at', ascending: false);
+        final userId = _authService.currentUserId;
+        print('DEBUG _loadUKMs: userId from authService = $userId');
+        if (userId != null && userId.isNotEmpty) {
+          // Get all registered UKMs from database for current user (accept both status values)
+          final userUKMResponse = await _supabase
+              .from('user_halaman_ukm')
+              .select('id_ukm')
+              .eq('id_user', userId)
+              .or('status.eq.aktif,status.eq.active')
+              .order('created_at', ascending: false);
 
-        for (var item in userUKMResponse) {
-          registeredUKMIds.add(item['id_ukm']?.toString() ?? '');
-          attendanceMap[item['id_ukm']?.toString() ?? ''] = 0;
+          print(
+            'DEBUG _loadUKMs: Found ${userUKMResponse.length} registered UKMs',
+          );
+
+          for (var item in userUKMResponse) {
+            registeredUKMIds.add(item['id_ukm']?.toString() ?? '');
+            attendanceMap[item['id_ukm']?.toString() ?? ''] = 0;
+          }
         }
       } catch (e) {
         debugPrint('Error loading user UKMs: $e');
@@ -187,15 +201,118 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
   void _viewUKMDetail(Map<String, dynamic> ukm) {
     setState(() {
       _selectedUKM = ukm;
+      _ukmPertemuanList = [];
+      _ukmEventsList = [];
     });
+    // Load pertemuan and events for this UKM
+    _loadUKMPertemuan(ukm['id']);
+    _loadUKMEvents(ukm['id']);
   }
 
   void _backToList() {
     setState(() {
       _selectedUKM = null;
+      _ukmPertemuanList = [];
+      _ukmEventsList = [];
     });
     // Reload UKM data to reflect any changes
     _loadUKMs();
+  }
+
+  /// Load pertemuan (meetings) for the selected UKM
+  Future<void> _loadUKMPertemuan(String ukmId) async {
+    setState(() => _isLoadingPertemuan = true);
+
+    try {
+      final userId = _authService.currentUserId;
+
+      // Get all pertemuan for this UKM with user's attendance status
+      final pertemuanData = await _supabase
+          .from('pertemuan')
+          .select('''
+            id_pertemuan,
+            judul,
+            deskripsi,
+            tanggal,
+            waktu_mulai,
+            waktu_selesai,
+            lokasi,
+            status
+          ''')
+          .eq('id_ukm', ukmId)
+          .order('tanggal', ascending: false)
+          .limit(10);
+
+      if (userId != null) {
+        // Get user's attendance records
+        final attendanceData = await _supabase
+            .from('absen_pertemuan')
+            .select('id_pertemuan, status_hadir, waktu_absen')
+            .eq('id_user', userId);
+
+        final attendanceMap = <String, Map<String, dynamic>>{};
+        for (var item in attendanceData) {
+          attendanceMap[item['id_pertemuan']] = {
+            'status_hadir': item['status_hadir'],
+            'waktu_absen': item['waktu_absen'],
+          };
+        }
+
+        // Merge attendance info with pertemuan data
+        final mergedData = pertemuanData.map((pertemuan) {
+          final attendance = attendanceMap[pertemuan['id_pertemuan']];
+          return {
+            ...pertemuan,
+            'user_status_hadir': attendance?['status_hadir'],
+            'user_waktu_absen': attendance?['waktu_absen'],
+          };
+        }).toList();
+
+        setState(() {
+          _ukmPertemuanList = mergedData;
+          _isLoadingPertemuan = false;
+        });
+      } else {
+        setState(() {
+          _ukmPertemuanList = pertemuanData;
+          _isLoadingPertemuan = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading pertemuan: $e');
+      setState(() => _isLoadingPertemuan = false);
+    }
+  }
+
+  /// Load events for the selected UKM
+  Future<void> _loadUKMEvents(String ukmId) async {
+    setState(() => _isLoadingEvents = true);
+
+    try {
+      final eventData = await _supabase
+          .from('events')
+          .select('''
+            id_event,
+            nama_event,
+            deskripsi,
+            tanggal_mulai,
+            tanggal_selesai,
+            lokasi,
+            status,
+            gambar
+          ''')
+          .eq('id_ukm', ukmId)
+          .order('tanggal_mulai', ascending: false)
+          .limit(5);
+
+      setState(() {
+        _ukmEventsList = eventData;
+        _isLoadingEvents = false;
+      });
+    } catch (e) {
+      print('Error loading events: $e');
+      setState(() => _isLoadingEvents = false);
+    }
   }
 
   /// Get current active periode
@@ -345,15 +462,17 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
         // Continue anyway, history is optional
       }
 
-      // Update local state
+      // Update local state immediately
       setState(() {
         final index = _allUKMs.indexWhere((e) => e['id'] == ukm['id']);
         if (index != -1) {
           _allUKMs[index]['isRegistered'] = false;
           _allUKMs[index]['status'] = 'Belum Terdaftar';
+          _allUKMs[index]['attendance'] = 0;
+
+          // Update selected UKM to reflect changes immediately in detail view
           if (_selectedUKM != null && _selectedUKM!['id'] == ukm['id']) {
-            _selectedUKM!['isRegistered'] = false;
-            _selectedUKM!['status'] = 'Belum Terdaftar';
+            _selectedUKM = Map<String, dynamic>.from(_allUKMs[index]);
           }
         }
       });
@@ -361,12 +480,13 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Berhasil keluar dari ${ukm['name']}'),
-          backgroundColor: Colors.blue[600],
+          backgroundColor: Colors.green[600],
+          duration: const Duration(seconds: 2),
         ),
       );
 
-      // Reload data
-      await _loadUKMs();
+      // Don't reload to prevent UI flickering
+      // The local state is already updated correctly
     } catch (e) {
       print('Error unjoining UKM: $e');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -530,8 +650,51 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                               return;
                             }
 
-                            // Save to Supabase with current periode
+                            // Get current periode
                             final currentPeriode = await _getCurrentPeriode();
+
+                            if (currentPeriode == null) {
+                              if (!mounted) return;
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: const Text(
+                                    'Tidak ada periode aktif saat ini',
+                                    style: TextStyle(color: Colors.white),
+                                  ),
+                                  backgroundColor: Colors.orange[600],
+                                ),
+                              );
+                              return;
+                            }
+
+                            // Check if user is already registered in this period
+                            final existingReg = await _supabase
+                                .from('user_halaman_ukm')
+                                .select('id_user_ukm')
+                                .eq('id_user', userId)
+                                .eq('id_ukm', ukm['id'])
+                                .eq('id_periode', currentPeriode['id_periode'])
+                                .or('status.eq.aktif,status.eq.active')
+                                .maybeSingle();
+
+                            if (existingReg != null) {
+                              if (!mounted) return;
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Anda sudah terdaftar di ${ukm['name']} pada periode ${currentPeriode['nama_periode']}',
+                                    style: const TextStyle(color: Colors.white),
+                                  ),
+                                  backgroundColor: Colors.orange[600],
+                                  duration: const Duration(seconds: 3),
+                                ),
+                              );
+                              // Reload to update UI
+                              await _loadUKMs();
+                              return;
+                            }
 
                             print(
                               'Current periode: ${currentPeriode?['id_periode']}',
@@ -541,14 +704,14 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                               'id_ukm': ukm['id'],
                               'id_user': userId,
                               'id_periode': currentPeriode?['id_periode'],
-                              'status': 'active',
+                              'status': 'aktif',
                             });
 
                             print(
                               'DEBUG: Berhasil insert user_halaman_ukm untuk ${ukm['name']}',
                             );
 
-                            // Update local state
+                            // Update local state immediately
                             setState(() {
                               final index = _allUKMs.indexWhere(
                                 (element) => element['id'] == ukm['id'],
@@ -557,7 +720,14 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                                 _allUKMs[index]['isRegistered'] = true;
                                 _allUKMs[index]['status'] = 'Sudah Terdaftar';
                                 _allUKMs[index]['attendance'] = 0;
-                                _selectedUKM = _allUKMs[index];
+
+                                // Update selected UKM to reflect changes immediately
+                                if (_selectedUKM != null &&
+                                    _selectedUKM!['id'] == ukm['id']) {
+                                  _selectedUKM = Map<String, dynamic>.from(
+                                    _allUKMs[index],
+                                  );
+                                }
                               }
                             });
 
@@ -566,6 +736,18 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
 
                             // Reload data to ensure consistency
                             await _loadUKMs();
+
+                            // After reload, update selected UKM again
+                            if (_selectedUKM != null) {
+                              final updatedIndex = _allUKMs.indexWhere(
+                                (e) => e['id'] == _selectedUKM!['id'],
+                              );
+                              if (updatedIndex != -1) {
+                                setState(() {
+                                  _selectedUKM = _allUKMs[updatedIndex];
+                                });
+                              }
+                            }
 
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
@@ -929,13 +1111,48 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                   },
                 ),
                 const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const ProfilePage(),
-                    ),
+                PopupMenuButton<String>(
+                  offset: const Offset(0, 45),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
+                  onSelected: (value) {
+                    if (value == 'profile') {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ProfilePage(),
+                        ),
+                      );
+                    } else if (value == 'logout') {
+                      _showLogoutDialog();
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      value: 'profile',
+                      child: Row(
+                        children: [
+                          Icon(Icons.person, size: 20, color: Colors.blue[700]),
+                          const SizedBox(width: 12),
+                          const Text('Profile'),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'logout',
+                      child: Row(
+                        children: [
+                          Icon(Icons.logout, size: 20, color: Colors.red[600]),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Logout',
+                            style: TextStyle(color: Colors.red[600]),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   child: const CircleAvatar(
                     radius: 16,
                     backgroundColor: Colors.blue,
@@ -973,17 +1190,52 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                   },
                 ),
                 const SizedBox(width: 12),
-                GestureDetector(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const ProfilePage(),
-                    ),
+                PopupMenuButton<String>(
+                  offset: const Offset(0, 45),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
+                  onSelected: (value) {
+                    if (value == 'profile') {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ProfilePage(),
+                        ),
+                      );
+                    } else if (value == 'logout') {
+                      _showLogoutDialog();
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      value: 'profile',
+                      child: Row(
+                        children: [
+                          Icon(Icons.person, size: 20, color: Colors.blue[700]),
+                          const SizedBox(width: 12),
+                          const Text('Profile'),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'logout',
+                      child: Row(
+                        children: [
+                          Icon(Icons.logout, size: 20, color: Colors.red[600]),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Logout',
+                            style: TextStyle(color: Colors.red[600]),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   child: const CircleAvatar(
-                    radius: 16,
+                    radius: 18,
                     backgroundColor: Colors.blue,
-                    child: Icon(Icons.person, color: Colors.white, size: 20),
+                    child: Icon(Icons.person, color: Colors.white, size: 22),
                   ),
                 ),
               ],
@@ -996,6 +1248,60 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
     // Implementasi logika untuk menangani kode QR yang di-scan
     // Bisa digunakan untuk check-in, verifikasi, dll
     print('DEBUG: QR Code scanned: $code');
+  }
+
+  void _showLogoutDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.logout, color: Colors.red[600]),
+            const SizedBox(width: 12),
+            Text(
+              'Logout',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: Text(
+          'Apakah Anda yakin ingin keluar?',
+          style: GoogleFonts.inter(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Batal', style: GoogleFonts.inter()),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              try {
+                await _supabase.auth.signOut();
+              } catch (e) {
+                debugPrint('Error signing out: $e');
+              }
+              if (mounted) {
+                Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  '/login',
+                  (route) => false,
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red[600],
+              foregroundColor: Colors.white,
+            ),
+            child: Text(
+              'Logout',
+              style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // ==================== BOTTOM NAVIGATION BAR ====================
@@ -1477,21 +1783,16 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                 ),
               ),
             ),
-            Container(
-              padding: EdgeInsets.all(isMobile ? 10 : 12),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.95),
-                borderRadius: const BorderRadius.vertical(
-                  bottom: Radius.circular(15),
-                ),
-              ),
+            Padding(
+              padding: EdgeInsets.all(isMobile ? 8 : 10),
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (isRegistered) ...[
                     // Progress bar untuk pertemuan
                     Container(
-                      padding: const EdgeInsets.all(8),
+                      padding: EdgeInsets.all(isMobile ? 6 : 8),
                       decoration: BoxDecoration(
                         color: Colors.blue[50],
                         borderRadius: BorderRadius.circular(8),
@@ -1501,6 +1802,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                         ),
                       ),
                       child: Column(
+                        mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
@@ -1525,16 +1827,16 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                           Stack(
                             children: [
                               Container(
-                                height: 8,
+                                height: 6,
                                 decoration: BoxDecoration(
                                   color: Colors.blue[100],
-                                  borderRadius: BorderRadius.circular(4),
+                                  borderRadius: BorderRadius.circular(3),
                                 ),
                               ),
                               FractionallySizedBox(
                                 widthFactor: attendance / 3,
                                 child: Container(
-                                  height: 8,
+                                  height: 6,
                                   decoration: BoxDecoration(
                                     gradient: LinearGradient(
                                       colors: [
@@ -1546,18 +1848,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                                             : Colors.blue[600]!,
                                       ],
                                     ),
-                                    borderRadius: BorderRadius.circular(4),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color:
-                                            (attendance >= 3
-                                                    ? Colors.green
-                                                    : Colors.blue)
-                                                .withOpacity(0.4),
-                                        blurRadius: 4,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
+                                    borderRadius: BorderRadius.circular(3),
                                   ),
                                 ),
                               ),
@@ -1569,7 +1860,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                   ] else ...[
                     // Belum terdaftar
                     Container(
-                      padding: const EdgeInsets.all(8),
+                      padding: EdgeInsets.all(isMobile ? 6 : 8),
                       decoration: BoxDecoration(
                         color: Colors.grey[100],
                         borderRadius: BorderRadius.circular(8),
@@ -1579,6 +1870,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                         ),
                       ),
                       child: Column(
+                        mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
@@ -1601,17 +1893,17 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                           ),
                           const SizedBox(height: 6),
                           Container(
-                            height: 8,
+                            height: 6,
                             decoration: BoxDecoration(
                               color: Colors.grey[300],
-                              borderRadius: BorderRadius.circular(4),
+                              borderRadius: BorderRadius.circular(3),
                             ),
                           ),
                         ],
                       ),
                     ),
                   ],
-                  const SizedBox(height: 10),
+                  SizedBox(height: isMobile ? 6 : 8),
                   Container(
                     padding: EdgeInsets.symmetric(
                       horizontal: isMobile ? 10 : 12,
@@ -2066,51 +2358,27 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                   ),
                 )
               else
-                Row(
-                  children: [
-                    Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: isMobile ? 8 : 12,
-                        vertical: isMobile ? 4 : 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.blue[50],
-                        border: Border.all(color: Colors.blue[700]!),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        'Terdaftar',
-                        style: TextStyle(
-                          fontSize: isMobile ? 10 : 12,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.blue[700],
-                        ),
-                      ),
+                ElevatedButton(
+                  onPressed: () => _unjoinUKM(_selectedUKM!),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red[50],
+                    foregroundColor: Colors.red[700],
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isMobile ? 8 : 12,
+                      vertical: isMobile ? 6 : 12,
                     ),
-                    const SizedBox(width: 8),
-                    ElevatedButton(
-                      onPressed: () => _unjoinUKM(_selectedUKM!),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red[50],
-                        foregroundColor: Colors.red[700],
-                        padding: EdgeInsets.symmetric(
-                          horizontal: isMobile ? 8 : 12,
-                          vertical: isMobile ? 6 : 12,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          side: BorderSide(color: Colors.red[300]!),
-                        ),
-                      ),
-                      child: Text(
-                        'Keluar',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: isMobile ? 11 : 14,
-                        ),
-                      ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      side: BorderSide(color: Colors.red[300]!),
                     ),
-                  ],
+                  ),
+                  child: Text(
+                    'Keluar',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: isMobile ? 11 : 14,
+                    ),
+                  ),
                 ),
             ],
           ),
@@ -2137,6 +2405,339 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
             items: _selectedUKM!['kontak'] as List,
             isMobile: isMobile,
           ),
+          const SizedBox(height: 24),
+          // Kegiatan Pertemuan Section
+          _buildPertemuanSection(isMobile: isMobile),
+          const SizedBox(height: 24),
+          // Event UKM Section
+          _buildEventsSection(isMobile: isMobile),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPertemuanSection({required bool isMobile}) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(isMobile ? 16 : 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Kegiatan Pertemuan',
+            style: GoogleFonts.poppins(
+              fontSize: isMobile ? 16 : 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey[800],
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (_isLoadingPertemuan)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(20.0),
+                child: CircularProgressIndicator(),
+              ),
+            )
+          else if (_ukmPertemuanList.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.grey[600], size: 24),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Belum ada pertemuan terjadwal',
+                      style: GoogleFonts.inter(
+                        fontSize: isMobile ? 14 : 15,
+                        color: Colors.grey[700],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            ...List.generate(_ukmPertemuanList.length, (index) {
+              final pertemuan = _ukmPertemuanList[index];
+              return Container(
+                margin: EdgeInsets.only(
+                  bottom: index < _ukmPertemuanList.length - 1 ? 12 : 0,
+                ),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey[200]!),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            pertemuan['judul'] ?? 'Pertemuan',
+                            style: GoogleFonts.poppins(
+                              fontSize: isMobile ? 14 : 15,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[800],
+                            ),
+                          ),
+                        ),
+                        if (pertemuan['user_status_hadir'] != null)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: pertemuan['user_status_hadir'] == 'hadir'
+                                  ? Colors.green[50]
+                                  : Colors.orange[50],
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              pertemuan['user_status_hadir'] == 'hadir'
+                                  ? 'Hadir'
+                                  : 'Tidak Hadir',
+                              style: GoogleFonts.inter(
+                                fontSize: isMobile ? 11 : 12,
+                                fontWeight: FontWeight.w600,
+                                color: pertemuan['user_status_hadir'] == 'hadir'
+                                    ? Colors.green[700]
+                                    : Colors.orange[700],
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.calendar_today,
+                          size: isMobile ? 14 : 16,
+                          color: Colors.grey[600],
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          pertemuan['tanggal'] ?? '-',
+                          style: GoogleFonts.inter(
+                            fontSize: isMobile ? 13 : 14,
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Icon(
+                          Icons.access_time,
+                          size: isMobile ? 14 : 16,
+                          color: Colors.grey[600],
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${pertemuan['waktu_mulai'] ?? '-'} - ${pertemuan['waktu_selesai'] ?? '-'}',
+                          style: GoogleFonts.inter(
+                            fontSize: isMobile ? 13 : 14,
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (pertemuan['lokasi'] != null) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.location_on,
+                            size: isMobile ? 14 : 16,
+                            color: Colors.grey[600],
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              pertemuan['lokasi'],
+                              style: GoogleFonts.inter(
+                                fontSize: isMobile ? 13 : 14,
+                                color: Colors.grey[700],
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEventsSection({required bool isMobile}) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(isMobile ? 16 : 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Event UKM',
+            style: GoogleFonts.poppins(
+              fontSize: isMobile ? 16 : 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey[800],
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (_isLoadingEvents)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(20.0),
+                child: CircularProgressIndicator(),
+              ),
+            )
+          else if (_ukmEventsList.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.event_busy, color: Colors.grey[600], size: 24),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Belum ada event',
+                      style: GoogleFonts.inter(
+                        fontSize: isMobile ? 14 : 15,
+                        color: Colors.grey[700],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            ...List.generate(_ukmEventsList.length, (index) {
+              final event = _ukmEventsList[index];
+              return Container(
+                margin: EdgeInsets.only(
+                  bottom: index < _ukmEventsList.length - 1 ? 12 : 0,
+                ),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey[200]!),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            event['nama_event'] ?? 'Event',
+                            style: GoogleFonts.poppins(
+                              fontSize: isMobile ? 14 : 15,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[800],
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: event['status'] == 'aktif'
+                                ? Colors.green[50]
+                                : Colors.grey[100],
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            event['status'] ?? 'Draft',
+                            style: GoogleFonts.inter(
+                              fontSize: isMobile ? 11 : 12,
+                              fontWeight: FontWeight.w600,
+                              color: event['status'] == 'aktif'
+                                  ? Colors.green[700]
+                                  : Colors.grey[600],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.calendar_today,
+                          size: isMobile ? 14 : 16,
+                          color: Colors.grey[600],
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '${event['tanggal_mulai'] ?? '-'} - ${event['tanggal_selesai'] ?? '-'}',
+                            style: GoogleFonts.inter(
+                              fontSize: isMobile ? 13 : 14,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (event['lokasi'] != null) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.location_on,
+                            size: isMobile ? 14 : 16,
+                            color: Colors.grey[600],
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              event['lokasi'],
+                              style: GoogleFonts.inter(
+                                fontSize: isMobile ? 13 : 14,
+                                color: Colors.grey[700],
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            }),
         ],
       ),
     );

@@ -78,8 +78,8 @@ class InformasiService {
 
           final ukmName = ukmData['nama_ukm'] ?? 'UKM';
 
-          // Create notification for UKM members
-          await _supabase.from('notifikasi_ukm_member').insert({
+          // Create notification for UKM members using notification_preference
+          await _supabase.from('notification_preference').insert({
             'id_ukm': createdInformasi.idUkm,
             'judul': '📢 Informasi Baru dari $ukmName',
             'pesan':
@@ -88,9 +88,10 @@ class InformasiService {
                 ? '${createdInformasi.deskripsi!.substring(0, 100)}...'
                 : createdInformasi.deskripsi ??
                       'Informasi baru telah ditambahkan',
-            'tipe': 'info',
+            'type': 'info',
             'id_informasi': response['id_informasi'],
-            'pengirim': ukmName,
+            'is_read': false,
+            'create_at': DateTime.now().toIso8601String(),
           });
         } catch (e) {
           print('Error creating UKM notification: $e');

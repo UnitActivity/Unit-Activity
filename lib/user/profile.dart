@@ -20,31 +20,36 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
   final SupabaseClient _supabase = Supabase.instance.client;
 
   final TextEditingController _usernameController = TextEditingController();
-  final TextEditingController _npmController = TextEditingController();
+  final TextEditingController _nimController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController(
     text: '••••••••••••',
   );
-  final TextEditingController _tanggalLahirController = TextEditingController();
   final TextEditingController _qrCodeController = TextEditingController();
 
   bool _isEditingUsername = false;
-  bool _isEditingNpm = false;
+  bool _isEditingNim = false;
   bool _isEditingEmail = false;
   bool _isEditingPassword = false;
-  bool _isEditingTanggalLahir = false;
   bool _isLoading = true;
   bool _isSaving = false;
 
   String _selectedMenu = 'profile';
   bool _showQRScanner = false;
-  String? _avatarUrl;
+  String? _pictureUrl;
   String? _userId;
+
+  // Statistics
+  int _totalEvents = 0;
+  int _totalMeetings = 0;
+  int _totalUKMs = 0;
+  bool _isLoadingStats = true;
 
   @override
   void initState() {
     super.initState();
     _loadUserProfile();
+    _loadStatistics();
   }
 
   Future<void> _loadUserProfile() async {
@@ -69,10 +74,9 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
 
       if (userData != null) {
         _usernameController.text = userData['username'] ?? '';
-        _npmController.text = userData['npm']?.toString() ?? '';
+        _nimController.text = userData['nim']?.toString() ?? '';
         _emailController.text = userData['email'] ?? user.email ?? '';
-        _tanggalLahirController.text = userData['tanggal_lahir'] ?? '';
-        _avatarUrl = userData['avatar'];
+        _pictureUrl = userData['picture'];
       } else {
         // Use auth email if no user data found
         _emailController.text = user.email ?? '';
@@ -84,18 +88,112 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
     }
   }
 
+  Future<void> _loadStatistics() async {
+    setState(() => _isLoadingStats = true);
+
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) {
+        setState(() => _isLoadingStats = false);
+        return;
+      }
+
+      // Load event count
+      final eventsData = await _supabase
+          .from('absen_event')
+          .select('id_absen_event')
+          .eq('id_user', user.id);
+
+      // Load meeting count
+      final meetingsData = await _supabase
+          .from('absen_pertemuan')
+          .select('id_absen')
+          .eq('id_user', user.id);
+
+      // Load UKM count (active only)
+      final ukmsData = await _supabase
+          .from('user_halaman_ukm')
+          .select('id_user_ukm')
+          .eq('id_user', user.id)
+          .or('status.eq.aktif,status.eq.active');
+
+      if (mounted) {
+        setState(() {
+          _totalEvents = eventsData.length;
+          _totalMeetings = meetingsData.length;
+          _totalUKMs = ukmsData.length;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading statistics: $e');
+    } finally {
+      if (mounted) setState(() => _isLoadingStats = false);
+    }
+  }
+
   Future<void> _saveProfile() async {
     if (_userId == null) return;
 
     setState(() => _isSaving = true);
 
     try {
+      // Check if email is being changed
+      if (_isEditingEmail &&
+          _emailController.text.trim() != _emailController.text.trim()) {
+        // Show verification dialog
+        if (mounted) {
+          final shouldProceed = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: Row(
+                children: [
+                  Icon(Icons.warning_amber_rounded, color: Colors.orange[600]),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Verifikasi Email',
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              content: Text(
+                'Untuk mengubah email, Anda perlu memverifikasi email baru terlebih dahulu. Sistem akan mengirim link verifikasi ke email baru Anda.',
+                style: GoogleFonts.inter(),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: Text('Batal', style: GoogleFonts.inter()),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue[600],
+                    foregroundColor: Colors.white,
+                  ),
+                  child: Text(
+                    'Lanjutkan',
+                    style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+          );
+
+          if (shouldProceed != true) {
+            setState(() => _isSaving = false);
+            return;
+          }
+        }
+      }
+
       await _supabase.from('users').upsert({
         'id_user': _userId,
         'username': _usernameController.text.trim(),
-        'npm': _npmController.text.trim(),
+        'nim': _nimController.text.trim(),
         'email': _emailController.text.trim(),
-        'tanggal_lahir': _tanggalLahirController.text.trim(),
       });
 
       if (mounted) {
@@ -122,10 +220,9 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
         setState(() {
           _isSaving = false;
           _isEditingUsername = false;
-          _isEditingNpm = false;
+          _isEditingNim = false;
           _isEditingEmail = false;
           _isEditingPassword = false;
-          _isEditingTanggalLahir = false;
         });
       }
     }
@@ -134,10 +231,9 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
   @override
   void dispose() {
     _usernameController.dispose();
-    _npmController.dispose();
+    _nimController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
-    _tanggalLahirController.dispose();
     _qrCodeController.dispose();
     super.dispose();
   }
@@ -279,251 +375,428 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
         // Title
         Text(
           'My Profile',
-          style: TextStyle(
-            fontSize: isMobile ? 18 : 24,
+          style: GoogleFonts.poppins(
+            fontSize: isMobile ? 22 : 28,
             fontWeight: FontWeight.bold,
+            color: Colors.grey[800],
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 24),
 
-        // Card Profile
-        Card(
-          elevation: 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+        // Profile Header Card
+        _buildProfileHeaderCard(isMobile),
+        const SizedBox(height: 20),
+
+        // Statistics Cards
+        _buildStatisticsCards(isMobile),
+        const SizedBox(height: 20),
+
+        // Edit Profile Card
+        _buildEditProfileCard(isMobile),
+      ],
+    );
+  }
+
+  Widget _buildProfileHeaderCard(bool isMobile) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colors.blue[700]!, Colors.blue[500]!],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.blue.withOpacity(0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
           ),
-          child: Padding(
-            padding: EdgeInsets.all(isMobile ? 16 : 24),
-            child: Column(
+        ],
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(isMobile ? 20 : 32),
+        child: Column(
+          children: [
+            // Avatar
+            Stack(
               children: [
-                // Avatar & Name
-                CircleAvatar(
-                  radius: isMobile ? 40 : 60,
-                  backgroundColor: Colors.grey[300],
-                  backgroundImage: _avatarUrl != null && _avatarUrl!.isNotEmpty
-                      ? NetworkImage(_avatarUrl!)
-                      : null,
-                  child: _avatarUrl == null || _avatarUrl!.isEmpty
-                      ? Icon(
-                          Icons.person,
-                          size: isMobile ? 40 : 60,
-                          color: Colors.grey[600],
-                        )
-                      : null,
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  _usernameController.text.isEmpty
-                      ? 'User'
-                      : _usernameController.text,
-                  style: TextStyle(
-                    fontSize: isMobile ? 16 : 20,
-                    fontWeight: FontWeight.bold,
+                Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 4),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.2),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: CircleAvatar(
+                    radius: isMobile ? 50 : 70,
+                    backgroundColor: Colors.grey[300],
+                    backgroundImage:
+                        _pictureUrl != null && _pictureUrl!.isNotEmpty
+                        ? NetworkImage(_pictureUrl!)
+                        : null,
+                    child: _pictureUrl == null || _pictureUrl!.isEmpty
+                        ? Icon(
+                            Icons.person,
+                            size: isMobile ? 50 : 70,
+                            color: Colors.grey[600],
+                          )
+                        : null,
                   ),
                 ),
-                if (_emailController.text.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      _emailController.text,
-                      style: TextStyle(
-                        fontSize: isMobile ? 12 : 14,
-                        color: Colors.grey[600],
+                // Edit button overlay (for future upload functionality)
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.2),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: IconButton(
+                      icon: Icon(
+                        Icons.camera_alt,
+                        color: Colors.blue[700],
+                        size: isMobile ? 18 : 20,
                       ),
+                      onPressed: () {
+                        // TODO: Implement image upload
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Upload foto profil akan segera tersedia',
+                            ),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      },
                     ),
                   ),
-                const SizedBox(height: 24),
-
-                // Username
-                _buildProfileField(
-                  label: 'USERNAME',
-                  controller: _usernameController,
-                  isEditing: _isEditingUsername,
-                  isMobile: isMobile,
-                  onEditPressed: () {
-                    setState(() {
-                      _isEditingUsername = !_isEditingUsername;
-                    });
-                  },
                 ),
-
-                // NPM
-                _buildProfileField(
-                  label: 'NPM',
-                  controller: _npmController,
-                  isEditing: _isEditingNpm,
-                  isMobile: isMobile,
-                  onEditPressed: () {
-                    setState(() {
-                      _isEditingNpm = !_isEditingNpm;
-                    });
-                  },
+              ],
+            ),
+            const SizedBox(height: 16),
+            // Name
+            Text(
+              _usernameController.text.isEmpty
+                  ? 'User'
+                  : _usernameController.text,
+              style: GoogleFonts.poppins(
+                fontSize: isMobile ? 20 : 28,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 4),
+            // Email
+            if (_emailController.text.isNotEmpty)
+              Text(
+                _emailController.text,
+                style: GoogleFonts.inter(
+                  fontSize: isMobile ? 13 : 16,
+                  color: Colors.white.withOpacity(0.9),
                 ),
-
-                // Email
-                _buildProfileField(
-                  label: 'EMAIL',
-                  controller: _emailController,
-                  isEditing: _isEditingEmail,
-                  icon: Icons.email_outlined,
-                  isMobile: isMobile,
-                  onEditPressed: () {
-                    setState(() {
-                      _isEditingEmail = !_isEditingEmail;
-                    });
-                  },
+              ),
+            // NIM
+            if (_nimController.text.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
                 ),
-
-                // Password
-                _buildProfileField(
-                  label: 'PASSWORD',
-                  controller: _passwordController,
-                  isEditing: _isEditingPassword,
-                  icon: Icons.lock_outline,
-                  obscureText: true,
-                  isMobile: isMobile,
-                  onEditPressed: () {
-                    setState(() {
-                      _isEditingPassword = !_isEditingPassword;
-                    });
-                  },
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(20),
                 ),
-
-                // Tanggal Lahir
-                _buildProfileField(
-                  label: 'TANGGAL LAHIR',
-                  controller: _tanggalLahirController,
-                  isEditing: _isEditingTanggalLahir,
-                  icon: Icons.calendar_today_outlined,
-                  isMobile: isMobile,
-                  onEditPressed: () {
-                    setState(() {
-                      _isEditingTanggalLahir = !_isEditingTanggalLahir;
-                    });
-                  },
+                child: Text(
+                  'NIM: ${_nimController.text}',
+                  style: GoogleFonts.inter(
+                    fontSize: isMobile ? 12 : 14,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 
-                // Save Button
-                if (_isEditingUsername ||
-                    _isEditingNpm ||
-                    _isEditingEmail ||
-                    _isEditingPassword ||
-                    _isEditingTanggalLahir)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 24),
-                    child: SizedBox(
-                      width: double.infinity,
-                      height: isMobile ? 44 : 48,
-                      child: ElevatedButton(
-                        onPressed: _isSaving ? null : _saveProfile,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue[700],
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        child: _isSaving
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : Text(
+  Widget _buildStatisticsCards(bool isMobile) {
+    if (_isLoadingStats) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final statistics = [
+      {
+        'title': 'Events',
+        'count': _totalEvents,
+        'icon': Icons.event,
+        'color': Colors.purple,
+      },
+      {
+        'title': 'Meetings',
+        'count': _totalMeetings,
+        'icon': Icons.groups,
+        'color': Colors.orange,
+      },
+      {
+        'title': 'UKMs',
+        'count': _totalUKMs,
+        'icon': Icons.apartment,
+        'color': Colors.green,
+      },
+    ];
+
+    if (isMobile) {
+      return Column(
+        children: statistics.map((stat) {
+          return Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: _buildStatCard(stat, isMobile),
+          );
+        }).toList(),
+      );
+    } else {
+      return Row(
+        children: statistics.map((stat) {
+          return Expanded(
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 6),
+              child: _buildStatCard(stat, isMobile),
+            ),
+          );
+        }).toList(),
+      );
+    }
+  }
+
+  Widget _buildStatCard(Map<String, dynamic> stat, bool isMobile) {
+    return Container(
+      padding: EdgeInsets.all(isMobile ? 16 : 20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colors.white, (stat['color'] as Color).withOpacity(0.05)],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: (stat['color'] as Color).withOpacity(0.3),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: (stat['color'] as Color).withOpacity(0.1),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  (stat['color'] as Color).withOpacity(0.8),
+                  stat['color'] as Color,
+                ],
+              ),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: (stat['color'] as Color).withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Icon(
+              stat['icon'] as IconData,
+              color: Colors.white,
+              size: isMobile ? 24 : 28,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  stat['title'] as String,
+                  style: GoogleFonts.inter(
+                    fontSize: isMobile ? 12 : 14,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${stat['count']}',
+                  style: GoogleFonts.poppins(
+                    fontSize: isMobile ? 24 : 32,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey[800],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEditProfileCard(bool isMobile) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(isMobile ? 20 : 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Edit Profile Information',
+              style: GoogleFonts.poppins(
+                fontSize: isMobile ? 16 : 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[800],
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Username
+            _buildProfileField(
+              label: 'USERNAME',
+              controller: _usernameController,
+              isEditing: _isEditingUsername,
+              isMobile: isMobile,
+              onEditPressed: () {
+                setState(() {
+                  _isEditingUsername = !_isEditingUsername;
+                });
+              },
+            ),
+
+            // NIM
+            _buildProfileField(
+              label: 'NIM',
+              controller: _nimController,
+              isEditing: _isEditingNim,
+              isMobile: isMobile,
+              onEditPressed: () {
+                setState(() {
+                  _isEditingNim = !_isEditingNim;
+                });
+              },
+            ),
+
+            // Email
+            _buildProfileField(
+              label: 'EMAIL',
+              controller: _emailController,
+              isEditing: _isEditingEmail,
+              icon: Icons.email_outlined,
+              isMobile: isMobile,
+              onEditPressed: () {
+                setState(() {
+                  _isEditingEmail = !_isEditingEmail;
+                });
+              },
+            ),
+
+            // Password
+            _buildProfileField(
+              label: 'PASSWORD',
+              controller: _passwordController,
+              isEditing: _isEditingPassword,
+              icon: Icons.lock_outline,
+              obscureText: true,
+              isMobile: isMobile,
+              onEditPressed: () {
+                setState(() {
+                  _isEditingPassword = !_isEditingPassword;
+                });
+              },
+            ),
+
+            // Save Button
+            if (_isEditingUsername ||
+                _isEditingNim ||
+                _isEditingEmail ||
+                _isEditingPassword)
+              Padding(
+                padding: const EdgeInsets.only(top: 24),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: isMobile ? 48 : 52,
+                  child: ElevatedButton(
+                    onPressed: _isSaving ? null : _saveProfile,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue[700],
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 3,
+                    ),
+                    child: _isSaving
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.save, color: Colors.white),
+                              const SizedBox(width: 8),
+                              Text(
                                 'Simpan Perubahan',
-                                style: TextStyle(
-                                  fontSize: isMobile ? 14 : 16,
+                                style: GoogleFonts.poppins(
+                                  fontSize: isMobile ? 15 : 16,
                                   fontWeight: FontWeight.w600,
                                   color: Colors.white,
                                 ),
                               ),
-                      ),
-                    ),
+                            ],
+                          ),
                   ),
-              ],
-            ),
-          ),
-        ),
-
-        const SizedBox(height: 16),
-
-        // Logout Button
-        SizedBox(
-          width: double.infinity,
-          height: isMobile ? 44 : 48,
-          child: ElevatedButton(
-            onPressed: () {
-              showDialog(
-                context: context,
-                builder: (context) => AlertDialog(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  title: Row(
-                    children: [
-                      Icon(Icons.logout, color: Colors.red[600]),
-                      const SizedBox(width: 12),
-                      const Text('Logout'),
-                    ],
-                  ),
-                  content: const Text('Apakah Anda yakin ingin keluar?'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Batal'),
-                    ),
-                    ElevatedButton(
-                      onPressed: () async {
-                        Navigator.pop(context);
-                        try {
-                          await _supabase.auth.signOut();
-                        } catch (e) {
-                          debugPrint('Error signing out: $e');
-                        }
-                        if (mounted) {
-                          Navigator.pushNamedAndRemoveUntil(
-                            context,
-                            '/login',
-                            (route) => false,
-                          );
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red[600],
-                        foregroundColor: Colors.white,
-                      ),
-                      child: const Text('Logout'),
-                    ),
-                  ],
                 ),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red[600],
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
               ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.logout, color: Colors.white, size: 18),
-                const SizedBox(width: 8),
-                Text(
-                  'Logout',
-                  style: TextStyle(
-                    fontSize: isMobile ? 14 : 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          ],
         ),
-      ],
+      ),
     );
   }
 
@@ -756,70 +1029,35 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
           ),
         ],
       ),
-      child: isMobile
-          ? Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                NotificationBellWidget(
-                  onViewAll: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const NotifikasiUserPage(),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: () => Navigator.pop(context),
-                  child: const CircleAvatar(
-                    radius: 16,
-                    backgroundColor: Colors.blue,
-                    child: Icon(Icons.person, size: 20, color: Colors.white),
-                  ),
-                ),
-              ],
-            )
-          : Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                // QR Scanner Button
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.blue[50],
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: IconButton(
-                    onPressed: () => openQRScannerDialog(
-                      onCodeScanned: _handleQRCodeScanned,
-                    ),
-                    icon: Icon(Icons.qr_code_scanner, color: Colors.blue[700]),
-                    tooltip: 'Scan QR Code',
-                  ),
-                ),
-                const SizedBox(width: 12),
-                NotificationBellWidget(
-                  onViewAll: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const NotifikasiUserPage(),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(width: 12),
-                GestureDetector(
-                  onTap: () => Navigator.pop(context),
-                  child: const CircleAvatar(
-                    radius: 16,
-                    backgroundColor: Colors.blue,
-                    child: Icon(Icons.person, size: 20, color: Colors.white),
-                  ),
-                ),
-              ],
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          if (!isMobile)
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: IconButton(
+                onPressed: () =>
+                    openQRScannerDialog(onCodeScanned: _handleQRCodeScanned),
+                icon: Icon(Icons.qr_code_scanner, color: Colors.blue[700]),
+                tooltip: 'Scan QR Code',
+              ),
             ),
+          if (!isMobile) const SizedBox(width: 12),
+          NotificationBellWidget(
+            onViewAll: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const NotifikasiUserPage(),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
     );
   }
 

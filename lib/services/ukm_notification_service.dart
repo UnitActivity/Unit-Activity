@@ -222,14 +222,14 @@ class UkmNotificationService extends ChangeNotifier {
         print('Error loading broadcast notifications: $e');
       }
 
-      // 3. Load notifications from notifikasi table with target_type = 'ukm'
+      // 3. Load notifications from notification_preference table with target_type = 'ukm'
       if (targetUkmId != null) {
         try {
           final targetNotifications = await _supabase
-              .from('notifikasi')
+              .from('notification_preference')
               .select('*')
               .or('target_ukm.eq.$targetUkmId,target_type.eq.all_ukm')
-              .order('created_at', ascending: false)
+              .order('create_at', ascending: false)
               .limit(50);
 
           print('Found ${targetNotifications.length} targeted notifications');
@@ -260,60 +260,21 @@ class UkmNotificationService extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       print('Error loading notifications: $e');
+      print('Stack trace: ${StackTrace.current}');
       _error = e.toString();
       _isLoading = false;
 
-      // Load sample notifications if database fails
-      _loadSampleNotifications();
+      // Don't load sample data - keep empty list
+      _notifications = [];
       notifyListeners();
     }
   }
 
-  /// Load sample notifications for development/testing
+  /// Load sample notifications - DEPRECATED, not used in production
+  @Deprecated('Use loadNotifications() instead')
   void _loadSampleNotifications() {
-    _notifications = [
-      UkmNotification(
-        id: '1',
-        title: 'Pengumuman Penting',
-        message: 'Semua UKM wajib mengumpulkan LPJ sebelum akhir bulan',
-        type: 'announcement',
-        isRead: false,
-        createdAt: DateTime.now().subtract(const Duration(hours: 1)),
-        senderType: 'admin',
-        senderName: 'Admin',
-      ),
-      UkmNotification(
-        id: '2',
-        title: 'Periode Baru Dimulai',
-        message:
-            'Periode akademik baru telah dimulai. Silakan perbarui data UKM Anda.',
-        type: 'info',
-        isRead: false,
-        createdAt: DateTime.now().subtract(const Duration(hours: 3)),
-        senderType: 'admin',
-        senderName: 'Admin',
-      ),
-      UkmNotification(
-        id: '3',
-        title: 'Proposal Event Disetujui',
-        message: 'Proposal event "Workshop Flutter" telah disetujui oleh Admin',
-        type: 'success',
-        isRead: true,
-        createdAt: DateTime.now().subtract(const Duration(days: 1)),
-        senderType: 'admin',
-        senderName: 'Admin',
-      ),
-      UkmNotification(
-        id: '4',
-        title: 'Pengingat: Rapat Koordinasi',
-        message: 'Rapat koordinasi semua UKM akan diadakan besok pukul 10:00',
-        type: 'reminder',
-        isRead: true,
-        createdAt: DateTime.now().subtract(const Duration(days: 2)),
-        senderType: 'admin',
-        senderName: 'Admin',
-      ),
-    ];
+    // Empty - we don't want dummy data
+    _notifications = [];
   }
 
   /// Mark notification as read
@@ -401,14 +362,14 @@ class UkmNotificationService extends ChangeNotifier {
         throw Exception('UKM not found');
       }
 
-      await _supabase.from('notifikasi').insert({
+      await _supabase.from('notification_preference').insert({
         'judul': title,
         'pesan': message,
-        'tipe': type,
+        'type': type,
         'sender_ukm': ukmId,
         'target_user': targetUserId,
         'is_read': false,
-        'created_at': DateTime.now().toIso8601String(),
+        'create_at': DateTime.now().toIso8601String(),
       });
 
       return true;
