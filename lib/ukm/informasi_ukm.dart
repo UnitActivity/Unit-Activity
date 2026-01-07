@@ -216,6 +216,88 @@ class _InformasiUKMPageState extends State<InformasiUKMPage> {
   }
 
   Widget _buildSearchAndActionsBar(bool isDesktop, bool isMobile) {
+    if (isMobile) {
+      // Mobile: Column layout to prevent overflow
+      return Column(
+        children: [
+          // Search bar full width
+          TextField(
+            controller: _searchController,
+            onChanged: (value) {
+              setState(() {
+                _searchQuery = value;
+                _currentPage = 1;
+              });
+            },
+            decoration: InputDecoration(
+              hintText: 'Cari informasi...',
+              hintStyle: GoogleFonts.inter(fontSize: 14, color: Colors.grey[500]),
+              prefixIcon: Icon(Icons.search, color: Colors.grey[600]),
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey[300]!)),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey[300]!)),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF4169E1), width: 2)),
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Actions row
+          Row(
+            children: [
+              // View Mode Toggle
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey[300]!),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: Icon(Icons.grid_view_rounded, size: 18, color: _viewMode == 'grid' ? const Color(0xFF4169E1) : Colors.grey[600]),
+                      onPressed: () => setState(() => _viewMode = 'grid'),
+                      tooltip: 'Grid View',
+                      padding: const EdgeInsets.all(8),
+                      constraints: const BoxConstraints(),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.view_list_rounded, size: 18, color: _viewMode == 'list' ? const Color(0xFF4169E1) : Colors.grey[600]),
+                      onPressed: () => setState(() => _viewMode = 'list'),
+                      tooltip: 'List View',
+                      padding: const EdgeInsets.all(8),
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                onPressed: _loadInformasi,
+                icon: const Icon(Icons.refresh, size: 20),
+                color: const Color(0xFF4169E1),
+                tooltip: 'Refresh',
+              ),
+              const Spacer(),
+              ElevatedButton.icon(
+                onPressed: _navigateToAddInformasi,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF4169E1),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  elevation: 0,
+                ),
+                icon: const Icon(Icons.add, size: 18),
+                label: Text('Tambah', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600)),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
+    // Desktop layout
     return Row(
       children: [
         Expanded(
@@ -411,63 +493,84 @@ class _InformasiUKMPageState extends State<InformasiUKMPage> {
   Widget _buildListCard(InformasiModel info) {
     final tanggalStr = info.createAt != null ? DateFormat('dd MMM yyyy').format(info.createAt!) : '-';
     final statusColor = info.status == 'Aktif' ? Colors.green : Colors.orange;
+    final isMobile = MediaQuery.of(context).size.width < 600;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(isMobile ? 12 : 16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.grey[200]!),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Image
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              color: const Color(0xFF4169E1).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: info.gambar != null && info.gambar!.isNotEmpty
-                ? ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.network(info.gambar!, fit: BoxFit.cover, errorBuilder: (c, e, s) => Icon(Icons.article, color: Colors.grey[400])),
-                  )
-                : Icon(Icons.article, size: 32, color: const Color(0xFF4169E1).withOpacity(0.5)),
-          ),
-          const SizedBox(width: 16),
-          // Content
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Image
+              Container(
+                width: isMobile ? 60 : 80,
+                height: isMobile ? 60 : 80,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4169E1).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: info.gambar != null && info.gambar!.isNotEmpty
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(info.gambar!, fit: BoxFit.cover, errorBuilder: (c, e, s) => Icon(Icons.article, color: Colors.grey[400])),
+                      )
+                    : Icon(Icons.article, size: isMobile ? 24 : 32, color: const Color(0xFF4169E1).withOpacity(0.5)),
+              ),
+              SizedBox(width: isMobile ? 10 : 16),
+              // Content
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(color: statusColor, borderRadius: BorderRadius.circular(4)),
-                      child: Text(info.status ?? '-', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.white)),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(color: statusColor, borderRadius: BorderRadius.circular(4)),
+                          child: Text(info.status ?? '-', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.white)),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(tanggalStr, style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500]), overflow: TextOverflow.ellipsis),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 8),
-                    Text(tanggalStr, style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500])),
+                    const SizedBox(height: 6),
+                    Text(info.judul, style: GoogleFonts.inter(fontSize: isMobile ? 14 : 15, fontWeight: FontWeight.w700, color: Colors.black87), maxLines: 2, overflow: TextOverflow.ellipsis),
+                    if (info.deskripsi != null && !isMobile) ...[
+                      const SizedBox(height: 4),
+                      Text(info.deskripsi!, style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[600]), maxLines: 2, overflow: TextOverflow.ellipsis),
+                    ],
                   ],
                 ),
-                const SizedBox(height: 8),
-                Text(info.judul, style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.black87)),
-                if (info.deskripsi != null) ...[
-                  const SizedBox(height: 4),
-                  Text(info.deskripsi!, style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[600]), maxLines: 2, overflow: TextOverflow.ellipsis),
-                ],
-              ],
-            ),
+              ),
+            ],
           ),
-          // Actions
+          // Actions Row - always at bottom on mobile
+          const SizedBox(height: 8),
           Row(
+            mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              IconButton(onPressed: () => _showEditDialog(info), icon: const Icon(Icons.edit_outlined), color: const Color(0xFF4169E1)),
-              IconButton(onPressed: () => _showDeleteDialog(info), icon: const Icon(Icons.delete_outline), color: Colors.red),
+              TextButton.icon(
+                onPressed: () => _showEditDialog(info),
+                icon: Icon(Icons.edit_outlined, size: isMobile ? 16 : 18, color: const Color(0xFF4169E1)),
+                label: Text('Edit', style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF4169E1))),
+                style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8)),
+              ),
+              TextButton.icon(
+                onPressed: () => _showDeleteDialog(info),
+                icon: Icon(Icons.delete_outline, size: isMobile ? 16 : 18, color: Colors.red),
+                label: Text('Hapus', style: GoogleFonts.inter(fontSize: 12, color: Colors.red)),
+                style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8)),
+              ),
             ],
           ),
         ],

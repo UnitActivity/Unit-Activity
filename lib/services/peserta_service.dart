@@ -23,7 +23,7 @@ class PesertaService {
               nim
             )
           ''')
-          .eq('status', 'active')
+          .eq('status', 'aktif')
           .order('follow', ascending: false);
 
       print('Raw peserta response: $response'); // Debug print
@@ -69,7 +69,7 @@ class PesertaService {
           ''')
           .eq('id_ukm', idUkm)
           .eq('id_periode', idPeriode)
-          .eq('status', 'active')
+          .eq('status', 'aktif')
           .order('follow', ascending: false);
 
       // Get total pertemuan for this UKM and periode
@@ -174,7 +174,7 @@ class PesertaService {
           .eq('id_user', idUser)
           .eq('id_ukm', idUkm)
           .eq('id_periode', idPeriode)
-          .eq('status', 'active');
+          .eq('status', 'aktif');
 
       return (response as List).isNotEmpty;
     } catch (e) {
@@ -190,7 +190,7 @@ class PesertaService {
           .select()
           .eq('id_ukm', idUkm)
           .eq('id_periode', idPeriode)
-          .eq('status', 'active');
+          .eq('status', 'aktif');
 
       return (response as List).length;
     } catch (e) {

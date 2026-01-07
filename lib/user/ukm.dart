@@ -77,15 +77,23 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
       final Map<String, int> attendanceMap = {};
 
       try {
-        // Get all registered UKMs from database
-        final userUKMResponse = await _supabase
-            .from('user_halaman_ukm')
-            .select('id_ukm')
-            .order('created_at', ascending: false);
+        final userId = _authService.currentUserId;
+        print('DEBUG _loadUKMs: userId from authService = $userId');
+        if (userId != null && userId.isNotEmpty) {
+          // Get all registered UKMs from database for current user (accept both status values)
+          final userUKMResponse = await _supabase
+              .from('user_halaman_ukm')
+              .select('id_ukm')
+              .eq('id_user', userId)
+              .or('status.eq.aktif,status.eq.active')
+              .order('created_at', ascending: false);
 
-        for (var item in userUKMResponse) {
-          registeredUKMIds.add(item['id_ukm']?.toString() ?? '');
-          attendanceMap[item['id_ukm']?.toString() ?? ''] = 0;
+          print('DEBUG _loadUKMs: Found ${userUKMResponse.length} registered UKMs');
+
+          for (var item in userUKMResponse) {
+            registeredUKMIds.add(item['id_ukm']?.toString() ?? '');
+            attendanceMap[item['id_ukm']?.toString() ?? ''] = 0;
+          }
         }
       } catch (e) {
         debugPrint('Error loading user UKMs: $e');
@@ -541,7 +549,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                               'id_ukm': ukm['id'],
                               'id_user': userId,
                               'id_periode': currentPeriode?['id_periode'],
-                              'status': 'active',
+                              'status': 'aktif',
                             });
 
                             print(

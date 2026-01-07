@@ -59,6 +59,7 @@ class _NotifikasiUKMPageState extends State<NotifikasiUKMPage> {
   @override
   Widget build(BuildContext context) {
     final isDesktop = MediaQuery.of(context).size.width >= 768;
+    final isMobile = MediaQuery.of(context).size.width < 600;
 
     return SingleChildScrollView(
       child: Column(
@@ -66,7 +67,7 @@ class _NotifikasiUKMPageState extends State<NotifikasiUKMPage> {
         children: [
           // Header Gradient
           Container(
-            padding: const EdgeInsets.all(32),
+            padding: EdgeInsets.all(isMobile ? 16 : 32),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
                 colors: [Color(0xFF4169E1), Color(0xFF5B7FE8)],
@@ -85,18 +86,18 @@ class _NotifikasiUKMPageState extends State<NotifikasiUKMPage> {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(16),
+                      padding: EdgeInsets.all(isMobile ? 10 : 16),
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.notifications_rounded,
                         color: Colors.white,
-                        size: 32,
+                        size: isMobile ? 24 : 32,
                       ),
                     ),
-                    const SizedBox(width: 20),
+                    SizedBox(width: isMobile ? 12 : 20),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -104,25 +105,26 @@ class _NotifikasiUKMPageState extends State<NotifikasiUKMPage> {
                           Text(
                             'Notifikasi',
                             style: GoogleFonts.inter(
-                              fontSize: 28,
+                              fontSize: isMobile ? 20 : 28,
                               fontWeight: FontWeight.w700,
                               color: Colors.white,
                             ),
                           ),
-                          Text(
-                            'Semua notifikasi sudah dibaca',
-                            style: GoogleFonts.inter(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.white.withOpacity(0.9),
+                          if (!isMobile)
+                            Text(
+                              'Semua notifikasi sudah dibaca',
+                              style: GoogleFonts.inter(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.white.withOpacity(0.9),
+                              ),
                             ),
-                          ),
                         ],
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 20),
+                SizedBox(height: isMobile ? 12 : 20),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
@@ -202,34 +204,52 @@ class _NotifikasiUKMPageState extends State<NotifikasiUKMPage> {
 
   Widget _buildTab(String label, IconData icon) {
     final isSelected = _selectedTab == label;
+    final isMobile = MediaQuery.of(context).size.width < 600;
 
     return Expanded(
       child: InkWell(
         onTap: () => setState(() => _selectedTab = label),
         borderRadius: BorderRadius.circular(10),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          padding: EdgeInsets.symmetric(vertical: isMobile ? 10 : 12),
           decoration: BoxDecoration(
             gradient: isSelected
                 ? const LinearGradient(colors: [Color(0xFF4169E1), Color(0xFF5B7FE8)])
                 : null,
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 18, color: isSelected ? Colors.white : Colors.grey[600]),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: isSelected ? Colors.white : Colors.grey[700],
+          child: isMobile
+              ? Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(icon, size: 18, color: isSelected ? Colors.white : Colors.grey[600]),
+                    const SizedBox(height: 4),
+                    Text(
+                      label.split(' ').first, // Only show first word on mobile
+                      style: GoogleFonts.inter(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: isSelected ? Colors.white : Colors.grey[700],
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                )
+              : Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(icon, size: 18, color: isSelected ? Colors.white : Colors.grey[600]),
+                    const SizedBox(width: 8),
+                    Text(
+                      label,
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: isSelected ? Colors.white : Colors.grey[700],
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ],
-          ),
         ),
       ),
     );
@@ -238,10 +258,11 @@ class _NotifikasiUKMPageState extends State<NotifikasiUKMPage> {
   Widget _buildNotificationCard(Map<String, dynamic> notif) {
     final type = notif['type'] ?? 'info';
     final isWarning = type.toLowerCase() == 'warning' || type.toLowerCase() == 'peringatan';
+    final isMobile = MediaQuery.of(context).size.width < 600;
     
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(isMobile ? 12 : 16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -256,67 +277,79 @@ class _NotifikasiUKMPageState extends State<NotifikasiUKMPage> {
           ),
         ],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: isWarning ? Colors.red : const Color(0xFF4169E1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              isWarning ? Icons.warning_rounded : Icons.info_rounded,
-              color: Colors.white,
-              size: 24,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: EdgeInsets.all(isMobile ? 8 : 12),
+                decoration: BoxDecoration(
+                  color: isWarning ? Colors.red : const Color(0xFF4169E1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  isWarning ? Icons.warning_rounded : Icons.info_rounded,
+                  color: Colors.white,
+                  size: isMobile ? 18 : 24,
+                ),
+              ),
+              SizedBox(width: isMobile ? 10 : 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: isWarning ? Colors.red : const Color(0xFF4169E1),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        isWarning ? 'PERINGATAN' : 'INFO',
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
+                    Row(
+                      children: [
+                        Container(
+                          padding: EdgeInsets.symmetric(horizontal: isMobile ? 6 : 10, vertical: isMobile ? 2 : 4),
+                          decoration: BoxDecoration(
+                            color: isWarning ? Colors.red : const Color(0xFF4169E1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            isWarning ? 'PERINGATAN' : 'INFO',
+                            style: GoogleFonts.inter(
+                              fontSize: isMobile ? 9 : 11,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
                         ),
-                      ),
+                        const Spacer(),
+                        if (!isMobile) ...[
+                          Icon(Icons.access_time, size: 14, color: Colors.grey[500]),
+                          const SizedBox(width: 4),
+                        ],
+                        Text(
+                          _getTimeAgo(notif['create_at']),
+                          style: GoogleFonts.inter(fontSize: isMobile ? 10 : 12, color: Colors.grey[500]),
+                        ),
+                      ],
                     ),
-                    const Spacer(),
-                    Icon(Icons.access_time, size: 14, color: Colors.grey[500]),
-                    const SizedBox(width: 4),
+                    const SizedBox(height: 8),
                     Text(
-                      _getTimeAgo(notif['create_at']),
-                      style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[500]),
+                      notif['judul'] ?? 'Tanpa Judul',
+                      style: GoogleFonts.inter(
+                        fontSize: isMobile ? 13 : 15,
+                        fontWeight: FontWeight.w700,
+                        color: isWarning ? Colors.red : const Color(0xFF4169E1),
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      notif['pesan'] ?? '-',
+                      style: GoogleFonts.inter(fontSize: isMobile ? 12 : 14, color: Colors.grey[700]),
+                      maxLines: isMobile ? 2 : 3,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  notif['judul'] ?? 'Tanpa Judul',
-                  style: GoogleFonts.inter(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: isWarning ? Colors.red : const Color(0xFF4169E1),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  notif['pesan'] ?? '-',
-                  style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[700]),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ],
       ),

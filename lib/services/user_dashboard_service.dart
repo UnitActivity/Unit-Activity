@@ -1,10 +1,12 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:unit_activity/services/custom_auth_service.dart';
 
 class UserDashboardService {
   final SupabaseClient _supabase = Supabase.instance.client;
+  final CustomAuthService _authService = CustomAuthService();
 
-  /// Get current user ID from session
-  String? get currentUserId => _supabase.auth.currentUser?.id;
+  /// Get current user ID from custom auth service
+  String? get currentUserId => _authService.currentUserId;
 
   /// Load slider events from database
   Future<List<Map<String, dynamic>>> getSliderEvents({int limit = 5}) async {
@@ -78,12 +80,12 @@ class UserDashboardService {
         return [];
       }
 
-      // Get user's joined UKMs
+      // Get user's joined UKMs (only active ones - accept both 'aktif' and 'active')
       final userUkms = await _supabase
           .from('user_halaman_ukm')
           .select('id_ukm, ukm(nama_ukm)')
           .eq('id_user', userId)
-          .eq('status', 'active');
+          .or('status.eq.aktif,status.eq.active');
 
       print('User joined UKMs: ${(userUkms as List).length}');
 

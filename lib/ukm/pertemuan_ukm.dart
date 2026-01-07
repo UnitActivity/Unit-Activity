@@ -131,18 +131,18 @@ class _PertemuanUKMPageState extends State<PertemuanUKMPage> {
             child: Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(16),
+                  padding: EdgeInsets.all(isMobile ? 12 : 16),
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.event_note_rounded,
                     color: Colors.white,
-                    size: 32,
+                    size: isMobile ? 24 : 32,
                   ),
                 ),
-                const SizedBox(width: 20),
+                SizedBox(width: isMobile ? 12 : 20),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -150,7 +150,7 @@ class _PertemuanUKMPageState extends State<PertemuanUKMPage> {
                       Text(
                         'Daftar Pertemuan',
                         style: GoogleFonts.inter(
-                          fontSize: isDesktop ? 28 : 24,
+                          fontSize: isMobile ? 18 : (isDesktop ? 28 : 24),
                           fontWeight: FontWeight.w700,
                           color: Colors.white,
                         ),
@@ -159,7 +159,7 @@ class _PertemuanUKMPageState extends State<PertemuanUKMPage> {
                       Text(
                         'Total ${_filteredPertemuanList.length} Pertemuan',
                         style: GoogleFonts.inter(
-                          fontSize: 16,
+                          fontSize: isMobile ? 13 : 16,
                           fontWeight: FontWeight.w500,
                           color: Colors.white.withOpacity(0.9),
                         ),
@@ -322,13 +322,14 @@ class _PertemuanUKMPageState extends State<PertemuanUKMPage> {
   }
 
   Widget _buildPertemuanCard(PertemuanModel pertemuan) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
     final tanggalStr = pertemuan.tanggal != null
         ? DateFormat('dd MMM yyyy').format(pertemuan.tanggal!)
         : '-';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(isMobile ? 12 : 16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -359,43 +360,45 @@ class _PertemuanUKMPageState extends State<PertemuanUKMPage> {
           );
         },
         borderRadius: BorderRadius.circular(16),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Icon
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: const Color(0xFF4169E1).withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                Icons.event_note_rounded,
-                color: Color(0xFF4169E1),
-                size: 28,
-              ),
-            ),
-            const SizedBox(width: 16),
-
-            // Info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    pertemuan.topik ?? 'Pertemuan',
-                    style: GoogleFonts.inter(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.black87,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Icon
+                Container(
+                  padding: EdgeInsets.all(isMobile ? 10 : 14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF4169E1).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  const SizedBox(height: 8),
-                  Row(
+                  child: Icon(
+                    Icons.event_note_rounded,
+                    color: const Color(0xFF4169E1),
+                    size: isMobile ? 20 : 28,
+                  ),
+                ),
+                SizedBox(width: isMobile ? 10 : 16),
+
+                // Info
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Text(
+                        pertemuan.topik ?? 'Pertemuan',
+                        style: GoogleFonts.inter(
+                          fontSize: isMobile ? 14 : 16,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.black87,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        padding: EdgeInsets.symmetric(horizontal: isMobile ? 8 : 10, vertical: isMobile ? 4 : 5),
                         decoration: BoxDecoration(
                           color: const Color(0xFF4169E1).withOpacity(0.1),
                           borderRadius: BorderRadius.circular(6),
@@ -403,14 +406,17 @@ class _PertemuanUKMPageState extends State<PertemuanUKMPage> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.location_on_rounded, size: 14, color: Color(0xFF4169E1)),
+                            Icon(Icons.location_on_rounded, size: isMobile ? 12 : 14, color: const Color(0xFF4169E1)),
                             const SizedBox(width: 4),
-                            Text(
-                              pertemuan.lokasi ?? '-',
-                              style: GoogleFonts.inter(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: const Color(0xFF4169E1),
+                            Flexible(
+                              child: Text(
+                                pertemuan.lokasi ?? '-',
+                                style: GoogleFonts.inter(
+                                  fontSize: isMobile ? 10 : 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF4169E1),
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ],
@@ -418,72 +424,66 @@ class _PertemuanUKMPageState extends State<PertemuanUKMPage> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[100],
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.calendar_today_rounded, size: 12, color: Colors.grey[700]),
-                            const SizedBox(width: 4),
-                            Text(
-                              tanggalStr,
-                              style: GoogleFonts.inter(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.grey[700],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[100],
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.access_time_rounded, size: 12, color: Colors.grey[700]),
-                            const SizedBox(width: 4),
-                            Text(
-                              pertemuan.jamMulai ?? '00:00',
-                              style: GoogleFonts.inter(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.grey[700],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
+                ),
 
-            // Eye Icon
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: const Color(0xFF4169E1).withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(
-                Icons.visibility_rounded,
-                color: Color(0xFF4169E1),
-                size: 22,
-              ),
+                // Eye Icon
+                Container(
+                  padding: EdgeInsets.all(isMobile ? 8 : 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF4169E1).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.visibility_rounded,
+                    color: const Color(0xFF4169E1),
+                    size: isMobile ? 18 : 22,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: isMobile ? 10 : 12),
+            // Date & Time row
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: isMobile ? 8 : 10, vertical: isMobile ? 4 : 5),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.calendar_today_rounded, size: isMobile ? 10 : 12, color: Colors.grey[700]),
+                      const SizedBox(width: 4),
+                      Text(
+                        tanggalStr,
+                        style: GoogleFonts.inter(fontSize: isMobile ? 10 : 11, fontWeight: FontWeight.w600, color: Colors.grey[700]),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: isMobile ? 8 : 10, vertical: isMobile ? 4 : 5),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.access_time_rounded, size: isMobile ? 10 : 12, color: Colors.grey[700]),
+                      const SizedBox(width: 4),
+                      Text(
+                        pertemuan.jamMulai ?? '00:00',
+                        style: GoogleFonts.inter(fontSize: isMobile ? 10 : 11, fontWeight: FontWeight.w600, color: Colors.grey[700]),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ],
         ),

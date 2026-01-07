@@ -63,7 +63,7 @@ class _SendNotifikasiUKMPageState extends State<SendNotifikasiUKMPage> {
           .from('user_halaman_ukm')
           .select('*, users!inner(id_user, username, email)')
           .eq('id_ukm', _currentUkmId!)
-          .eq('status', 'active');
+          .eq('status', 'aktif');
 
       // Get events for this UKM
       final eventsData = await _supabase
@@ -328,7 +328,7 @@ class _SendNotifikasiUKMPageState extends State<SendNotifikasiUKMPage> {
                             ),
                             const SizedBox(height: 8),
                             DropdownButtonFormField<String>(
-                              value: _selectedEventId,
+                              initialValue: _selectedEventId,
                               hint: Text(
                                 'Pilih event',
                                 style: GoogleFonts.inter(
@@ -390,7 +390,7 @@ class _SendNotifikasiUKMPageState extends State<SendNotifikasiUKMPage> {
                           ),
                           const SizedBox(height: 8),
                           DropdownButtonFormField<String>(
-                            value: _selectedTarget,
+                            initialValue: _selectedTarget,
                             decoration: InputDecoration(
                               filled: true,
                               fillColor: Colors.grey[50],

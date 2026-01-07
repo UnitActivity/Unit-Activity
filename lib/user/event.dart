@@ -12,6 +12,7 @@ import 'package:unit_activity/user/history.dart';
 import 'package:unit_activity/user/event_detail_user.dart';
 import 'package:unit_activity/services/user_dashboard_service.dart';
 import 'package:unit_activity/services/attendance_service.dart';
+import 'package:unit_activity/services/custom_auth_service.dart';
 
 class UserEventPage extends StatefulWidget {
   const UserEventPage({super.key});
@@ -26,6 +27,7 @@ class _UserEventPageState extends State<UserEventPage>
   String _selectedMenu = 'event';
   final UserDashboardService _dashboardService = UserDashboardService();
   final AttendanceService _attendanceService = AttendanceService();
+  final CustomAuthService _authService = CustomAuthService();
 
   // Tab controller for event categories
   late TabController _tabController;
@@ -118,9 +120,9 @@ class _UserEventPageState extends State<UserEventPage>
   Future<void> _loadUserUKMs() async {
     try {
       final supabase = Supabase.instance.client;
-      final user = supabase.auth.currentUser;
+      final userId = _authService.currentUserId;
 
-      if (user == null) {
+      if (userId == null || userId.isEmpty) {
         _userUKMIds = [];
         return;
       }
@@ -128,8 +130,8 @@ class _UserEventPageState extends State<UserEventPage>
       final response = await supabase
           .from('user_halaman_ukm')
           .select('id_ukm')
-          .eq('id_user', user.id)
-          .eq('status', 'active');
+          .eq('id_user', userId)
+          .or('status.eq.aktif,status.eq.active');
 
       _userUKMIds = (response as List)
           .map((e) => e['id_ukm']?.toString() ?? '')

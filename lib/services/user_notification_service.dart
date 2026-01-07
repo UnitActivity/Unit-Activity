@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:unit_activity/services/custom_auth_service.dart';
 
 class UserNotification {
   final String id;
@@ -137,6 +138,7 @@ class UserNotification {
 
 class UserNotificationService extends ChangeNotifier {
   final SupabaseClient _supabase = Supabase.instance.client;
+  final CustomAuthService _authService = CustomAuthService();
 
   List<UserNotification> _notifications = [];
   bool _isLoading = false;
@@ -144,8 +146,8 @@ class UserNotificationService extends ChangeNotifier {
 
   List<UserNotification> get notifications => _notifications;
 
-  /// Get current user ID
-  String? get currentUserId => _supabase.auth.currentUser?.id;
+  /// Get current user ID from custom auth service
+  String? get currentUserId => _authService.currentUserId;
   bool get isLoading => _isLoading;
   String? get error => _error;
 
@@ -220,11 +222,12 @@ class UserNotificationService extends ChangeNotifier {
 
       // 3. Load notifications from UKMs that user has joined
       try {
-        // Get user's joined UKMs
+        // Get user's joined UKMs (accept both 'aktif' and 'active')
         final userUkms = await _supabase
             .from('user_halaman_ukm')
             .select('id_ukm')
-            .eq('id_user', userId);
+            .eq('id_user', userId)
+            .or('status.eq.aktif,status.eq.active');
 
         if (userUkms.isNotEmpty) {
           final ukmIds = (userUkms as List).map((e) => e['id_ukm']).toList();

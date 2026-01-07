@@ -264,6 +264,62 @@ class DocumentService {
     return addComment(documentId: lpjId, comment: comment, adminId: adminId);
   }
 
+  /// Add comment to proposal by UKM User
+  Future<void> addProposalCommentByUser({
+    required String proposalId,
+    required String comment,
+    required String userId,
+  }) async {
+    return addCommentByUser(documentId: proposalId, comment: comment, userId: userId);
+  }
+
+  /// Add comment to LPJ by UKM User
+  Future<void> addLPJCommentByUser({
+    required String lpjId,
+    required String comment,
+    required String userId,
+  }) async {
+    return addCommentByUser(documentId: lpjId, comment: comment, userId: userId);
+  }
+
+  /// Add comment by UKM User (not admin)
+  Future<void> addCommentByUser({
+    required String documentId,
+    required String comment,
+    required String userId,
+  }) async {
+    final now = DateTime.now().toIso8601String();
+
+    try {
+      // Get document type first
+      final docResponse = await _supabase
+          .from('event_documents')
+          .select('document_type')
+          .eq('id_document', documentId)
+          .single();
+
+      final documentType = docResponse['document_type'] as String;
+
+      // INSERT into document_comments with user_id instead of id_admin
+      final insertData = {
+        'document_id': documentId,
+        'document_type': documentType,
+        'id_user': userId, // UKM user ID
+        'comment': comment,
+        'created_at': now,
+      };
+
+      print('📝 [UKM User] Inserting comment data: $insertData');
+
+      await _supabase.from('document_comments').insert(insertData).select();
+
+      print('✅ [UKM User] Comment saved to document_comments');
+    } catch (e) {
+      print('❌ Error adding user comment: $e');
+      throw Exception('Gagal menambahkan komentar: $e');
+    }
+  }
+
   /// Update proposal status (Legacy wrapper)
   Future<void> updateProposalStatus({
     required String proposalId,
@@ -429,7 +485,8 @@ class DocumentService {
           .from('document_comments')
           .select('''
             *,
-            admin!document_comments_admin_id_fkey(username_admin, email_admin)
+            admin:id_admin(username_admin, email_admin),
+            users:id_user(username, email)
           ''')
           .eq('document_id', documentId)
           .eq('document_type', documentType)

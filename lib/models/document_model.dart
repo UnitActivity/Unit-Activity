@@ -532,6 +532,7 @@ class DocumentComment {
   final String documentType; // 'proposal' or 'lpj'
   final String documentId;
   final String? idAdmin;
+  final String? idUser; // For UKM user comments
   final String comment;
   final bool isStatusChange;
   final String? statusFrom;
@@ -540,18 +541,21 @@ class DocumentComment {
 
   // Related data
   final Map<String, dynamic>? admin;
+  final Map<String, dynamic>? user;
 
   DocumentComment({
     required this.idComment,
     required this.documentType,
     required this.documentId,
     this.idAdmin,
+    this.idUser,
     required this.comment,
     required this.isStatusChange,
     this.statusFrom,
     this.statusTo,
     required this.createdAt,
     this.admin,
+    this.user,
   });
 
   factory DocumentComment.fromJson(Map<String, dynamic> json) {
@@ -560,12 +564,14 @@ class DocumentComment {
       documentType: json['document_type']?.toString() ?? '',
       documentId: json['document_id']?.toString() ?? '',
       idAdmin: json['id_admin'] as String?,
+      idUser: json['id_user'] as String?,
       comment: json['comment']?.toString() ?? '',
       isStatusChange: json['is_status_change'] as bool? ?? false,
       statusFrom: json['status_from'] as String?,
       statusTo: json['status_to'] as String?,
       createdAt: DateTime.parse(json['created_at'] as String),
       admin: json['admin'] as Map<String, dynamic>?,
+      user: json['users'] as Map<String, dynamic>?,
     );
   }
 
@@ -575,6 +581,7 @@ class DocumentComment {
       'document_type': documentType,
       'document_id': documentId,
       'id_admin': idAdmin,
+      'id_user': idUser,
       'comment': comment,
       'is_status_change': isStatusChange,
       'status_from': statusFrom,
@@ -589,6 +596,23 @@ class DocumentComment {
 
   String getAdminEmail() {
     return admin?['email_admin'] as String? ?? '';
+  }
+
+  String getUserName() {
+    return user?['username'] as String? ?? 'User';
+  }
+
+  String getUserEmail() {
+    return user?['email'] as String? ?? '';
+  }
+
+  String getCommenterName() {
+    if (idAdmin != null) {
+      return getAdminName();
+    } else if (idUser != null) {
+      return getUserName();
+    }
+    return 'Unknown';
   }
 
   String getDisplayText() {

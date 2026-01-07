@@ -283,60 +283,113 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
   }
 
   Widget _buildSearchAndTable(bool isDesktop) {
+    final isMobile = !isDesktop;
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Header with search
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _searchController,
-                onChanged: _filterPeserta,
-                decoration: InputDecoration(
-                  hintText: 'Cari NIM, Username, atau Email...',
-                  hintStyle: GoogleFonts.inter(fontSize: 14, color: Colors.grey[400]),
-                  prefixIcon: Icon(Icons.search_rounded, color: Colors.grey[400]),
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey[300]!),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey[300]!),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF4169E1)),
-                  ),
-                ),
+        // Header with search - responsive layout
+        if (isMobile) ...[
+          // Mobile: Stack vertically
+          TextField(
+            controller: _searchController,
+            onChanged: _filterPeserta,
+            decoration: InputDecoration(
+              hintText: 'Cari NIM, Username, atau Email...',
+              hintStyle: GoogleFonts.inter(fontSize: 14, color: Colors.grey[400]),
+              prefixIcon: Icon(Icons.search_rounded, color: Colors.grey[400]),
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.grey[300]!),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.grey[300]!),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFF4169E1)),
               ),
             ),
-            const SizedBox(width: 12),
-            ElevatedButton.icon(
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
               onPressed: () {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Fitur tambah pengguna akan segera hadir')),
                 );
               },
-              icon: const Icon(Icons.add, size: 20),
+              icon: const Icon(Icons.add, size: 18),
               label: Text(
                 'Tambah Pengguna',
-                style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600),
+                style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF4169E1),
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 elevation: 0,
               ),
             ),
-          ],
-        ),
+          ),
+        ] else ...[
+          // Desktop: Row layout
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: _filterPeserta,
+                  decoration: InputDecoration(
+                    hintText: 'Cari NIM, Username, atau Email...',
+                    hintStyle: GoogleFonts.inter(fontSize: 14, color: Colors.grey[400]),
+                    prefixIcon: Icon(Icons.search_rounded, color: Colors.grey[400]),
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey[300]!),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey[300]!),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFF4169E1)),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              ElevatedButton.icon(
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Fitur tambah pengguna akan segera hadir')),
+                  );
+                },
+                icon: const Icon(Icons.add, size: 20),
+                label: Text(
+                  'Tambah Pengguna',
+                  style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF4169E1),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  elevation: 0,
+                ),
+              ),
+            ],
+          ),
+        ],
         const SizedBox(height: 24),
 
         // Table
@@ -416,8 +469,10 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
   }
 
   Widget _buildPesertaRow(Map<String, dynamic> peserta, int index, bool isDesktop) {
+    final isMobile = !isDesktop;
+    
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      padding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 20, vertical: isMobile ? 12 : 16),
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
       ),
@@ -425,18 +480,18 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
         children: [
           // Avatar
           CircleAvatar(
-            radius: 20,
+            radius: isMobile ? 16 : 20,
             backgroundColor: const Color(0xFF4169E1).withOpacity(0.1),
             child: Text(
               (peserta['nama'] ?? 'U')[0].toUpperCase(),
               style: GoogleFonts.inter(
-                fontSize: 16,
+                fontSize: isMobile ? 12 : 16,
                 fontWeight: FontWeight.w700,
                 color: const Color(0xFF4169E1),
               ),
             ),
           ),
-          const SizedBox(width: 16),
+          SizedBox(width: isMobile ? 10 : 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -444,16 +499,25 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
                 Text(
                   peserta['nama'] ?? '-',
                   style: GoogleFonts.inter(
-                    fontSize: 14,
+                    fontSize: isMobile ? 13 : 14,
                     fontWeight: FontWeight.w600,
                     color: Colors.grey[800],
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 Text(
                   peserta['email'] ?? '-',
-                  style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[600]),
+                  style: GoogleFonts.inter(fontSize: isMobile ? 11 : 13, color: Colors.grey[600]),
+                  overflow: TextOverflow.ellipsis,
                 ),
+                if (isMobile && peserta['nim'] != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    'NIM: ${peserta['nim']}',
+                    style: GoogleFonts.inter(fontSize: 10, color: Colors.grey[500]),
+                  ),
+                ],
               ],
             ),
           ),
@@ -467,18 +531,23 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
             ),
           ],
           Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
               IconButton(
                 onPressed: () {},
-                icon: const Icon(Icons.visibility_rounded),
+                icon: Icon(Icons.visibility_rounded, size: isMobile ? 20 : 24),
                 color: const Color(0xFF4169E1),
                 tooltip: 'Lihat Detail',
+                padding: EdgeInsets.all(isMobile ? 6 : 8),
+                constraints: isMobile ? const BoxConstraints() : null,
               ),
               IconButton(
                 onPressed: () {},
-                icon: const Icon(Icons.delete_rounded),
+                icon: Icon(Icons.delete_rounded, size: isMobile ? 20 : 24),
                 color: Colors.red,
                 tooltip: 'Hapus',
+                padding: EdgeInsets.all(isMobile ? 6 : 8),
+                constraints: isMobile ? const BoxConstraints() : null,
               ),
             ],
           ),
