@@ -77,6 +77,16 @@ class DocumentService {
     final now = DateTime.now().toIso8601String();
 
     try {
+      // Get document type first
+      final docResponse = await _supabase
+          .from('event_documents')
+          .select('document_type')
+          .eq('id_document', documentId)
+          .single();
+
+      final documentType = docResponse['document_type'] as String;
+
+      // 1. Update catatan_admin in event_documents (latest comment)
       await _supabase
           .from('event_documents')
           .update({
@@ -86,7 +96,24 @@ class DocumentService {
           })
           .eq('id_document', documentId);
 
-      print('✅ Comment saved to event_documents (id: $documentId)');
+      // 2. INSERT into document_comments (comment history)
+      final insertData = {
+        'document_id': documentId,
+        'document_type': documentType,
+        'id_admin': adminId, // CHANGED: Try id_admin instead of admin_id
+        'comment': comment,
+        'created_at': now,
+      };
+
+      print('📝 Inserting comment data: $insertData');
+
+      final insertResult = await _supabase
+          .from('document_comments')
+          .insert(insertData)
+          .select();
+
+      print('✅ Insert result: $insertResult');
+      print('✅ Comment saved to both event_documents and document_comments');
     } catch (e) {
       print('❌ Error adding comment: $e');
       throw Exception('Gagal menambahkan komentar: $e');
@@ -103,6 +130,17 @@ class DocumentService {
     final now = DateTime.now().toIso8601String();
 
     try {
+      // Get current status and document type
+      final docResponse = await _supabase
+          .from('event_documents')
+          .select('status, document_type')
+          .eq('id_document', documentId)
+          .single();
+
+      final oldStatus = docResponse['status'] as String;
+      final documentType = docResponse['document_type'] as String;
+
+      // 1. Update status in event_documents
       await _supabase
           .from('event_documents')
           .update({
@@ -114,7 +152,34 @@ class DocumentService {
           })
           .eq('id_document', documentId);
 
-      print('✅ Document status updated to: $newStatus');
+      // 2. INSERT into document_revision_history
+      await _supabase.from('document_revision_history').insert({
+        'document_id': documentId,
+        'document_type': documentType,
+        'old_status': oldStatus,
+        'new_status': newStatus,
+        'admin_id': adminId,
+        'catatan': catatan,
+        'created_at': now,
+      });
+
+      // 3. INSERT into document_comments if there's a catatan
+      if (catatan != null && catatan.isNotEmpty) {
+        await _supabase.from('document_comments').insert({
+          'document_id': documentId,
+          'document_type': documentType,
+          'id_admin': adminId, // CHANGED: Use id_admin
+          'comment': catatan,
+          'is_status_change': true,
+          'status_from': oldStatus,
+          'status_to': newStatus,
+          'created_at': now,
+        }).select();
+      }
+
+      print(
+        '✅ Document status updated from $oldStatus to $newStatus with history',
+      );
     } catch (e) {
       print('❌ Error updating status: $e');
       throw Exception('Gagal update status: $e');
@@ -229,6 +294,99 @@ class DocumentService {
     );
   }
 
+  // ========== COMMENT MANAGEMENT ==========
+
+  /// Update a comment (only by the admin who created it)
+  Future<void> updateComment({
+    required String commentId,
+    required String newComment,
+    required String adminId,
+  }) async {
+    try {
+      // Verify the comment belongs to this admin
+      final existing = await _supabase
+          .from('document_comments')
+          .select('id_admin')
+          .eq('id_comment', commentId)
+          .single();
+
+      if (existing['id_admin'] != adminId) {
+        throw Exception('Anda hanya bisa mengedit komentar Anda sendiri');
+      }
+
+      await _supabase
+          .from('document_comments')
+          .update({
+            'comment': newComment,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id_comment', commentId);
+
+      print('✅ Comment updated successfully');
+    } catch (e) {
+      print('❌ Error updating comment: $e');
+      throw Exception('Gagal mengupdate komentar: $e');
+    }
+  }
+
+  /// Delete a comment (only by the admin who created it)
+  Future<void> deleteComment({
+    required String commentId,
+    required String adminId,
+  }) async {
+    try {
+      // Verify the comment belongs to this admin
+      final existing = await _supabase
+          .from('document_comments')
+          .select('id_admin')
+          .eq('id_comment', commentId)
+          .single();
+
+      if (existing['id_admin'] != adminId) {
+        throw Exception('Anda hanya bisa menghapus komentar Anda sendiri');
+      }
+
+      await _supabase
+          .from('document_comments')
+          .delete()
+          .eq('id_comment', commentId);
+
+      print('✅ Comment deleted successfully');
+    } catch (e) {
+      print('❌ Error deleting comment: $e');
+      throw Exception('Gagal menghapus komentar: $e');
+    }
+  }
+
+  /// Rollback document status (used when deleting status change comment)
+  Future<void> rollbackStatus({
+    required String documentId,
+    required String rollbackToStatus,
+    required String adminId,
+  }) async {
+    try {
+      print('⏪ Rolling back status to: $rollbackToStatus');
+
+      final now = DateTime.now().toIso8601String();
+
+      // Update status in event_documents
+      await _supabase
+          .from('event_documents')
+          .update({
+            'status': rollbackToStatus,
+            'admin_yang_meninjau': adminId,
+            'tanggal_ditinjau': now,
+            'updated_at': now,
+          })
+          .eq('id_document', documentId);
+
+      print('✅ Status rolled back successfully to: $rollbackToStatus');
+    } catch (e) {
+      print('❌ Error rolling back status: $e');
+      throw Exception('Gagal mengembalikan status: $e');
+    }
+  }
+
   // ========== REVISION HISTORY & COMMENTS ==========
 
   /// Get revision history for a document
@@ -242,7 +400,7 @@ class DocumentService {
           .select('''
             *,
             users(username, email),
-            admin(username_admin, email_admin)
+            admin!document_revision_history_admin_id_fkey(username_admin, email_admin)
           ''')
           .eq('document_id', documentId)
           .eq('document_type', documentType)
@@ -263,15 +421,22 @@ class DocumentService {
     String documentType,
   ) async {
     try {
+      print(
+        '🔍 Loading comments for document: $documentId, type: $documentType',
+      );
+
       final response = await _supabase
           .from('document_comments')
           .select('''
             *,
-            admin(username_admin, email_admin)
+            admin!document_comments_admin_id_fkey(username_admin, email_admin)
           ''')
           .eq('document_id', documentId)
           .eq('document_type', documentType)
           .order('created_at', ascending: false);
+
+      print('📦 Comments response: $response');
+      print('📊 Comments count: ${(response as List).length}');
 
       return (response as List)
           .map((json) => DocumentComment.fromJson(json))

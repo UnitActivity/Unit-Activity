@@ -377,7 +377,21 @@ class _DetailUkmPageState extends State<DetailUkmPage>
           .eq('document_type', 'proposal')
           .eq('id_ukm', idUkm)
           .order('tanggal_pengajuan', ascending: false);
-      _dokumenProposalList = List<Map<String, dynamic>>.from(proposalData);
+
+      // Get latest comment for each proposal
+      _dokumenProposalList = [];
+      for (var doc in proposalData) {
+        final latestCommentData = await _supabase
+            .from('document_comments')
+            .select('comment')
+            .eq('document_id', doc['id_document'])
+            .order('created_at', ascending: false)
+            .limit(1)
+            .maybeSingle();
+
+        doc['latest_comment'] = latestCommentData?['comment'];
+        _dokumenProposalList.add(Map<String, dynamic>.from(doc));
+      }
 
       // Load dokumen LPJ
       final lpjData = await _supabase
@@ -386,7 +400,21 @@ class _DetailUkmPageState extends State<DetailUkmPage>
           .eq('document_type', 'lpj')
           .eq('id_ukm', idUkm)
           .order('tanggal_pengajuan', ascending: false);
-      _dokumenLpjList = List<Map<String, dynamic>>.from(lpjData);
+
+      // Get latest comment for each LPJ
+      _dokumenLpjList = [];
+      for (var doc in lpjData) {
+        final latestCommentData = await _supabase
+            .from('document_comments')
+            .select('comment')
+            .eq('document_id', doc['id_document'])
+            .order('created_at', ascending: false)
+            .limit(1)
+            .maybeSingle();
+
+        doc['latest_comment'] = latestCommentData?['comment'];
+        _dokumenLpjList.add(Map<String, dynamic>.from(doc));
+      }
 
       if (mounted) {
         setState(() => _isLoadingData = false);
@@ -2029,9 +2057,9 @@ class _DetailUkmPageState extends State<DetailUkmPage>
             borderRadius: BorderRadius.circular(12),
           ),
           child: InkWell(
-            onTap: () {
+            onTap: () async {
               // Navigate to detail document page
-              Navigator.push(
+              await Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (context) => DetailDocumentPage(
@@ -2040,6 +2068,8 @@ class _DetailUkmPageState extends State<DetailUkmPage>
                   ),
                 ),
               );
+              // Reload data setelah kembali dari detail page
+              _loadUkmData();
             },
             borderRadius: BorderRadius.circular(12),
             child: Padding(
@@ -2126,7 +2156,7 @@ class _DetailUkmPageState extends State<DetailUkmPage>
                     Icons.calendar_today,
                     'Diajukan: $tanggal',
                   ),
-                  if (dokumen['catatan_admin'] != null) ...[
+                  if (dokumen['latest_comment'] != null) ...[
                     const SizedBox(height: 8),
                     Container(
                       padding: const EdgeInsets.all(12),
@@ -2146,7 +2176,7 @@ class _DetailUkmPageState extends State<DetailUkmPage>
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              dokumen['catatan_admin'],
+                              dokumen['latest_comment'],
                               style: GoogleFonts.inter(
                                 fontSize: 13,
                                 color: Colors.orange[900],

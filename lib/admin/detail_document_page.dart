@@ -51,6 +51,10 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
   // For LPJ - which file to preview
   String _selectedLpjFile = 'laporan'; // 'laporan' or 'keuangan'
 
+  // Inline edit state
+  String? _editingCommentId;
+  final TextEditingController _editController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -60,6 +64,7 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
   @override
   void dispose() {
     _commentController.dispose();
+    _editController.dispose();
     super.dispose();
   }
 
@@ -104,10 +109,10 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
   }
 
   Future<void> _updateStatus() async {
-    if (_selectedStatus == null || _commentController.text.trim().isEmpty) {
+    if (_selectedStatus == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Silakan pilih status dan tambahkan catatan'),
+          content: Text('Silakan pilih status terlebih dahulu'),
           backgroundColor: Colors.orange,
         ),
       );
@@ -196,14 +201,18 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
         await _documentService.updateProposalStatus(
           proposalId: widget.documentId,
           newStatus: _selectedStatus!,
-          catatan: _commentController.text.trim(),
+          catatan: _commentController.text.trim().isNotEmpty
+              ? _commentController.text.trim()
+              : null,
           adminId: adminId,
         );
       } else {
         await _documentService.updateLPJStatus(
           lpjId: widget.documentId,
           newStatus: _selectedStatus!,
-          catatan: _commentController.text.trim(),
+          catatan: _commentController.text.trim().isNotEmpty
+              ? _commentController.text.trim()
+              : null,
           adminId: adminId,
         );
       }
@@ -296,6 +305,186 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Gagal menambahkan komentar: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
+  }
+
+  void _editComment(DocumentComment comment) {
+    setState(() {
+      _editingCommentId = comment.idComment;
+      _editController.text = comment.comment;
+    });
+  }
+
+  Future<void> _saveEditComment(DocumentComment comment) async {
+    final newComment = _editController.text.trim();
+    if (newComment.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Komentar tidak boleh kosong'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      final authService = CustomAuthService();
+      final currentUser = authService.currentUser;
+      final adminId = currentUser?['id'] as String?;
+
+      if (adminId == null) {
+        throw Exception('Admin ID tidak ditemukan');
+      }
+
+      print('🔍 Updating comment: ${comment.idComment}');
+      print('👤 Admin ID: $adminId');
+      print('📝 New comment: $newComment');
+
+      await _documentService.updateComment(
+        commentId: comment.idComment,
+        newComment: newComment,
+        adminId: adminId,
+      );
+
+      if (mounted) {
+        setState(() {
+          _editingCommentId = null;
+          _editController.clear();
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Komentar berhasil diupdate'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        await _loadDocumentData();
+      }
+    } catch (e) {
+      print('❌ Error updating comment: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal update komentar: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
+  }
+
+  Future<void> _deleteComment(DocumentComment comment) async {
+    // Konfirmasi yang berbeda untuk status change comment
+    String confirmMessage =
+        'Apakah Anda yakin ingin menghapus komentar ini? Tindakan ini tidak dapat dibatalkan.';
+
+    if (comment.isStatusChange && comment.statusFrom != null) {
+      confirmMessage =
+          'Apakah Anda yakin ingin menghapus komentar perubahan status ini?\n\nStatus dokumen akan dikembalikan dari "${comment.statusTo}" ke "${comment.statusFrom}".';
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.delete, color: Colors.red),
+            ),
+            const SizedBox(width: 12),
+            Text('Hapus Komentar', style: GoogleFonts.inter()),
+          ],
+        ),
+        content: Text(confirmMessage, style: GoogleFonts.inter()),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Batal', style: GoogleFonts.inter()),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: Text('Hapus', style: GoogleFonts.inter()),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      final authService = CustomAuthService();
+      final currentUser = authService.currentUser;
+      final adminId = currentUser?['id'] as String?;
+
+      if (adminId == null) {
+        throw Exception('Admin ID tidak ditemukan');
+      }
+
+      print('🔍 Deleting comment: ${comment.idComment}');
+      print('👤 Admin ID: $adminId');
+      print('🔄 Is Status Change: ${comment.isStatusChange}');
+
+      // Jika ini adalah status change comment, rollback status terlebih dahulu
+      if (comment.isStatusChange && comment.statusFrom != null) {
+        print(
+          '⏪ Rolling back status from ${comment.statusTo} to ${comment.statusFrom}',
+        );
+
+        await _documentService.rollbackStatus(
+          documentId: widget.documentId,
+          rollbackToStatus: comment.statusFrom!,
+          adminId: adminId,
+        );
+      }
+
+      // Hapus comment
+      await _documentService.deleteComment(
+        commentId: comment.idComment,
+        adminId: adminId,
+      );
+
+      if (mounted) {
+        final message = comment.isStatusChange
+            ? 'Komentar berhasil dihapus dan status dikembalikan ke "${comment.statusFrom}"'
+            : 'Komentar berhasil dihapus';
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message), backgroundColor: Colors.green),
+        );
+        await _loadDocumentData();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal hapus komentar: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -967,7 +1156,7 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
           ),
           const SizedBox(height: 20),
           Text(
-            'Catatan Admin',
+            'Tambah Komentar',
             style: GoogleFonts.inter(
               fontSize: 14,
               fontWeight: FontWeight.w600,
@@ -979,7 +1168,7 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
             controller: _commentController,
             maxLines: 4,
             decoration: InputDecoration(
-              hintText: 'Tulis catatan atau komentar untuk dokumen ini...',
+              hintText: 'Tulis komentar untuk dokumen ini...',
               hintStyle: GoogleFonts.inter(
                 fontSize: 14,
                 color: Colors.grey[500],
@@ -1117,10 +1306,6 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
   }
 
   Widget _buildCommentsSection() {
-    final currentNote = widget.documentType == 'proposal'
-        ? _proposal?.catatanAdmin
-        : _lpj?.catatanAdmin;
-
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -1172,7 +1357,7 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
                 ),
                 const SizedBox(width: 12),
                 Text(
-                  'Riwayat & Komentar (${_revisions.length})',
+                  'Riwayat & Komentar (${_comments.length})',
                   style: GoogleFonts.inter(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
@@ -1187,62 +1372,8 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Current admin note
-                if (currentNote != null && currentNote.isNotEmpty) ...[
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          const Color(0xFF4169E1).withOpacity(0.1),
-                          const Color(0xFF5B7FE8).withOpacity(0.05),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: const Color(0xFF4169E1).withOpacity(0.3),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.push_pin,
-                              size: 16,
-                              color: const Color(0xFF4169E1),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Catatan Terkini',
-                              style: GoogleFonts.inter(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: const Color(0xFF4169E1),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          currentNote,
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            color: Colors.black87,
-                            height: 1.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Divider(color: Colors.grey[200]),
-                  const SizedBox(height: 20),
-                ],
-
-                // Comments & Revision history
-                if (_comments.isEmpty && _revisions.isEmpty)
+                // Display all comments
+                if (_comments.isEmpty)
                   Center(
                     child: Padding(
                       padding: const EdgeInsets.all(24),
@@ -1266,15 +1397,10 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
                     ),
                   )
                 else ...[
-                  // Display all comments (newer design)
+                  // Display all comments in timeline
                   ...List.generate(
                     _comments.length,
                     (index) => _buildCommentItem(_comments[index], index),
-                  ),
-                  // Display old revision history as fallback
-                  ...List.generate(
-                    _revisions.length,
-                    (index) => _buildRevisionItem(_revisions[index], index),
                   ),
                 ],
               ],
@@ -1286,6 +1412,29 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
   }
 
   Widget _buildCommentItem(DocumentComment comment, int index) {
+    // Get current admin ID to check if this comment belongs to them
+    final authService = CustomAuthService();
+    final currentUser = authService.currentUser;
+    final currentAdminId = currentUser?['id'] as String?;
+
+    // Check ownership - must have valid admin ID and match current user
+    final hasValidAdminId =
+        comment.idAdmin != null && comment.idAdmin!.isNotEmpty;
+    final isOwnComment = hasValidAdminId && currentAdminId == comment.idAdmin;
+
+    // Debug info
+    print('🔍 Comment ID: ${comment.idComment}');
+    print('👤 Comment Admin ID: ${comment.idAdmin}');
+    print('👤 Current Admin ID: $currentAdminId');
+    print('✅ Has Valid Admin ID: $hasValidAdminId');
+    print('✅ Is Own Comment: $isOwnComment');
+
+    // Get admin name for avatar
+    final adminName = comment.getAdminName();
+    final initials = adminName.isNotEmpty
+        ? adminName.split(' ').map((n) => n[0]).take(2).join().toUpperCase()
+        : '?';
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
@@ -1307,17 +1456,19 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
         children: [
           Row(
             children: [
+              // Avatar dengan initial nama admin
               CircleAvatar(
                 backgroundColor: comment.isStatusChange
                     ? const Color(0xFF4169E1)
-                    : Colors.grey[600],
-                radius: 18,
-                child: Icon(
-                  comment.isStatusChange
-                      ? Icons.swap_horiz_rounded
-                      : Icons.comment,
-                  size: 16,
-                  color: Colors.white,
+                    : const Color(0xFF10B981),
+                radius: 20,
+                child: Text(
+                  initials,
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -1325,13 +1476,38 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      comment.getAdminName(),
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87,
-                      ),
+                    Row(
+                      children: [
+                        Text(
+                          comment.getAdminName(),
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        if (isOwnComment) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF4169E1).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              'Anda',
+                              style: GoogleFonts.inter(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFF4169E1),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -1347,6 +1523,7 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
                   ],
                 ),
               ),
+              // Badge untuk perubahan status
               if (comment.isStatusChange)
                 Container(
                   padding: const EdgeInsets.symmetric(
@@ -1360,10 +1537,10 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.edit, size: 12, color: Colors.blue[800]),
+                      Icon(Icons.sync_alt, size: 12, color: Colors.blue[800]),
                       const SizedBox(width: 4),
                       Text(
-                        'Perubahan Status',
+                        'Status',
                         style: GoogleFonts.inter(
                           fontSize: 11,
                           color: Colors.blue[800],
@@ -1373,6 +1550,44 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
                     ],
                   ),
                 ),
+              // Tombol Edit & Hapus - tampil untuk komentar sendiri (termasuk status change)
+              if (hasValidAdminId) ...[
+                const SizedBox(width: 4),
+                // Tombol Edit
+                IconButton(
+                  icon: Icon(
+                    Icons.edit_outlined,
+                    size: 20,
+                    color: isOwnComment
+                        ? const Color(0xFF4169E1)
+                        : Colors.grey[400],
+                  ),
+                  onPressed: isOwnComment ? () => _editComment(comment) : null,
+                  tooltip: isOwnComment
+                      ? 'Edit komentar'
+                      : 'Hanya bisa edit komentar sendiri',
+                  padding: const EdgeInsets.all(8),
+                  constraints: const BoxConstraints(),
+                  visualDensity: VisualDensity.compact,
+                ),
+                // Tombol Hapus
+                IconButton(
+                  icon: Icon(
+                    Icons.delete_outline,
+                    size: 20,
+                    color: isOwnComment ? Colors.red : Colors.grey[400],
+                  ),
+                  onPressed: isOwnComment
+                      ? () => _deleteComment(comment)
+                      : null,
+                  tooltip: isOwnComment
+                      ? 'Hapus komentar'
+                      : 'Hanya bisa hapus komentar sendiri',
+                  padding: const EdgeInsets.all(8),
+                  constraints: const BoxConstraints(),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ],
             ],
           ),
           if (comment.isStatusChange &&
@@ -1404,20 +1619,94 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
             ),
           ],
           const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.7),
-              borderRadius: BorderRadius.circular(8),
+          // Inline editing or display comment
+          _editingCommentId == comment.idComment
+              ? _buildInlineEditForm(comment)
+              : Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.7),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    comment.comment,
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      color: Colors.black87,
+                      height: 1.5,
+                    ),
+                  ),
+                ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInlineEditForm(DocumentComment comment) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFF4169E1), width: 2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _editController,
+            maxLines: 3,
+            style: GoogleFonts.inter(fontSize: 14, color: Colors.black87),
+            decoration: InputDecoration(
+              hintText: 'Edit komentar...',
+              hintStyle: GoogleFonts.inter(color: Colors.grey[400]),
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.zero,
             ),
-            child: Text(
-              comment.comment,
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                color: Colors.black87,
-                height: 1.5,
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    _editingCommentId = null;
+                    _editController.clear();
+                  });
+                },
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.grey[700],
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                ),
+                child: Text(
+                  'Batal',
+                  style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                ),
               ),
-            ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                onPressed: () => _saveEditComment(comment),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF4169E1),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: Text(
+                  'Simpan',
+                  style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
           ),
         ],
       ),
