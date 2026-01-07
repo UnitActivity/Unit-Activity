@@ -14,6 +14,7 @@ class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _authService = CustomAuthService();
+  final _passwordFocusNode = FocusNode();
 
   bool _obscurePassword = true;
   bool _isLoading = false;
@@ -22,6 +23,7 @@ class _LoginPageState extends State<LoginPage> {
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _passwordFocusNode.dispose();
     super.dispose();
   }
 
@@ -274,7 +276,11 @@ class _LoginPageState extends State<LoginPage> {
                 TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
                   enabled: !_isLoading,
+                  onFieldSubmitted: (_) {
+                    _passwordFocusNode.requestFocus();
+                  },
                   style: GoogleFonts.inter(
                     fontSize: 15,
                     fontWeight: FontWeight.w500,
@@ -349,8 +355,15 @@ class _LoginPageState extends State<LoginPage> {
                 SizedBox(height: isMobile ? 6 : 8),
                 TextFormField(
                   controller: _passwordController,
+                  focusNode: _passwordFocusNode,
                   obscureText: _obscurePassword,
+                  textInputAction: TextInputAction.done,
                   enabled: !_isLoading,
+                  onFieldSubmitted: (_) {
+                    if (!_isLoading) {
+                      _handleLogin();
+                    }
+                  },
                   style: GoogleFonts.inter(
                     fontSize: 15,
                     fontWeight: FontWeight.w500,

@@ -29,13 +29,15 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
   bool _isLoading = true;
 
   List<Map<String, dynamic>> _allUKMs = [];
+  late final _LifecycleObserver _lifecycleObserver;
 
   @override
   void initState() {
     super.initState();
+    _lifecycleObserver = _LifecycleObserver(_onResume);
     _initializeAndLoad();
     // Add lifecycle observer
-    WidgetsBinding.instance.addObserver(_LifecycleObserver(_onResume));
+    WidgetsBinding.instance.addObserver(_lifecycleObserver);
   }
 
   Future<void> _initializeAndLoad() async {
@@ -46,34 +48,31 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(_LifecycleObserver(_onResume));
+    WidgetsBinding.instance.removeObserver(_lifecycleObserver);
     super.dispose();
   }
 
   void _onResume() {
-    print('DEBUG: App resumed, reloading UKM data');
-    _loadUKMs();
+    if (mounted) {
+      debugPrint('DEBUG: App resumed, reloading UKM data');
+      _loadUKMs();
+    }
   }
 
   Future<void> _loadUKMs() async {
+    if (!mounted) return;
+
     setState(() {
       _isLoading = true;
     });
 
     try {
-      final userId = _authService.currentUserId;
-      print('DEBUG: Current user ID: $userId');
-      print('DEBUG: Is logged in: ${_authService.isLoggedIn}');
-
-      // Try minimal query first
+      // Get UKMs from database
       final response = await _supabase
           .from('ukm')
           .select('id_ukm, nama_ukm, email, logo');
 
-      print('DEBUG: Response: $response');
-      print('DEBUG: Response length: ${response.length}');
-
-      // Load user's registered UKMs (baik login maupun anonymous)
+      // Load user's registered UKMs
       final registeredUKMIds = <String>{};
       final Map<String, int> attendanceMap = {};
 
@@ -84,20 +83,17 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
             .select('id_ukm')
             .order('created_at', ascending: false);
 
-        print('DEBUG: userUKMResponse: $userUKMResponse');
-
         for (var item in userUKMResponse) {
           registeredUKMIds.add(item['id_ukm']?.toString() ?? '');
-          // Set default attendance, will be updated later from database
           attendanceMap[item['id_ukm']?.toString() ?? ''] = 0;
         }
       } catch (e) {
-        print('DEBUG: Error loading user UKMs: $e');
+        debugPrint('Error loading user UKMs: $e');
       }
 
       final List<dynamic> data = response as List;
 
-      print('DEBUG: Loaded ${data.length} UKMs from database');
+      if (!mounted) return;
 
       setState(() {
         _allUKMs = data.map((ukm) {
@@ -119,8 +115,6 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
             'attendance': attendanceMap[ukm['id_ukm']?.toString()] ?? 0,
           };
         }).toList();
-        print('DEBUG: _allUKMs size: ${_allUKMs.length}');
-        print('DEBUG: _filteredUKMs size: ${_filteredUKMs.length}');
         _isLoading = false;
       });
     } catch (e, stackTrace) {

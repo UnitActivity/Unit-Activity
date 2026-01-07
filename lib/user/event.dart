@@ -179,6 +179,48 @@ class _UserEventPageState extends State<UserEventPage> with QRScannerMixin {
     });
   }
 
+  /// Handle QR Code scanned for attendance
+  Future<void> _handleQRCodeScanned(String code) async {
+    try {
+      final result = await _attendanceService.processQRCodeAttendance(code);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(
+                  result['success'] == true ? Icons.check_circle : Icons.error,
+                  color: Colors.white,
+                ),
+                const SizedBox(width: 8),
+                Expanded(child: Text(result['message'] ?? 'Proses selesai')),
+              ],
+            ),
+            backgroundColor: result['success'] == true
+                ? Colors.green[600]
+                : Colors.red[600],
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+
+        // Refresh events if successful
+        if (result['success'] == true) {
+          _loadEvents();
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red[600],
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 768;
@@ -880,6 +922,7 @@ class _UserEventPageState extends State<UserEventPage> with QRScannerMixin {
 
   // ==================== EVENT CARD ====================
   Widget _buildEventCard(Map<String, dynamic> event) {
+    final String eventId = event['id_events']?.toString() ?? '';
     final String? imageUrl = event['gambar'];
     final String title = event['nama_event'] ?? 'Event';
     final String location = event['lokasi'] ?? '-';
@@ -887,9 +930,10 @@ class _UserEventPageState extends State<UserEventPage> with QRScannerMixin {
     final bool isRegistered = _registeredEventIds.contains(event['id_events']);
     final bool isMyUKM = event['isMyUKM'] == true;
     final String ukmName = event['ukm_name'] ?? '';
-    final String? ukmLogo = event['ukm_logo'];
+    // ukm_logo available in event['ukm_logo'] if needed
 
     return InkWell(
+      key: ValueKey(eventId),
       onTap: () => _viewEventDetail(event),
       child: Card(
         elevation: 2,
@@ -920,6 +964,26 @@ class _UserEventPageState extends State<UserEventPage> with QRScannerMixin {
                               fit: BoxFit.cover,
                               width: double.infinity,
                               height: double.infinity,
+                              cacheWidth: 400, // Optimize memory
+                              cacheHeight: 300,
+                              loadingBuilder:
+                                  (context, child, loadingProgress) {
+                                    if (loadingProgress == null) return child;
+                                    return Center(
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        value:
+                                            loadingProgress
+                                                    .expectedTotalBytes !=
+                                                null
+                                            ? loadingProgress
+                                                      .cumulativeBytesLoaded /
+                                                  loadingProgress
+                                                      .expectedTotalBytes!
+                                            : null,
+                                      ),
+                                    );
+                                  },
                               errorBuilder: (context, error, stackTrace) {
                                 return Center(
                                   child: Icon(
@@ -1249,60 +1313,6 @@ class _UserEventPageState extends State<UserEventPage> with QRScannerMixin {
           MaterialPageRoute(builder: (context) => const HistoryPage()),
         );
         break;
-    }
-  }
-
-  // ==================== QR SCANNER HANDLER ====================
-  void _handleQRCodeScanned(String code) async {
-    print('DEBUG: QR Code scanned: $code');
-
-    try {
-      // Record attendance using AttendanceService
-      final result = await _attendanceService.recordEventAttendance(
-        eventId: '', // Will be extracted from QR code
-        qrCode: code,
-      );
-
-      if (mounted) {
-        if (result['success'] == true) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(Icons.check_circle, color: Colors.white),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(result['message'] ?? 'Absensi berhasil!'),
-                  ),
-                ],
-              ),
-              backgroundColor: Colors.green[600],
-              duration: const Duration(seconds: 3),
-            ),
-          );
-          // Refresh events data
-          _loadEvents();
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(result['message'] ?? 'Gagal melakukan absensi'),
-              backgroundColor: Colors.orange[600],
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      print('DEBUG: Error processing QR code: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Gagal memproses QR code: $e'),
-            backgroundColor: Colors.red[600],
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
     }
   }
 }

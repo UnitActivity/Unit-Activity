@@ -706,6 +706,126 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
     Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
   }
 
+  /// Navigate to informasi detail page
+  void _navigateToInformasiDetail(Map<String, dynamic> item) {
+    // Show detail in a modal bottom sheet for now
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.85,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
+          ),
+        ),
+        child: Column(
+          children: [
+            // Handle bar
+            Container(
+              margin: const EdgeInsets.only(top: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            // Header image
+            if (item['imageUrl'] != null)
+              Container(
+                height: 200,
+                width: double.infinity,
+                margin: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  image: DecorationImage(
+                    image: NetworkImage(item['imageUrl']),
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+            // Content
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Source badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: item['source'] == 'admin'
+                            ? Colors.purple.withOpacity(0.1)
+                            : Colors.blue.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        item['subtitle'] ?? '',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: item['source'] == 'admin'
+                              ? Colors.purple
+                              : Colors.blue,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    // Title
+                    Text(
+                      item['title'] ?? '',
+                      style: GoogleFonts.poppins(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    // Date
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.calendar_today,
+                          size: 14,
+                          color: Colors.grey[600],
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          item['date'] ?? '',
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    // Description
+                    Text(
+                      item['description'] ?? 'Tidak ada deskripsi',
+                      style: GoogleFonts.inter(
+                        fontSize: 15,
+                        height: 1.6,
+                        color: Colors.grey[800],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ==================== FLOATING TOP BAR ====================
   Widget _buildFloatingTopBar({required bool isMobile}) {
     return Container(
@@ -1154,45 +1274,60 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          if (!isMobile) const SizedBox(height: 4),
-                          if (!isMobile)
-                            Row(
-                              children: [
-                                Text(
-                                  _sliderEvents[_currentSlideIndex]['date'] ??
-                                      '',
-                                  style: const TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 12,
-                                  ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Text(
+                                _sliderEvents[_currentSlideIndex]['date'] ?? '',
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: isMobile ? 10 : 12,
                                 ),
-                                const Spacer(),
-                                TextButton(
-                                  onPressed: () {},
-                                  style: TextButton.styleFrom(
-                                    padding: EdgeInsets.zero,
-                                    minimumSize: const Size(0, 0),
+                              ),
+                              const Spacer(),
+                              InkWell(
+                                onTap: () {
+                                  // Navigate to informasi detail page
+                                  final currentItem =
+                                      _sliderEvents[_currentSlideIndex];
+                                  _navigateToInformasiDetail(currentItem);
+                                },
+                                child: Container(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: isMobile ? 8 : 12,
+                                    vertical: isMobile ? 4 : 6,
                                   ),
-                                  child: const Row(
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: Colors.white.withOpacity(0.5),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Text(
-                                        'Lihat Detail',
+                                        'Lebih Lanjut',
                                         style: TextStyle(
                                           color: Colors.white,
-                                          fontSize: 10,
+                                          fontSize: isMobile ? 10 : 12,
+                                          fontWeight: FontWeight.w600,
                                         ),
                                       ),
-                                      SizedBox(width: 2),
+                                      SizedBox(width: isMobile ? 4 : 6),
                                       Icon(
                                         Icons.arrow_forward,
                                         color: Colors.white,
-                                        size: 12,
+                                        size: isMobile ? 12 : 14,
                                       ),
                                     ],
                                   ),
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
+                          ),
                         ],
                       ),
                     ),

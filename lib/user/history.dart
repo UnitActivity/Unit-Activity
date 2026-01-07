@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:unit_activity/widgets/user_sidebar.dart';
 import 'package:unit_activity/widgets/qr_scanner_mixin.dart';
 import 'package:unit_activity/widgets/notification_bell_widget.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:unit_activity/user/notifikasi_user.dart';
@@ -23,7 +22,6 @@ class HistoryPage extends StatefulWidget {
 class _HistoryPageState extends State<HistoryPage> with QRScannerMixin {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   String _selectedMenu = 'history';
-  final SupabaseClient _supabase = Supabase.instance.client;
   final UserDashboardService _dashboardService = UserDashboardService();
   final AttendanceService _attendanceService = AttendanceService();
 
@@ -110,21 +108,6 @@ class _HistoryPageState extends State<HistoryPage> with QRScannerMixin {
       return DateFormat('d MMMM yyyy', 'id_ID').format(date);
     } catch (e) {
       return dateString;
-    }
-  }
-
-  String _formatCurrency(dynamic amount) {
-    if (amount == null) return 'Gratis';
-    try {
-      final value = double.parse(amount.toString());
-      if (value == 0) return 'Gratis';
-      return NumberFormat.currency(
-        locale: 'id_ID',
-        symbol: 'Rp ',
-        decimalDigits: 0,
-      ).format(value);
-    } catch (e) {
-      return amount.toString();
     }
   }
 

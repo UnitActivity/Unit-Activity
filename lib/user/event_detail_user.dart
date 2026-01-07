@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:unit_activity/services/user_dashboard_service.dart';
-import 'package:unit_activity/services/attendance_service.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -19,7 +18,6 @@ class UserEventDetailPage extends StatefulWidget {
 class _UserEventDetailPageState extends State<UserEventDetailPage>
     with SingleTickerProviderStateMixin {
   final UserDashboardService _dashboardService = UserDashboardService();
-  final AttendanceService _attendanceService = AttendanceService();
   final SupabaseClient _supabase = Supabase.instance.client;
 
   late TabController _tabController;

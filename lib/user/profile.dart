@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:unit_activity/widgets/qr_scanner_mixin.dart';
 import 'package:unit_activity/widgets/notification_bell_widget.dart';
 import 'package:unit_activity/user/notifikasi_user.dart';
@@ -9,28 +10,22 @@ import 'package:unit_activity/user/ukm.dart';
 import 'package:unit_activity/user/history.dart';
 
 class ProfilePage extends StatefulWidget {
-  const ProfilePage({Key? key}) : super(key: key);
+  const ProfilePage({super.key});
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();
 }
 
 class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
-  final TextEditingController _usernameController = TextEditingController(
-    text: 'Adam',
-  );
-  final TextEditingController _npmController = TextEditingController(
-    text: '2170001',
-  );
-  final TextEditingController _emailController = TextEditingController(
-    text: 'adam@gmail.com',
-  );
+  final SupabaseClient _supabase = Supabase.instance.client;
+
+  final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _npmController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController(
     text: '••••••••••••',
   );
-  final TextEditingController _tanggalLahirController = TextEditingController(
-    text: '01/01/2002',
-  );
+  final TextEditingController _tanggalLahirController = TextEditingController();
   final TextEditingController _qrCodeController = TextEditingController();
 
   bool _isEditingUsername = false;
@@ -38,9 +33,103 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
   bool _isEditingEmail = false;
   bool _isEditingPassword = false;
   bool _isEditingTanggalLahir = false;
+  bool _isLoading = true;
+  bool _isSaving = false;
 
   String _selectedMenu = 'profile';
   bool _showQRScanner = false;
+  String? _avatarUrl;
+  String? _userId;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserProfile();
+  }
+
+  Future<void> _loadUserProfile() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) {
+        // No user logged in
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      _userId = user.id;
+
+      // Load user data from database
+      final userData = await _supabase
+          .from('users')
+          .select()
+          .eq('id_user', user.id)
+          .maybeSingle();
+
+      if (userData != null) {
+        _usernameController.text = userData['username'] ?? '';
+        _npmController.text = userData['npm']?.toString() ?? '';
+        _emailController.text = userData['email'] ?? user.email ?? '';
+        _tanggalLahirController.text = userData['tanggal_lahir'] ?? '';
+        _avatarUrl = userData['avatar'];
+      } else {
+        // Use auth email if no user data found
+        _emailController.text = user.email ?? '';
+      }
+    } catch (e) {
+      debugPrint('Error loading profile: $e');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _saveProfile() async {
+    if (_userId == null) return;
+
+    setState(() => _isSaving = true);
+
+    try {
+      await _supabase.from('users').upsert({
+        'id_user': _userId,
+        'username': _usernameController.text.trim(),
+        'npm': _npmController.text.trim(),
+        'email': _emailController.text.trim(),
+        'tanggal_lahir': _tanggalLahirController.text.trim(),
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Profil berhasil disimpan'),
+            backgroundColor: Colors.green[600],
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error saving profile: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal menyimpan profil: $e'),
+            backgroundColor: Colors.red[600],
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+          _isEditingUsername = false;
+          _isEditingNpm = false;
+          _isEditingEmail = false;
+          _isEditingPassword = false;
+          _isEditingTanggalLahir = false;
+        });
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -175,6 +264,15 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
 
   // ==================== PROFILE CONTENT ====================
   Widget _buildProfileContent({required bool isMobile}) {
+    if (_isLoading) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(48.0),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -202,20 +300,38 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
                 CircleAvatar(
                   radius: isMobile ? 40 : 60,
                   backgroundColor: Colors.grey[300],
-                  child: Icon(
-                    Icons.person,
-                    size: isMobile ? 40 : 60,
-                    color: Colors.grey[600],
-                  ),
+                  backgroundImage: _avatarUrl != null && _avatarUrl!.isNotEmpty
+                      ? NetworkImage(_avatarUrl!)
+                      : null,
+                  child: _avatarUrl == null || _avatarUrl!.isEmpty
+                      ? Icon(
+                          Icons.person,
+                          size: isMobile ? 40 : 60,
+                          color: Colors.grey[600],
+                        )
+                      : null,
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  _usernameController.text,
+                  _usernameController.text.isEmpty
+                      ? 'User'
+                      : _usernameController.text,
                   style: TextStyle(
                     fontSize: isMobile ? 16 : 20,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
+                if (_emailController.text.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      _emailController.text,
+                      style: TextStyle(
+                        fontSize: isMobile ? 12 : 14,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ),
                 const SizedBox(height: 24),
 
                 // Username
@@ -299,35 +415,30 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
                       width: double.infinity,
                       height: isMobile ? 44 : 48,
                       child: ElevatedButton(
-                        onPressed: () {
-                          setState(() {
-                            _isEditingUsername = false;
-                            _isEditingNpm = false;
-                            _isEditingEmail = false;
-                            _isEditingPassword = false;
-                            _isEditingTanggalLahir = false;
-                          });
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Perubahan berhasil disimpan'),
-                              duration: Duration(seconds: 2),
-                            ),
-                          );
-                        },
+                        onPressed: _isSaving ? null : _saveProfile,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.blue[700],
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
                         ),
-                        child: Text(
-                          'Simpan Perubahan',
-                          style: TextStyle(
-                            fontSize: isMobile ? 14 : 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
+                        child: _isSaving
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : Text(
+                                'Simpan Perubahan',
+                                style: TextStyle(
+                                  fontSize: isMobile ? 14 : 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
+                              ),
                       ),
                     ),
                   ),
@@ -347,22 +458,42 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
               showDialog(
                 context: context,
                 builder: (context) => AlertDialog(
-                  title: const Text('Logout'),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  title: Row(
+                    children: [
+                      Icon(Icons.logout, color: Colors.red[600]),
+                      const SizedBox(width: 12),
+                      const Text('Logout'),
+                    ],
+                  ),
                   content: const Text('Apakah Anda yakin ingin keluar?'),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(context),
                       child: const Text('Batal'),
                     ),
-                    TextButton(
-                      onPressed: () {
+                    ElevatedButton(
+                      onPressed: () async {
                         Navigator.pop(context);
-                        Navigator.pushNamedAndRemoveUntil(
-                          context,
-                          '/login',
-                          (route) => false,
-                        );
+                        try {
+                          await _supabase.auth.signOut();
+                        } catch (e) {
+                          debugPrint('Error signing out: $e');
+                        }
+                        if (mounted) {
+                          Navigator.pushNamedAndRemoveUntil(
+                            context,
+                            '/login',
+                            (route) => false,
+                          );
+                        }
                       },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red[600],
+                        foregroundColor: Colors.white,
+                      ),
                       child: const Text('Logout'),
                     ),
                   ],
@@ -375,13 +506,20 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
                 borderRadius: BorderRadius.circular(8),
               ),
             ),
-            child: Text(
-              'Logout',
-              style: TextStyle(
-                fontSize: isMobile ? 14 : 16,
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
-              ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.logout, color: Colors.white, size: 18),
+                const SizedBox(width: 8),
+                Text(
+                  'Logout',
+                  style: TextStyle(
+                    fontSize: isMobile ? 14 : 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
