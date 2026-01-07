@@ -6,6 +6,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart' as mobile_cropper;
 import 'package:crop_your_image/crop_your_image.dart';
 import 'dart:typed_data';
+import 'package:crypto/crypto.dart';
+import 'dart:convert';
 
 class AddUkmPage extends StatefulWidget {
   const AddUkmPage({super.key});
@@ -27,6 +29,8 @@ class _AddUkmPageState extends State<AddUkmPage> {
   bool _obscurePassword = true;
   bool _isUploading = false;
   String? _selectedImageUrl;
+  Uint8List? _imageBytes;
+  String? _imageExtension;
 
   // Password validation states
   bool _hasMinLength = false;
@@ -119,8 +123,38 @@ class _AddUkmPageState extends State<AddUkmPage> {
         throw 'Ukuran file terlalu besar. Maksimal 10MB';
       }
 
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final fileName = 'ukm_$timestamp.$extension';
+      // Store image bytes and extension for later upload
+      setState(() {
+        _imageBytes = fileBytes;
+        _imageExtension = extension;
+        _selectedImageUrl = 'selected'; // Temporary marker
+        _isUploading = false;
+      });
+
+      return 'selected'; // Indicate image is selected
+    } catch (e) {
+      setState(() => _isUploading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error memilih gambar: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return null;
+    }
+  }
+
+  Future<String?> _uploadLogoWithName(
+    String namaUkm,
+    Uint8List fileBytes,
+    String extension,
+  ) async {
+    try {
+      // Format: ukm_namaUKM.extension (lowercase, no spaces)
+      final sanitizedName = namaUkm.toLowerCase().replaceAll(' ', '_');
+      final fileName = 'ukm_$sanitizedName.$extension';
 
       String contentType;
       switch (extension) {
@@ -146,14 +180,12 @@ class _AddUkmPageState extends State<AddUkmPage> {
           .from('ukm-logos')
           .getPublicUrl(fileName);
 
-      setState(() => _isUploading = false);
       return imageUrl;
     } catch (e) {
-      setState(() => _isUploading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error upload: $e'),
+            content: Text('Error upload logo: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -215,18 +247,18 @@ class _AddUkmPageState extends State<AddUkmPage> {
       final email = _emailController.text.trim().toLowerCase();
       final description = _descriptionController.text.trim();
 
-      // Check if email already exists
-      final existingEmail = await _supabase
-          .from('ukm')
-          .select('email')
-          .eq('email', email)
+      // Check if email already exists in admin table
+      final existingAdmin = await _supabase
+          .from('admin')
+          .select('email_admin')
+          .eq('email_admin', email)
           .maybeSingle();
 
-      if (existingEmail != null) {
+      if (existingAdmin != null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Email sudah terdaftar'),
+              content: Text('Email sudah terdaftar sebagai admin'),
               backgroundColor: Colors.red,
             ),
           );
@@ -235,59 +267,73 @@ class _AddUkmPageState extends State<AddUkmPage> {
         return;
       }
 
-      // Create UKM in Supabase Auth
-      final authResponse = await _supabase.auth.signUp(
-        email: email,
-        password: password,
-        data: {'nama_ukm': name},
-      );
+      // Hash password using SHA-256
+      final bytes = utf8.encode(password);
+      final hashedPassword = sha256.convert(bytes).toString();
 
-      if (authResponse.user == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Gagal membuat UKM'),
-              backgroundColor: Colors.red,
-            ),
-          );
+      print('🔐 Creating admin with role UKM...');
+
+      // 1. Create entry in admin table with role "UKM"
+      final adminResponse = await _supabase
+          .from('admin')
+          .insert({
+            'username_admin': name,
+            'email_admin': email,
+            'password': hashedPassword,
+            'role': 'UKM',
+            'status': 'active',
+            'create_at': DateTime.now().toIso8601String(),
+          })
+          .select()
+          .single();
+
+      final adminId = adminResponse['id_admin'] as String;
+      print('✅ Admin created with ID: $adminId');
+
+      // 2. Upload logo if selected
+      String? logoUrl;
+      if (_imageBytes != null && _imageExtension != null) {
+        print('📤 Uploading logo...');
+        logoUrl = await _uploadLogoWithName(
+          name,
+          _imageBytes!,
+          _imageExtension!,
+        );
+        if (logoUrl != null) {
+          print('✅ Logo uploaded: $logoUrl');
         }
-        setState(() => _isLoading = false);
-        return;
       }
 
-      // Insert UKM data into ukm table
+      // 3. Create entry in ukm table linked to admin
+      print('🏫 Creating UKM entry...');
       await _supabase.from('ukm').insert({
-        'id_ukm': authResponse.user!.id,
         'nama_ukm': name,
         'email': email,
-        'password': authResponse.user!.id,
         'description': description.isEmpty ? null : description,
-        'logo': _selectedImageUrl,
+        'logo': logoUrl,
+        'id_admin': adminId,
         'create_at': DateTime.now().toIso8601String(),
       });
+
+      print('✅ UKM created successfully!');
 
       if (mounted) {
         Navigator.pop(context, true);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('UKM berhasil ditambahkan!'),
+          SnackBar(
+            content: Text('UKM "$name" berhasil ditambahkan!'),
             backgroundColor: Colors.green,
           ),
         );
       }
-    } on AuthException catch (e) {
+    } catch (e) {
+      print('❌ Error creating UKM: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: ${e.message}'),
+            content: Text('Gagal menambahkan UKM: $e'),
             backgroundColor: Colors.red,
           ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -520,7 +566,7 @@ class _AddUkmPageState extends State<AddUkmPage> {
           decoration: BoxDecoration(
             color: Colors.white,
             border: Border.all(
-              color: _selectedImageUrl != null
+              color: _imageBytes != null
                   ? const Color(0xFF4169E1)
                   : Colors.grey[300]!,
               width: 2,
@@ -545,13 +591,13 @@ class _AddUkmPageState extends State<AddUkmPage> {
                     ],
                   ),
                 )
-              : _selectedImageUrl != null
+              : _imageBytes != null
               ? Stack(
                   children: [
                     ClipRRect(
                       borderRadius: BorderRadius.circular(14),
-                      child: Image.network(
-                        _selectedImageUrl!,
+                      child: Image.memory(
+                        _imageBytes!,
                         width: 200,
                         height: 200,
                         fit: BoxFit.cover,
