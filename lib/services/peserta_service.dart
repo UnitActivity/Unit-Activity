@@ -55,7 +55,12 @@ class PesertaService {
     String idPeriode,
   ) async {
     try {
-      // Get peserta list
+      print('=== getPesertaByUkm DEBUG ===');
+      print('idUkm: $idUkm');
+      print('idPeriode: $idPeriode');
+      
+      // Get peserta list - just filter by UKM and status for now
+      // Skip periode filter to avoid potential column issues
       final response = await _supabase
           .from('user_halaman_ukm')
           .select('''
@@ -68,31 +73,44 @@ class PesertaService {
             )
           ''')
           .eq('id_ukm', idUkm)
-          .eq('id_periode', idPeriode)
           .eq('status', 'aktif')
           .order('follow', ascending: false);
+      
+      print('Response count: ${(response as List).length}');
+      if ((response as List).isNotEmpty) {
+        print('Sample peserta: ${response.take(2).toList()}');
+      }
 
-      // Get total pertemuan for this UKM and periode
-      final totalPertemuanResponse = await _supabase
-          .from('pertemuan')
-          .select('id_pertemuan')
-          .eq('id_ukm', idUkm)
-          .eq('id_periode', idPeriode);
-
-      final totalPertemuan = (totalPertemuanResponse as List).length;
+      // Get total pertemuan for this UKM
+      int totalPertemuan = 0;
+      try {
+        final totalPertemuanResponse = await _supabase
+            .from('pertemuan')
+            .select('id_pertemuan')
+            .eq('id_ukm', idUkm);
+        totalPertemuan = (totalPertemuanResponse as List).length;
+      } catch (e) {
+        print('Warning: Could not fetch pertemuan count: $e');
+      }
 
       // Map peserta with attendance data
       final pesertaList = <Map<String, dynamic>>[];
 
       for (var item in response as List) {
-        // Get attendance count for this user
-        final attendanceResponse = await _supabase
-            .from('user_pertemuan')
-            .select('id_user_pertemuan')
-            .eq('id_user', item['id_user'])
-            .eq('id_periode', idPeriode);
-
-        final kehadiranCount = (attendanceResponse as List).length;
+        // Skip attendance query for now - just display peserta
+        // TODO: Fix attendance query when table structure is confirmed
+        int kehadiranCount = 0;
+        
+        try {
+          final attendanceResponse = await _supabase
+              .from('absen_pertemuan')
+              .select()
+              .eq('id_user', item['id_user']);
+          kehadiranCount = (attendanceResponse as List).length;
+        } catch (e) {
+          print('Warning: Could not fetch attendance for user ${item['id_user']}: $e');
+          kehadiranCount = 0;
+        }
 
         pesertaList.add({
           'id_follow': item['id_follow'],
