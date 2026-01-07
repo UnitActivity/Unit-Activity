@@ -16,18 +16,44 @@ class _AddInformasiUKMPageState extends State<AddInformasiUKMPage> {
   final UkmDashboardService _dashboardService = UkmDashboardService();
 
   final _judulController = TextEditingController();
-  final _penulisController = TextEditingController();
-  final _isiController = TextEditingController();
+  final _deskripsiController = TextEditingController();
 
-  String _selectedKategori = 'Informasi';
   String _selectedStatus = 'Aktif';
   bool _isSubmitting = false;
+  String? _currentUserId;
+  String? _currentUsername;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCurrentUser();
+  }
+
+  Future<void> _loadCurrentUser() async {
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) {
+        final userData = await _supabase
+            .from('users')
+            .select('id_user, username')
+            .eq('id_user', user.id)
+            .maybeSingle();
+        if (userData != null) {
+          setState(() {
+            _currentUserId = userData['id_user'];
+            _currentUsername = userData['username'];
+          });
+        }
+      }
+    } catch (e) {
+      print('Error loading current user: $e');
+    }
+  }
 
   @override
   void dispose() {
     _judulController.dispose();
-    _penulisController.dispose();
-    _isiController.dispose();
+    _deskripsiController.dispose();
     super.dispose();
   }
 
@@ -52,12 +78,13 @@ class _AddInformasiUKMPageState extends State<AddInformasiUKMPage> {
 
       await _supabase.from('informasi').insert({
         'judul': _judulController.text,
-        'penulis': _penulisController.text,
-        'isi': _isiController.text,
-        'kategori': _selectedKategori,
+        'deskripsi': _deskripsiController.text,
+        'status': _selectedStatus,
         'status_aktif': _selectedStatus == 'Aktif',
         'id_ukm': ukmId,
         'id_periode': periodeId,
+        'id_user': _currentUserId,
+        'create_by': _currentUsername ?? 'Unknown',
         'create_at': DateTime.now().toIso8601String(),
       });
 
@@ -147,50 +174,18 @@ class _AddInformasiUKMPageState extends State<AddInformasiUKMPage> {
                     ),
                     SizedBox(height: isMobile ? 16 : 20),
                     _buildFormTextField(
-                      controller: _penulisController,
-                      label: 'Penulis',
-                      hint: 'Nama penulis',
-                      icon: Icons.person,
-                      isMobile: isMobile,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Penulis harus diisi';
-                        }
-                        return null;
-                      },
-                    ),
-                    SizedBox(height: isMobile ? 16 : 20),
-                    _buildFormTextField(
-                      controller: _isiController,
-                      label: 'Isi',
-                      hint: 'Masukkan isi informasi',
+                      controller: _deskripsiController,
+                      label: 'Deskripsi',
+                      hint: 'Masukkan deskripsi informasi',
                       icon: Icons.article,
                       isMobile: isMobile,
                       maxLines: 5,
                       validator: (value) {
                         if (value == null || value.isEmpty) {
-                          return 'Isi harus diisi';
+                          return 'Deskripsi harus diisi';
                         }
                         return null;
                       },
-                    ),
-                    SizedBox(height: isMobile ? 16 : 20),
-                    _buildDropdownField(
-                      label: 'Kategori',
-                      value: _selectedKategori,
-                      items: [
-                        'Informasi',
-                        'Pengumuman',
-                        'Jadwal',
-                        'Event',
-                      ],
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedKategori = value!;
-                        });
-                      },
-                      icon: Icons.category,
-                      isMobile: isMobile,
                     ),
                     SizedBox(height: isMobile ? 16 : 20),
                     _buildDropdownField(
@@ -382,9 +377,7 @@ class _AddInformasiUKMPageState extends State<AddInformasiUKMPage> {
                 value: item,
                 child: Text(
                   item,
-                  style: GoogleFonts.inter(
-                    fontSize: isMobile ? 13 : 14,
-                  ),
+                  style: GoogleFonts.inter(fontSize: isMobile ? 13 : 14),
                 ),
               );
             }).toList(),

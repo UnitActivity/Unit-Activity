@@ -19,12 +19,15 @@ class _SendNotifikasiUKMPageState extends State<SendNotifikasiUKMPage> {
   final _messageController = TextEditingController();
 
   String _selectedType = 'info';
+  String? _selectedEventId;
+  String _selectedTarget = 'all_members';
   bool _isSending = false;
   bool _isLoading = true;
 
   String? _currentUkmId;
   String? _currentPeriodeId;
   List<Map<String, dynamic>> _members = [];
+  List<Map<String, dynamic>> _events = [];
 
   @override
   void initState() {
@@ -62,8 +65,17 @@ class _SendNotifikasiUKMPageState extends State<SendNotifikasiUKMPage> {
           .eq('id_ukm', _currentUkmId!)
           .eq('status', 'active');
 
+      // Get events for this UKM
+      final eventsData = await _supabase
+          .from('events')
+          .select('id_events, nama_event, status')
+          .eq('id_ukm', _currentUkmId!)
+          .eq('status', true)
+          .order('create_at', ascending: false);
+
       setState(() {
         _members = List<Map<String, dynamic>>.from(membersData);
+        _events = List<Map<String, dynamic>>.from(eventsData);
         _isLoading = false;
       });
     } catch (e) {
@@ -82,6 +94,17 @@ class _SendNotifikasiUKMPageState extends State<SendNotifikasiUKMPage> {
 
   Future<void> _sendNotification() async {
     if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    // Validate event selection when type is event
+    if (_selectedType == 'event' && _selectedEventId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Pilih event terlebih dahulu'),
+          backgroundColor: Colors.orange,
+        ),
+      );
       return;
     }
 
@@ -107,6 +130,11 @@ class _SendNotifikasiUKMPageState extends State<SendNotifikasiUKMPage> {
         'id_ukm': _currentUkmId,
         'create_at': DateTime.now().toIso8601String(),
       };
+
+      // Add event ID if type is event
+      if (_selectedType == 'event' && _selectedEventId != null) {
+        notificationData['id_events'] = _selectedEventId!;
+      }
 
       // Send to all UKM members
       for (var member in _members) {
@@ -264,12 +292,146 @@ class _SendNotifikasiUKMPageState extends State<SendNotifikasiUKMPage> {
                           Wrap(
                             spacing: 12,
                             children: [
-                              _buildTypeChip('info', 'Informasi', Icons.info_outline),
-                              _buildTypeChip('warning', 'Peringatan', Icons.warning_amber_outlined),
-                              _buildTypeChip('success', 'Sukses', Icons.check_circle_outline),
-                              _buildTypeChip('event', 'Event', Icons.event_outlined),
+                              _buildTypeChip(
+                                'info',
+                                'Informasi',
+                                Icons.info_outline,
+                              ),
+                              _buildTypeChip(
+                                'warning',
+                                'Peringatan',
+                                Icons.warning_amber_outlined,
+                              ),
+                              _buildTypeChip(
+                                'success',
+                                'Sukses',
+                                Icons.check_circle_outline,
+                              ),
+                              _buildTypeChip(
+                                'event',
+                                'Event',
+                                Icons.event_outlined,
+                              ),
                             ],
                           ),
+
+                          // Event Selection (only shown when type is event)
+                          if (_selectedType == 'event') ...[
+                            const SizedBox(height: 24),
+                            Text(
+                              'Pilih Event',
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[700],
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            DropdownButtonFormField<String>(
+                              value: _selectedEventId,
+                              hint: Text(
+                                'Pilih event',
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  color: Colors.grey[400],
+                                ),
+                              ),
+                              decoration: InputDecoration(
+                                filled: true,
+                                fillColor: Colors.grey[50],
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                    color: Colors.grey[300]!,
+                                  ),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                    color: Colors.grey[300]!,
+                                  ),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(
+                                    color: Color(0xFF4169E1),
+                                    width: 2,
+                                  ),
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                              ),
+                              items: _events.map((event) {
+                                return DropdownMenuItem<String>(
+                                  value: event['id_events'],
+                                  child: Text(
+                                    event['nama_event'] ?? '',
+                                    style: GoogleFonts.inter(fontSize: 14),
+                                  ),
+                                );
+                              }).toList(),
+                              onChanged: (value) {
+                                setState(() => _selectedEventId = value);
+                              },
+                            ),
+                          ],
+
+                          // Target Selection
+                          const SizedBox(height: 24),
+                          Text(
+                            'Kirim Ke',
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          DropdownButtonFormField<String>(
+                            value: _selectedTarget,
+                            decoration: InputDecoration(
+                              filled: true,
+                              fillColor: Colors.grey[50],
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: Colors.grey[300]!,
+                                ),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: Colors.grey[300]!,
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFF4169E1),
+                                  width: 2,
+                                ),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                            ),
+                            items: [
+                              DropdownMenuItem(
+                                value: 'all_members',
+                                child: Text(
+                                  'Semua Anggota (${_members.length})',
+                                  style: GoogleFonts.inter(fontSize: 14),
+                                ),
+                              ),
+                            ],
+                            onChanged: (value) {
+                              setState(() => _selectedTarget = value!);
+                            },
+                          ),
+
                           const SizedBox(height: 24),
 
                           // Title Field
@@ -294,11 +456,15 @@ class _SendNotifikasiUKMPageState extends State<SendNotifikasiUKMPage> {
                               fillColor: Colors.grey[50],
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(color: Colors.grey[300]!),
+                                borderSide: BorderSide(
+                                  color: Colors.grey[300]!,
+                                ),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(color: Colors.grey[300]!),
+                                borderSide: BorderSide(
+                                  color: Colors.grey[300]!,
+                                ),
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
@@ -340,11 +506,15 @@ class _SendNotifikasiUKMPageState extends State<SendNotifikasiUKMPage> {
                               fillColor: Colors.grey[50],
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(color: Colors.grey[300]!),
+                                borderSide: BorderSide(
+                                  color: Colors.grey[300]!,
+                                ),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(color: Colors.grey[300]!),
+                                borderSide: BorderSide(
+                                  color: Colors.grey[300]!,
+                                ),
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
@@ -372,7 +542,9 @@ class _SendNotifikasiUKMPageState extends State<SendNotifikasiUKMPage> {
                                       ? null
                                       : () => Navigator.pop(context),
                                   style: OutlinedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(vertical: 16),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 16,
+                                    ),
                                     side: BorderSide(color: Colors.grey[300]!),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(12),
@@ -391,10 +563,14 @@ class _SendNotifikasiUKMPageState extends State<SendNotifikasiUKMPage> {
                               const SizedBox(width: 16),
                               Expanded(
                                 child: ElevatedButton(
-                                  onPressed: _isSending ? null : _sendNotification,
+                                  onPressed: _isSending
+                                      ? null
+                                      : _sendNotification,
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: const Color(0xFF4169E1),
-                                    padding: const EdgeInsets.symmetric(vertical: 16),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 16,
+                                    ),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(12),
                                     ),
@@ -408,8 +584,8 @@ class _SendNotifikasiUKMPageState extends State<SendNotifikasiUKMPage> {
                                             strokeWidth: 2,
                                             valueColor:
                                                 AlwaysStoppedAnimation<Color>(
-                                              Colors.white,
-                                            ),
+                                                  Colors.white,
+                                                ),
                                           ),
                                         )
                                       : Text(
@@ -437,7 +613,7 @@ class _SendNotifikasiUKMPageState extends State<SendNotifikasiUKMPage> {
   Widget _buildTypeChip(String type, String label, IconData icon) {
     final isSelected = _selectedType == type;
     Color chipColor;
-    
+
     switch (type) {
       case 'warning':
         chipColor = Colors.orange;
@@ -456,11 +632,7 @@ class _SendNotifikasiUKMPageState extends State<SendNotifikasiUKMPage> {
       label: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            icon,
-            size: 16,
-            color: isSelected ? Colors.white : chipColor,
-          ),
+          Icon(icon, size: 16, color: isSelected ? Colors.white : chipColor),
           const SizedBox(width: 6),
           Text(
             label,
@@ -474,7 +646,13 @@ class _SendNotifikasiUKMPageState extends State<SendNotifikasiUKMPage> {
       ),
       selected: isSelected,
       onSelected: (selected) {
-        setState(() => _selectedType = type);
+        setState(() {
+          _selectedType = type;
+          // Reset event selection when type changes
+          if (type != 'event') {
+            _selectedEventId = null;
+          }
+        });
       },
       backgroundColor: chipColor.withOpacity(0.1),
       selectedColor: chipColor,

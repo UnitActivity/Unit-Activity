@@ -245,21 +245,22 @@ class EventService {
       print('========== GENERATE ATTENDANCE QR ==========');
       print('Event ID: $eventId');
 
-      final qrCode = '${eventId}_${DateTime.now().millisecondsSinceEpoch}';
-      final qrTime = DateTime.now().toIso8601String();
+      final now = DateTime.now();
+      final qrCode = '${eventId}_${now.millisecondsSinceEpoch}';
+      // Format time as HH:mm:ss.SSS for PostgreSQL time type
+      final qrTimeForDb =
+          '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}.${now.millisecond.toString().padLeft(3, '0')}';
 
       await _supabase
           .from('events')
-          .update({'qr_code': qrCode, 'qr_time': qrTime})
+          .update({'qr_code': qrCode, 'qr_time': qrTimeForDb})
           .eq('id_events', eventId);
 
       print('✅ QR Code generated: $qrCode');
       return {
         'qr_code': qrCode,
-        'qr_time': qrTime,
-        'expires_at': DateTime.now()
-            .add(const Duration(seconds: 10))
-            .toIso8601String(),
+        'qr_time': now.toIso8601String(),
+        'expires_at': now.add(const Duration(seconds: 10)).toIso8601String(),
       };
     } catch (e) {
       print('❌ Error generating QR code: $e');
@@ -294,11 +295,27 @@ class EventService {
       }
 
       // Check if QR code is still valid (within 10 seconds)
-      final qrTime = DateTime.parse(event['qr_time']);
+      // qr_time is stored as time (HH:mm:ss.SSS), we need to parse it differently
       final now = DateTime.now();
+      final qrTimeStr = event['qr_time'] as String;
+      final timeParts = qrTimeStr.split(':');
+      final secondParts = timeParts[2].split('.');
+
+      final qrTime = DateTime(
+        now.year,
+        now.month,
+        now.day,
+        int.parse(timeParts[0]),
+        int.parse(timeParts[1]),
+        int.parse(secondParts[0]),
+        secondParts.length > 1
+            ? int.parse(secondParts[1].padRight(3, '0').substring(0, 3))
+            : 0,
+      );
+
       final difference = now.difference(qrTime).inSeconds;
 
-      if (difference > 10) {
+      if (difference > 10 || difference < 0) {
         throw Exception('QR Code sudah kadaluarsa');
       }
 

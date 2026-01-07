@@ -40,6 +40,7 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
   String? _currentQRCode;
   DateTime? _qrExpiresAt;
   bool _isQRActive = false;
+  bool _autoRegenerateQR = false;
 
   @override
   void initState() {
@@ -2323,32 +2324,122 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
                         ),
                         if (_qrExpiresAt != null)
                           TweenAnimationBuilder<int>(
+                            key: ValueKey(_currentQRCode),
                             tween: IntTween(begin: 10, end: 0),
                             duration: const Duration(seconds: 10),
                             builder: (context, value, child) {
                               if (value == 0) {
-                                Future.microtask(() {
-                                  setState(() {
-                                    _isQRActive = false;
-                                    _currentQRCode = null;
-                                    _qrExpiresAt = null;
-                                  });
+                                Future.microtask(() async {
+                                  if (mounted && _autoRegenerateQR) {
+                                    // Auto regenerate QR code
+                                    await _generateQRCode();
+                                  } else {
+                                    setState(() {
+                                      _isQRActive = false;
+                                      _currentQRCode = null;
+                                      _qrExpiresAt = null;
+                                    });
+                                  }
                                 });
                               }
-                              return Text(
-                                'Kadaluarsa dalam $value detik',
-                                style: GoogleFonts.inter(
-                                  fontSize: 14,
-                                  color: value <= 3
-                                      ? Colors.red
-                                      : Colors.grey[600],
-                                  fontWeight: value <= 3
-                                      ? FontWeight.bold
-                                      : FontWeight.normal,
-                                ),
+                              return Column(
+                                children: [
+                                  // Circular countdown indicator
+                                  Stack(
+                                    alignment: Alignment.center,
+                                    children: [
+                                      SizedBox(
+                                        width: 60,
+                                        height: 60,
+                                        child: CircularProgressIndicator(
+                                          value: value / 10,
+                                          strokeWidth: 6,
+                                          backgroundColor: Colors.grey[300],
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                                value <= 3
+                                                    ? Colors.red
+                                                    : const Color(0xFF4169E1),
+                                              ),
+                                        ),
+                                      ),
+                                      Text(
+                                        '$value',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 24,
+                                          fontWeight: FontWeight.bold,
+                                          color: value <= 3
+                                              ? Colors.red
+                                              : const Color(0xFF4169E1),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    value <= 3
+                                        ? (_autoRegenerateQR
+                                              ? 'QR baru dalam $value detik'
+                                              : 'Kadaluarsa dalam $value detik')
+                                        : 'Berlaku $value detik lagi',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 14,
+                                      color: value <= 3
+                                          ? Colors.red
+                                          : Colors.grey[600],
+                                      fontWeight: value <= 3
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                    ),
+                                  ),
+                                ],
                               );
                             },
                           ),
+                        const SizedBox(height: 16),
+                        // Auto regenerate toggle
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              'Auto regenerate',
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Switch(
+                              value: _autoRegenerateQR,
+                              onChanged: (value) {
+                                setState(() {
+                                  _autoRegenerateQR = value;
+                                });
+                              },
+                              activeColor: const Color(0xFF4169E1),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        // Stop button
+                        TextButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              _isQRActive = false;
+                              _currentQRCode = null;
+                              _qrExpiresAt = null;
+                              _autoRegenerateQR = false;
+                            });
+                          },
+                          icon: const Icon(
+                            Icons.stop_circle_outlined,
+                            color: Colors.red,
+                          ),
+                          label: Text(
+                            'Hentikan QR',
+                            style: GoogleFonts.inter(color: Colors.red),
+                          ),
+                        ),
                       ],
                     ),
                   ),

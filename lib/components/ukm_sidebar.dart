@@ -82,13 +82,6 @@ class UKMSidebar extends StatelessWidget {
                   isSelected: selectedMenu == 'notifikasi',
                   onTap: () => onMenuSelected('notifikasi'),
                 ),
-                _buildMenuItem(
-                  icon: Icons.person_outline,
-                  title: 'Profile',
-                  value: 'profile',
-                  isSelected: selectedMenu == 'profile',
-                  onTap: () => onMenuSelected('profile'),
-                ),
               ],
             ),
           ),
