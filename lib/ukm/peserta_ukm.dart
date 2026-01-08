@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:unit_activity/services/peserta_service.dart';
 import 'package:unit_activity/services/ukm_dashboard_service.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 class PesertaUKMPage extends StatefulWidget {
   const PesertaUKMPage({super.key});
@@ -17,6 +18,8 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
 
   List<Map<String, dynamic>> _pesertaList = [];
   List<Map<String, dynamic>> _filteredPesertaList = [];
+  List<Map<String, dynamic>> _allRegisteredUsers = [];
+  List<Map<String, dynamic>> _growthData = [];
   bool _isLoading = true;
   String? _errorMessage;
   String? _ukmId;
@@ -69,13 +72,13 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
       if (periode != null) {
         _periodeId = periode['id_periode'];
         print('>>> _periodeId set to: $_periodeId');
-        
+
         // Create readable periode name
         final semester = periode['semester'] ?? '';
         final tahun = periode['tahun'] ?? '';
         _periodeName = 'Periode $semester $tahun';
         print('>>> _periodeName set to: $_periodeName');
-        
+
         print(
           '✅ Using periode: ${periode['nama_periode']} (${periode['semester']} ${periode['tahun']})',
         );
@@ -85,6 +88,18 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
         print('❌ No periode found for UKM $_ukmId');
         print('>>> _periodeId remains: $_periodeId');
         print('>>> _periodeName remains: $_periodeName');
+      }
+
+      // Load all registered users for autocomplete suggestions
+      print('Step 2.5: Loading all registered users for suggestions...');
+      try {
+        _allRegisteredUsers = await _pesertaService.getAllRegisteredUsers();
+        print(
+          '✅ Loaded ${_allRegisteredUsers.length} registered users for suggestions',
+        );
+      } catch (e) {
+        print('⚠️ Warning: Could not load registered users: $e');
+        _allRegisteredUsers = [];
       }
 
       // Load peserta for this UKM and periode
@@ -97,6 +112,9 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
           _periodeId!,
         );
         print('✅ Loaded ${peserta.length} peserta');
+
+        // Load growth data
+        await _loadGrowthData();
 
         setState(() {
           _pesertaList = peserta;
@@ -139,6 +157,74 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
     });
   }
 
+  Future<void> _loadGrowthData() async {
+    if (_ukmId == null || _periodeId == null) {
+      return;
+    }
+
+    try {
+      // Get all peserta with their join dates for this UKM
+      final allPeserta = await _pesertaService.getPesertaByUkm(
+        _ukmId!,
+        _periodeId!,
+      );
+
+      // Calculate growth for last 6 months
+      final now = DateTime.now();
+      final List<Map<String, dynamic>> monthlyData = [];
+
+      for (int i = 5; i >= 0; i--) {
+        final monthDate = DateTime(now.year, now.month - i, 1);
+        final monthEnd = DateTime(now.year, now.month - i + 1, 0, 23, 59, 59);
+
+        // Count peserta who joined up to this month
+        int count = allPeserta.where((peserta) {
+          if (peserta['tanggal'] == null) return false;
+          try {
+            final joinDate = DateTime.parse(peserta['tanggal'].toString());
+            return joinDate.isBefore(monthEnd) ||
+                joinDate.isAtSameMomentAs(monthEnd);
+          } catch (e) {
+            return false;
+          }
+        }).length;
+
+        // Get month name
+        final monthName = _getMonthName(monthDate.month);
+
+        monthlyData.add({
+          'month': monthName,
+          'count': count,
+          'monthNumber': monthDate.month,
+        });
+      }
+
+      setState(() {
+        _growthData = monthlyData;
+      });
+    } catch (e) {
+      print('Error loading growth data: $e');
+    }
+  }
+
+  String _getMonthName(int month) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'Mei',
+      'Jun',
+      'Jul',
+      'Agu',
+      'Sep',
+      'Okt',
+      'Nov',
+      'Des',
+    ];
+    return months[month - 1];
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDesktop = MediaQuery.of(context).size.width >= 768;
@@ -151,16 +237,40 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
           isDesktop
               ? Row(
                   children: [
-                    Expanded(child: _buildStatCard('Total Pengguna', '${_pesertaList.length}', Icons.people_rounded, const Color(0xFF4169E1))),
+                    Expanded(
+                      child: _buildStatCard(
+                        'Total Pengguna',
+                        '${_pesertaList.length}',
+                        Icons.people_rounded,
+                        const Color(0xFF4169E1),
+                      ),
+                    ),
                     const SizedBox(width: 16),
-                    Expanded(child: _buildStatCard('Periode', _periodeName ?? '-', Icons.calendar_today_rounded, const Color(0xFFF59E0B))),
+                    Expanded(
+                      child: _buildStatCard(
+                        'Periode',
+                        _periodeName ?? '-',
+                        Icons.calendar_today_rounded,
+                        const Color(0xFFF59E0B),
+                      ),
+                    ),
                   ],
                 )
               : Column(
                   children: [
-                    _buildStatCard('Total Pengguna', '${_pesertaList.length}', Icons.people_rounded, const Color(0xFF4169E1)),
+                    _buildStatCard(
+                      'Total Pengguna',
+                      '${_pesertaList.length}',
+                      Icons.people_rounded,
+                      const Color(0xFF4169E1),
+                    ),
                     const SizedBox(height: 16),
-                    _buildStatCard('Periode', _periodeName ?? '-', Icons.calendar_today_rounded, const Color(0xFFF59E0B)),
+                    _buildStatCard(
+                      'Periode',
+                      _periodeName ?? '-',
+                      Icons.calendar_today_rounded,
+                      const Color(0xFFF59E0B),
+                    ),
                   ],
                 ),
           const SizedBox(height: 24),
@@ -176,7 +286,12 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
     );
   }
 
-  Widget _buildStatCard(String title, String value, IconData icon, Color color) {
+  Widget _buildStatCard(
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -252,7 +367,11 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
             children: [
               Row(
                 children: [
-                  Icon(Icons.show_chart, color: const Color(0xFF4169E1), size: 20),
+                  Icon(
+                    Icons.show_chart,
+                    color: const Color(0xFF4169E1),
+                    size: 20,
+                  ),
                   const SizedBox(width: 8),
                   Text(
                     'Pertumbuhan Anggota',
@@ -277,21 +396,176 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
           const SizedBox(height: 24),
           SizedBox(
             height: 250,
-            child: Center(
-              child: Text(
-                'Chart akan ditampilkan di sini (${_pesertaList.length} anggota)',
-                style: GoogleFonts.inter(color: Colors.grey[400]),
-              ),
-            ),
+            child: _growthData.isEmpty
+                ? Center(
+                    child: Text(
+                      'Belum ada data pertumbuhan',
+                      style: GoogleFonts.inter(color: Colors.grey[400]),
+                    ),
+                  )
+                : Padding(
+                    padding: const EdgeInsets.only(right: 16, top: 16),
+                    child: LineChart(
+                      LineChartData(
+                        gridData: FlGridData(
+                          show: true,
+                          drawVerticalLine: false,
+                          horizontalInterval: 1,
+                          getDrawingHorizontalLine: (value) {
+                            return FlLine(
+                              color: Colors.grey[200]!,
+                              strokeWidth: 1,
+                            );
+                          },
+                        ),
+                        titlesData: FlTitlesData(
+                          show: true,
+                          rightTitles: const AxisTitles(
+                            sideTitles: SideTitles(showTitles: false),
+                          ),
+                          topTitles: const AxisTitles(
+                            sideTitles: SideTitles(showTitles: false),
+                          ),
+                          bottomTitles: AxisTitles(
+                            sideTitles: SideTitles(
+                              showTitles: true,
+                              reservedSize: 30,
+                              interval: 1,
+                              getTitlesWidget: (double value, TitleMeta meta) {
+                                if (value.toInt() >= 0 &&
+                                    value.toInt() < _growthData.length) {
+                                  return Padding(
+                                    padding: const EdgeInsets.only(top: 8),
+                                    child: Text(
+                                      _growthData[value.toInt()]['month'],
+                                      style: GoogleFonts.inter(
+                                        fontSize: 12,
+                                        color: Colors.grey[600],
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  );
+                                }
+                                return const Text('');
+                              },
+                            ),
+                          ),
+                          leftTitles: AxisTitles(
+                            sideTitles: SideTitles(
+                              showTitles: true,
+                              interval: _getYInterval(),
+                              reservedSize: 42,
+                              getTitlesWidget: (double value, TitleMeta meta) {
+                                return Text(
+                                  value.toInt().toString(),
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                        borderData: FlBorderData(
+                          show: true,
+                          border: Border(
+                            bottom: BorderSide(
+                              color: Colors.grey[300]!,
+                              width: 1,
+                            ),
+                            left: BorderSide(
+                              color: Colors.grey[300]!,
+                              width: 1,
+                            ),
+                          ),
+                        ),
+                        minX: 0,
+                        maxX: (_growthData.length - 1).toDouble(),
+                        minY: 0,
+                        maxY: _getMaxY(),
+                        lineBarsData: [
+                          LineChartBarData(
+                            spots: _growthData.asMap().entries.map((entry) {
+                              return FlSpot(
+                                entry.key.toDouble(),
+                                entry.value['count'].toDouble(),
+                              );
+                            }).toList(),
+                            isCurved: true,
+                            color: const Color(0xFF4169E1),
+                            barWidth: 3,
+                            isStrokeCapRound: true,
+                            dotData: FlDotData(
+                              show: true,
+                              getDotPainter: (spot, percent, barData, index) {
+                                return FlDotCirclePainter(
+                                  radius: 4,
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                  strokeColor: const Color(0xFF4169E1),
+                                );
+                              },
+                            ),
+                            belowBarData: BarAreaData(
+                              show: true,
+                              color: const Color(0xFF4169E1).withOpacity(0.1),
+                            ),
+                          ),
+                        ],
+                        lineTouchData: LineTouchData(
+                          enabled: true,
+                          touchTooltipData: LineTouchTooltipData(
+                            getTooltipColor: (touchedSpot) =>
+                                const Color(0xFF4169E1),
+                            tooltipRoundedRadius: 8,
+                            getTooltipItems: (List<LineBarSpot> touchedSpots) {
+                              return touchedSpots.map((
+                                LineBarSpot touchedSpot,
+                              ) {
+                                return LineTooltipItem(
+                                  '${_growthData[touchedSpot.x.toInt()]['month']}\n${touchedSpot.y.toInt()} anggota',
+                                  GoogleFonts.inter(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 12,
+                                  ),
+                                );
+                              }).toList();
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
           ),
         ],
       ),
     );
   }
 
+  double _getMaxY() {
+    if (_growthData.isEmpty) return 10;
+    final maxCount = _growthData
+        .map((d) => d['count'] as int)
+        .reduce((a, b) => a > b ? a : b);
+    // Add 20% padding to max value
+    return (maxCount * 1.2).ceilToDouble();
+  }
+
+  double _getYInterval() {
+    final maxY = _getMaxY();
+    if (maxY <= 10) return 2;
+    if (maxY <= 20) return 5;
+    if (maxY <= 50) return 10;
+    if (maxY <= 100) return 20;
+    return 50;
+  }
+
   Widget _buildSearchAndTable(bool isDesktop) {
     final isMobile = !isDesktop;
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -303,7 +577,10 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
             onChanged: _filterPeserta,
             decoration: InputDecoration(
               hintText: 'Cari NIM, Username, atau Email...',
-              hintStyle: GoogleFonts.inter(fontSize: 14, color: Colors.grey[400]),
+              hintStyle: GoogleFonts.inter(
+                fontSize: 14,
+                color: Colors.grey[400],
+              ),
               prefixIcon: Icon(Icons.search_rounded, color: Colors.grey[400]),
               filled: true,
               fillColor: Colors.white,
@@ -329,13 +606,18 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
               icon: const Icon(Icons.add, size: 18),
               label: Text(
                 'Tambah Pengguna',
-                style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600),
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF4169E1),
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
                 elevation: 0,
               ),
             ),
@@ -351,8 +633,14 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
                   onChanged: _filterPeserta,
                   decoration: InputDecoration(
                     hintText: 'Cari NIM, Username, atau Email...',
-                    hintStyle: GoogleFonts.inter(fontSize: 14, color: Colors.grey[400]),
-                    prefixIcon: Icon(Icons.search_rounded, color: Colors.grey[400]),
+                    hintStyle: GoogleFonts.inter(
+                      fontSize: 14,
+                      color: Colors.grey[400],
+                    ),
+                    prefixIcon: Icon(
+                      Icons.search_rounded,
+                      color: Colors.grey[400],
+                    ),
                     filled: true,
                     fillColor: Colors.white,
                     border: OutlineInputBorder(
@@ -372,17 +660,25 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
               ),
               const SizedBox(width: 12),
               ElevatedButton.icon(
-              onPressed: _showAddPesertaDialog,
+                onPressed: _showAddPesertaDialog,
                 icon: const Icon(Icons.add, size: 20),
                 label: Text(
                   'Tambah Pengguna',
-                  style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600),
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF4169E1),
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 16,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                   elevation: 0,
                 ),
               ),
@@ -416,7 +712,10 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
             children: [
               Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
               const SizedBox(height: 16),
-              Text(_errorMessage!, style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600])),
+              Text(
+                _errorMessage!,
+                style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
+              ),
             ],
           ),
         ),
@@ -467,11 +766,18 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
     );
   }
 
-  Widget _buildPesertaRow(Map<String, dynamic> peserta, int index, bool isDesktop) {
+  Widget _buildPesertaRow(
+    Map<String, dynamic> peserta,
+    int index,
+    bool isDesktop,
+  ) {
     final isMobile = !isDesktop;
-    
+
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 20, vertical: isMobile ? 12 : 16),
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 12 : 20,
+        vertical: isMobile ? 12 : 16,
+      ),
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
       ),
@@ -507,14 +813,20 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
                 const SizedBox(height: 2),
                 Text(
                   peserta['email'] ?? '-',
-                  style: GoogleFonts.inter(fontSize: isMobile ? 11 : 13, color: Colors.grey[600]),
+                  style: GoogleFonts.inter(
+                    fontSize: isMobile ? 11 : 13,
+                    color: Colors.grey[600],
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
                 if (isMobile && peserta['nim'] != null) ...[
                   const SizedBox(height: 2),
                   Text(
                     'NIM: ${peserta['nim']}',
-                    style: GoogleFonts.inter(fontSize: 10, color: Colors.grey[500]),
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      color: Colors.grey[500],
+                    ),
                   ),
                 ],
               ],
@@ -533,7 +845,7 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               IconButton(
-                onPressed: () {},
+                onPressed: () => _showDetailPesertaDialog(peserta),
                 icon: Icon(Icons.visibility_rounded, size: isMobile ? 20 : 24),
                 color: const Color(0xFF4169E1),
                 tooltip: 'Lihat Detail',
@@ -541,7 +853,7 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
                 constraints: isMobile ? const BoxConstraints() : null,
               ),
               IconButton(
-                onPressed: () {},
+                onPressed: () => _showDeleteConfirmDialog(peserta),
                 icon: Icon(Icons.delete_rounded, size: isMobile ? 20 : 24),
                 color: Colors.red,
                 tooltip: 'Hapus',
@@ -557,32 +869,516 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
 
   void _showAddPesertaDialog() {
     final nimController = TextEditingController();
-    
+    List<Map<String, dynamic>> suggestions = [];
+    Map<String, dynamic>? selectedUser;
+    bool isSearching = false;
+    bool isAdding = false;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          void searchUsers(String query) async {
+            if (query.length < 2) {
+              setDialogState(() {
+                suggestions = [];
+                selectedUser = null;
+              });
+              return;
+            }
+
+            setDialogState(() {
+              isSearching = true;
+            });
+
+            // Filter from preloaded users
+            final queryLower = query.toLowerCase();
+            final filtered = _allRegisteredUsers
+                .where((user) {
+                  final nim = user['nim']?.toString().toLowerCase() ?? '';
+                  final username =
+                      user['username']?.toString().toLowerCase() ?? '';
+                  return nim.contains(queryLower) ||
+                      username.contains(queryLower);
+                })
+                .take(8)
+                .toList();
+
+            setDialogState(() {
+              suggestions = filtered;
+              isSearching = false;
+            });
+          }
+
+          void selectUser(Map<String, dynamic> user) {
+            setDialogState(() {
+              selectedUser = user;
+              nimController.text = user['nim'] ?? '';
+              suggestions = [];
+            });
+          }
+
+          Future<void> addPeserta() async {
+            if (nimController.text.isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('NIM tidak boleh kosong'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+              return;
+            }
+
+            if (_ukmId == null || _periodeId == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('UKM atau Periode tidak tersedia'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+              return;
+            }
+
+            setDialogState(() {
+              isAdding = true;
+            });
+
+            try {
+              await _pesertaService.addPesertaByNim(
+                nim: nimController.text.trim(),
+                idUkm: _ukmId!,
+                idPeriode: _periodeId!,
+              );
+
+              Navigator.pop(context);
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Berhasil menambahkan peserta dengan NIM: ${nimController.text}',
+                  ),
+                  backgroundColor: Colors.green,
+                ),
+              );
+
+              // Refresh data setelah menambahkan
+              _loadData();
+            } catch (e) {
+              setDialogState(() {
+                isAdding = false;
+              });
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Gagal menambahkan peserta: ${e.toString().replaceFirst('Exception: ', '')}',
+                  ),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          }
+
+          return AlertDialog(
+            title: Row(
+              children: [
+                Icon(Icons.person_add, color: const Color(0xFF4169E1)),
+                const SizedBox(width: 8),
+                Text(
+                  'Tambah Peserta',
+                  style: GoogleFonts.inter(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            content: SizedBox(
+              width: 400,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Masukkan NIM mahasiswa yang ingin ditambahkan:',
+                    style: GoogleFonts.inter(fontSize: 14),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: nimController,
+                    onChanged: (value) {
+                      setDialogState(() {
+                        selectedUser = null;
+                      });
+                      searchUsers(value);
+                    },
+                    decoration: InputDecoration(
+                      labelText: 'NIM',
+                      hintText: 'Ketik NIM untuk mencari...',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      prefixIcon: const Icon(Icons.badge),
+                      suffixIcon: isSearching
+                          ? const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            )
+                          : selectedUser != null
+                          ? Icon(Icons.check_circle, color: Colors.green)
+                          : null,
+                    ),
+                    keyboardType: TextInputType.text,
+                  ),
+                  if (suggestions.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      constraints: const BoxConstraints(maxHeight: 200),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[50],
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey[300]!),
+                      ),
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: suggestions.length,
+                        itemBuilder: (context, index) {
+                          final user = suggestions[index];
+                          return ListTile(
+                            dense: true,
+                            leading: CircleAvatar(
+                              radius: 16,
+                              backgroundColor: const Color(
+                                0xFF4169E1,
+                              ).withOpacity(0.1),
+                              child: Text(
+                                (user['username'] ?? 'U')[0].toUpperCase(),
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF4169E1),
+                                ),
+                              ),
+                            ),
+                            title: Text(
+                              user['nim'] ?? '-',
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            subtitle: Text(
+                              user['username'] ?? '-',
+                              style: GoogleFonts.inter(fontSize: 12),
+                            ),
+                            trailing: Text(
+                              user['email']?.toString().split('@').first ?? '',
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                            onTap: () => selectUser(user),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                  if (selectedUser != null) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.green[50],
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.green[200]!),
+                      ),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 20,
+                            backgroundColor: const Color(
+                              0xFF4169E1,
+                            ).withOpacity(0.1),
+                            child: Text(
+                              (selectedUser!['username'] ?? 'U')[0]
+                                  .toUpperCase(),
+                              style: GoogleFonts.inter(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF4169E1),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  selectedUser!['username'] ?? '-',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                Text(
+                                  selectedUser!['email'] ?? '-',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(Icons.check_circle, color: Colors.green[700]),
+                        ],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                  Text(
+                    'Tip: Ketik minimal 2 karakter untuk melihat rekomendasi',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: Colors.grey[500],
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: isAdding ? null : () => Navigator.pop(context),
+                child: Text(
+                  'Batal',
+                  style: GoogleFonts.inter(color: Colors.grey[600]),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: isAdding ? null : addPeserta,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF4169E1),
+                  foregroundColor: Colors.white,
+                ),
+                child: isAdding
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Text('Tambah', style: GoogleFonts.inter()),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _showDetailPesertaDialog(Map<String, dynamic> peserta) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(
-          'Tambah Peserta',
-          style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.bold),
+        title: Row(
+          children: [
+            CircleAvatar(
+              radius: 20,
+              backgroundColor: const Color(0xFF4169E1).withOpacity(0.1),
+              child: Text(
+                (peserta['nama'] ?? 'U')[0].toUpperCase(),
+                style: GoogleFonts.inter(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF4169E1),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                peserta['nama'] ?? '-',
+                style: GoogleFonts.inter(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: 350,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildDetailRow(Icons.badge, 'NIM', peserta['nim'] ?? '-'),
+              const SizedBox(height: 12),
+              _buildDetailRow(Icons.email, 'Email', peserta['email'] ?? '-'),
+              const SizedBox(height: 12),
+              _buildDetailRow(
+                Icons.calendar_today,
+                'Tanggal Bergabung',
+                _formatDate(peserta['tanggal']),
+              ),
+              const SizedBox(height: 12),
+              _buildDetailRow(
+                Icons.check_circle,
+                'Status',
+                peserta['status'] ?? '-',
+              ),
+              if (peserta['deskripsi'] != null) ...[
+                const SizedBox(height: 12),
+                _buildDetailRow(
+                  Icons.description,
+                  'Deskripsi',
+                  peserta['deskripsi'],
+                ),
+              ],
+              const SizedBox(height: 12),
+              _buildDetailRow(
+                Icons.event_available,
+                'Kehadiran',
+                '${peserta['kehadiran_count'] ?? 0}/${peserta['total_pertemuan'] ?? 0} pertemuan',
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Tutup', style: GoogleFonts.inter()),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(IconData icon, String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 20, color: Colors.grey[600]),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: Colors.grey[500],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: Colors.grey[800],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _formatDate(dynamic date) {
+    if (date == null) return '-';
+    try {
+      final DateTime parsedDate = DateTime.parse(date.toString());
+      return '${parsedDate.day}/${parsedDate.month}/${parsedDate.year}';
+    } catch (e) {
+      return date.toString();
+    }
+  }
+
+  void _showDeleteConfirmDialog(Map<String, dynamic> peserta) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.red[700], size: 28),
+            const SizedBox(width: 8),
+            Text(
+              'Hapus Peserta',
+              style: GoogleFonts.inter(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Masukkan NIM mahasiswa yang ingin ditambahkan:',
+              'Apakah Anda yakin ingin menghapus peserta ini?',
               style: GoogleFonts.inter(fontSize: 14),
             ),
             const SizedBox(height: 16),
-            TextField(
-              controller: nimController,
-              decoration: InputDecoration(
-                labelText: 'NIM',
-                hintText: 'Contoh: 211350001',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                prefixIcon: const Icon(Icons.badge),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(8),
               ),
-              keyboardType: TextInputType.number,
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 20,
+                    backgroundColor: const Color(0xFF4169E1).withOpacity(0.1),
+                    child: Text(
+                      (peserta['nama'] ?? 'U')[0].toUpperCase(),
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF4169E1),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          peserta['nama'] ?? '-',
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Text(
+                          'NIM: ${peserta['nim'] ?? '-'}',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -596,35 +1392,47 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
           ),
           ElevatedButton(
             onPressed: () async {
-              if (nimController.text.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('NIM tidak boleh kosong')),
-                );
-                return;
-              }
-
               Navigator.pop(context);
-              
-              // TODO: Implement add peserta logic
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Menambahkan peserta dengan NIM: ${nimController.text}'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-              
-              // Refresh data setelah menambahkan
-              _loadData();
+              await _deletePeserta(peserta);
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF4169E1),
+              backgroundColor: Colors.red,
               foregroundColor: Colors.white,
             ),
-            child: Text('Tambah', style: GoogleFonts.inter()),
+            child: Text('Hapus', style: GoogleFonts.inter()),
           ),
         ],
       ),
     );
   }
-}
 
+  Future<void> _deletePeserta(Map<String, dynamic> peserta) async {
+    try {
+      final idFollow = peserta['id_follow'];
+      if (idFollow == null) {
+        throw Exception('ID peserta tidak valid');
+      }
+
+      await _pesertaService.deletePeserta(idFollow);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Berhasil menghapus peserta: ${peserta['nama']}'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      // Refresh data
+      _loadData();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Gagal menghapus peserta: ${e.toString().replaceFirst('Exception: ', '')}',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+}

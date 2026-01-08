@@ -58,7 +58,7 @@ class PesertaService {
       print('=== getPesertaByUkm DEBUG ===');
       print('idUkm: $idUkm');
       print('idPeriode: $idPeriode');
-      
+
       // Get peserta list - just filter by UKM and status for now
       // Skip periode filter to avoid potential column issues
       final response = await _supabase
@@ -75,7 +75,7 @@ class PesertaService {
           .eq('id_ukm', idUkm)
           .eq('status', 'aktif')
           .order('follow', ascending: false);
-      
+
       print('Response count: ${(response as List).length}');
       if ((response as List).isNotEmpty) {
         print('Sample peserta: ${response.take(2).toList()}');
@@ -100,7 +100,7 @@ class PesertaService {
         // Skip attendance query for now - just display peserta
         // TODO: Fix attendance query when table structure is confirmed
         int kehadiranCount = 0;
-        
+
         try {
           final attendanceResponse = await _supabase
               .from('absen_pertemuan')
@@ -108,7 +108,9 @@ class PesertaService {
               .eq('id_user', item['id_user']);
           kehadiranCount = (attendanceResponse as List).length;
         } catch (e) {
-          print('Warning: Could not fetch attendance for user ${item['id_user']}: $e');
+          print(
+            'Warning: Could not fetch attendance for user ${item['id_user']}: $e',
+          );
           kehadiranCount = 0;
         }
 
@@ -213,6 +215,139 @@ class PesertaService {
       return (response as List).length;
     } catch (e) {
       throw Exception('Failed to get member count: $e');
+    }
+  }
+
+  // Search users by NIM for adding as peserta
+  Future<List<Map<String, dynamic>>> searchUsersByNim(String nimQuery) async {
+    try {
+      if (nimQuery.isEmpty) {
+        return [];
+      }
+
+      final response = await _supabase
+          .from('users')
+          .select('id_user, username, email, nim, picture')
+          .ilike('nim', '%$nimQuery%')
+          .limit(10);
+
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      print('Error searching users by NIM: $e');
+      throw Exception('Failed to search users: $e');
+    }
+  }
+
+  // Get user by exact NIM
+  Future<Map<String, dynamic>?> getUserByNim(String nim) async {
+    try {
+      final response = await _supabase
+          .from('users')
+          .select('id_user, username, email, nim, picture')
+          .eq('nim', nim)
+          .maybeSingle();
+
+      return response;
+    } catch (e) {
+      print('Error getting user by NIM: $e');
+      throw Exception('Failed to get user: $e');
+    }
+  }
+
+  // Add peserta manually by NIM
+  Future<Map<String, dynamic>> addPesertaByNim({
+    required String nim,
+    required String idUkm,
+    required String idPeriode,
+  }) async {
+    try {
+      // First, get the user by NIM
+      final user = await getUserByNim(nim);
+      if (user == null) {
+        throw Exception('User dengan NIM $nim tidak ditemukan');
+      }
+
+      final idUser = user['id_user'];
+
+      // Check if user is already a member
+      final existingMember = await _supabase
+          .from('user_halaman_ukm')
+          .select()
+          .eq('id_user', idUser)
+          .eq('id_ukm', idUkm)
+          .eq('status', 'aktif')
+          .maybeSingle();
+
+      if (existingMember != null) {
+        throw Exception('User sudah terdaftar sebagai anggota UKM ini');
+      }
+
+      // Add user as peserta
+      final now = DateTime.now().toIso8601String();
+      final response = await _supabase
+          .from('user_halaman_ukm')
+          .insert({
+            'id_user': idUser,
+            'id_ukm': idUkm,
+            'id_periode': idPeriode,
+            'follow': now,
+            'status': 'aktif',
+            'logbook': null,
+            'deskripsi': 'Ditambahkan manual oleh admin UKM',
+          })
+          .select('''
+            *,
+            users!inner(
+              id_user,
+              username,
+              email,
+              nim
+            )
+          ''')
+          .single();
+
+      return {
+        'id_follow': response['id_follow'],
+        'id_user': response['id_user'],
+        'nama': response['users']['username'],
+        'email': response['users']['email'],
+        'nim': response['users']['nim'],
+        'tanggal': response['follow'],
+        'status': response['status'],
+        'logbook': response['logbook'],
+        'deskripsi': response['deskripsi'],
+      };
+    } catch (e) {
+      print('Error adding peserta by NIM: $e');
+      rethrow;
+    }
+  }
+
+  // Delete peserta (hard delete)
+  Future<void> deletePeserta(String idFollow) async {
+    try {
+      await _supabase
+          .from('user_halaman_ukm')
+          .delete()
+          .eq('id_follow', idFollow);
+    } catch (e) {
+      print('Error deleting peserta: $e');
+      throw Exception('Failed to delete peserta: $e');
+    }
+  }
+
+  // Get all registered users (for autocomplete suggestions)
+  Future<List<Map<String, dynamic>>> getAllRegisteredUsers() async {
+    try {
+      final response = await _supabase
+          .from('users')
+          .select('id_user, username, email, nim, picture')
+          .order('nim', ascending: true);
+
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      print('Error getting all registered users: $e');
+      throw Exception('Failed to get users: $e');
     }
   }
 }
