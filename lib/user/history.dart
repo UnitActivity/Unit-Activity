@@ -541,10 +541,14 @@ class _HistoryPageState extends State<HistoryPage> with QRScannerMixin {
                       ),
                     ),
                   ],
-                  child: const CircleAvatar(
-                    radius: 16,
-                    backgroundColor: Colors.blue,
-                    child: Icon(Icons.person, color: Colors.white, size: 20),
+                  child: CircleAvatar(
+                    radius: 20,
+                    backgroundColor: const Color(0xFF4169E1).withOpacity(0.2),
+                    child: const Icon(
+                      Icons.person,
+                      color: Color(0xFF4169E1),
+                      size: 24,
+                    ),
                   ),
                 ),
               ],
@@ -1552,12 +1556,12 @@ class _HistoryDetailPageState extends State<HistoryDetailPage>
             children: [
               CircleAvatar(
                 radius: 20,
-                backgroundColor: Colors.blue[100],
+                backgroundColor: const Color(0xFF4169E1).withOpacity(0.1),
                 child: Text(
                   (participant['nama'] ?? 'U')[0].toUpperCase(),
                   style: GoogleFonts.poppins(
                     fontWeight: FontWeight.w600,
-                    color: Colors.blue[700],
+                    color: const Color(0xFF4169E1),
                   ),
                 ),
               ),
@@ -1795,12 +1799,12 @@ class _HistoryDetailPageState extends State<HistoryDetailPage>
                 ],
               ),
               child: CircleAvatar(
-                radius: isMobile ? 14 : 16,
-                backgroundColor: Colors.grey,
-                child: Icon(
+                radius: 20,
+                backgroundColor: const Color(0xFF4169E1).withOpacity(0.2),
+                child: const Icon(
                   Icons.person,
-                  size: isMobile ? 16 : 20,
-                  color: Colors.white,
+                  size: 24,
+                  color: Color(0xFF4169E1),
                 ),
               ),
             ),
