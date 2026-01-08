@@ -74,7 +74,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
     try {
       // Load current periode
       _currentPeriode = await _getCurrentPeriode();
-      
+
       // Get UKMs from database
       final response = await _supabase
           .from('ukm')
@@ -520,7 +520,11 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
           ),
           title: Row(
             children: [
-              Icon(Icons.warning_amber_rounded, color: Colors.orange[700], size: 28),
+              Icon(
+                Icons.warning_amber_rounded,
+                color: Colors.orange[700],
+                size: 28,
+              ),
               const SizedBox(width: 12),
               const Text(
                 'Tidak Ada Periode Aktif',
@@ -546,7 +550,11 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.info_outline, color: Colors.orange[700], size: 20),
+                    Icon(
+                      Icons.info_outline,
+                      color: Colors.orange[700],
+                      size: 20,
+                    ),
                     const SizedBox(width: 8),
                     const Expanded(
                       child: Text(
@@ -661,18 +669,20 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
     if (!isRegistrationOpen) {
       final regStartDate = currentPeriode['registration_start_date'];
       final regEndDate = currentPeriode['registration_end_date'];
-      
+
       String message = 'Periode pendaftaran belum dibuka atau sudah ditutup.';
       if (regStartDate != null && regEndDate != null) {
         try {
           final startDate = DateTime.parse(regStartDate);
           final endDate = DateTime.parse(regEndDate);
           final now = DateTime.now();
-          
+
           if (now.isBefore(startDate)) {
-            message = 'Periode pendaftaran akan dibuka pada ${_formatDateIndo(startDate)}.';
+            message =
+                'Periode pendaftaran akan dibuka pada ${_formatDateIndo(startDate)}.';
           } else if (now.isAfter(endDate)) {
-            message = 'Periode pendaftaran telah ditutup pada ${_formatDateIndo(endDate)}.';
+            message =
+                'Periode pendaftaran telah ditutup pada ${_formatDateIndo(endDate)}.';
           }
         } catch (e) {
           print('Error parsing registration dates: $e');
@@ -699,10 +709,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                message,
-                style: const TextStyle(fontSize: 14),
-              ),
+              Text(message, style: const TextStyle(fontSize: 14)),
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(12),
@@ -713,7 +720,11 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.info_outline, color: Colors.orange[700], size: 20),
+                    Icon(
+                      Icons.info_outline,
+                      color: Colors.orange[700],
+                      size: 20,
+                    ),
                     const SizedBox(width: 8),
                     const Expanded(
                       child: Text(
@@ -976,16 +987,25 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
       ),
     );
 
-  // Helper function to format date in Indonesian
-  String _formatDateIndo(DateTime date) {
-    final months = [
-      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-    ];
-    return '${date.day} ${months[date.month - 1]} ${date.year}';
+    // ==================== BUILD METHOD ====================
   }
 
-  // ==================== BUILD METHOD ====================
+  String _formatDateIndo(DateTime date) {
+    final months = [
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
+    ];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
   @override
@@ -3061,7 +3081,8 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
     final namaPeriode = _currentPeriode!['nama_periode'] ?? '-';
     final tanggalAwal = _currentPeriode!['tanggal_awal'];
     final tanggalAkhir = _currentPeriode!['tanggal_akhir'];
-    final isRegistrationOpen = _currentPeriode!['is_registration_open'] ?? false;
+    final isRegistrationOpen =
+        _currentPeriode!['is_registration_open'] ?? false;
 
     String formatTanggal(String? dateStr) {
       if (dateStr == null) return '-';
@@ -3127,7 +3148,10 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
               ),
               if (isRegistrationOpen)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.green[600],
                     borderRadius: BorderRadius.circular(12),
@@ -3154,7 +3178,10 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                 )
               else
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.orange[600],
                     borderRadius: BorderRadius.circular(12),
@@ -3232,10 +3259,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                   ],
                 ),
                 const SizedBox(height: 12),
-                Container(
-                  height: 1,
-                  color: Colors.grey[200],
-                ),
+                Container(height: 1, color: Colors.grey[200]),
                 const SizedBox(height: 12),
                 Row(
                   children: [
