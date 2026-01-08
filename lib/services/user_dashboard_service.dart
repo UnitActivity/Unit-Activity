@@ -643,4 +643,94 @@ class UserDashboardService {
       return 'person_gaming';
     }
   }
+
+  /// Get user's pertemuan (meetings) attendance history
+  Future<List<Map<String, dynamic>>> getUserPertemuan() async {
+    try {
+      final userId = currentUserId;
+      if (userId == null) {
+        print('No user logged in');
+        return [];
+      }
+
+      print('========== GET USER PERTEMUAN ==========');
+      print('User ID: $userId');
+
+      // Get user's joined UKMs
+      final userUkms = await _supabase
+          .from('user_halaman_ukm')
+          .select('id_ukm, ukm(nama_ukm)')
+          .eq('id_user', userId)
+          .or('status.eq.aktif,status.eq.active');
+
+      if (userUkms.isEmpty) {
+        print('User has not joined any UKM');
+        return [];
+      }
+
+      final ukmIds = (userUkms as List).map((e) => e['id_ukm']).toList();
+      print('User UKM IDs: $ukmIds');
+
+      // Get all pertemuan for user's UKMs
+      final pertemuanResponse = await _supabase
+          .from('pertemuan')
+          .select('''
+            id_pertemuan,
+            topik,
+            tanggal,
+            jam_mulai,
+            jam_akhir,
+            lokasi,
+            ukm(id_ukm, nama_ukm, logo)
+          ''')
+          .inFilter('id_ukm', ukmIds)
+          .order('tanggal', ascending: false);
+
+      print('Found ${(pertemuanResponse as List).length} pertemuan');
+
+      // Get user's attendance records for these pertemuan
+      final pertemuanIds = (pertemuanResponse as List)
+          .map((p) => p['id_pertemuan'])
+          .toList();
+
+      Map<String, bool> attendanceMap = {};
+      if (pertemuanIds.isNotEmpty) {
+        final attendanceResponse = await _supabase
+            .from('user_pertemuan')
+            .select('id_pertemuan, id_user')
+            .eq('id_user', userId)
+            .inFilter('id_pertemuan', pertemuanIds);
+
+        for (var attendance in attendanceResponse) {
+          attendanceMap[attendance['id_pertemuan']] = true;
+        }
+      }
+
+      // Build result list
+      List<Map<String, dynamic>> pertemuanList = [];
+      for (var pertemuan in pertemuanResponse) {
+        final pertemuanId = pertemuan['id_pertemuan'];
+        final isAttended = attendanceMap[pertemuanId] ?? false;
+
+        pertemuanList.add({
+          'id': pertemuanId,
+          'topik': pertemuan['topik'] ?? 'Pertemuan',
+          'tanggal': pertemuan['tanggal'],
+          'jam_mulai': pertemuan['jam_mulai'],
+          'jam_akhir': pertemuan['jam_akhir'],
+          'lokasi': pertemuan['lokasi'],
+          'ukm_name': pertemuan['ukm']?['nama_ukm'] ?? '',
+          'ukm_logo': pertemuan['ukm']?['logo'],
+          'is_attended': isAttended,
+          'status': isAttended ? 'Hadir' : 'Tidak Hadir',
+        });
+      }
+
+      print('Processed ${pertemuanList.length} pertemuan with attendance');
+      return pertemuanList;
+    } catch (e) {
+      print('Error loading user pertemuan: $e');
+      return [];
+    }
+  }
 }

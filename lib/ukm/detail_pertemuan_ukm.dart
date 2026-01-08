@@ -87,11 +87,13 @@ class _DetailPertemuanUKMPageState extends State<DetailPertemuanUKMPage>
             .from('user_halaman_ukm')
             .select('id_user, users(id_user, username, email, nim)')
             .eq('id_ukm', ukmId)
-            .eq('status', 'aktif');
+            .or(
+              'status.eq.aktif,status.eq.active',
+            ); // Accept both 'aktif' and 'active'
 
         // Also load attendance data for this pertemuan
         final attendanceResponse = await _supabase
-            .from('user_pertemuan')
+            .from('absen_pertemuan')
             .select('id_user')
             .eq('id_pertemuan', widget.pertemuan['id']);
 

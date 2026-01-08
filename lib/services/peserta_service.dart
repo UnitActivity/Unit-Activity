@@ -59,8 +59,23 @@ class PesertaService {
       print('idUkm: $idUkm');
       print('idPeriode: $idPeriode');
 
-      // Get peserta list - just filter by UKM and status for now
-      // Skip periode filter to avoid potential column issues
+      // First, let's see ALL data for this UKM (even inactive)
+      print('\n--- Checking ALL data for UKM (including inactive) ---');
+      final allDataResponse = await _supabase
+          .from('user_halaman_ukm')
+          .select('id_follow, id_user, id_ukm, id_periode, status, follow')
+          .eq('id_ukm', idUkm);
+
+      print('Total records for UKM: ${(allDataResponse as List).length}');
+      for (var record in allDataResponse) {
+        print(
+          '  - id_follow: ${record['id_follow']}, id_user: ${record['id_user']}, '
+          'id_periode: ${record['id_periode']}, status: ${record['status']}',
+        );
+      }
+
+      // Now get active peserta list with user details
+      print('\n--- Fetching ACTIVE peserta with details ---');
       final response = await _supabase
           .from('user_halaman_ukm')
           .select('''
@@ -73,12 +88,25 @@ class PesertaService {
             )
           ''')
           .eq('id_ukm', idUkm)
-          .eq('status', 'aktif')
+          .or(
+            'status.eq.aktif,status.eq.active',
+          ) // Accept both 'aktif' and 'active'
           .order('follow', ascending: false);
 
-      print('Response count: ${(response as List).length}');
+      print('Active peserta count: ${(response as List).length}');
+
+      if ((response as List).isEmpty) {
+        print('⚠️ WARNING: No active peserta found for UKM $idUkm');
+        print('Check if:');
+        print('  1. Users have joined this UKM (check user_halaman_ukm table)');
+        print('  2. Status column is set to "aktif" or "active"');
+        print('  3. id_ukm matches exactly');
+        return [];
+      }
+
       if ((response as List).isNotEmpty) {
-        print('Sample peserta: ${response.take(2).toList()}');
+        print('Sample peserta data:');
+        print(response.first);
       }
 
       // Get total pertemuan for this UKM
@@ -89,6 +117,7 @@ class PesertaService {
             .select('id_pertemuan')
             .eq('id_ukm', idUkm);
         totalPertemuan = (totalPertemuanResponse as List).length;
+        print('Total pertemuan for this UKM: $totalPertemuan');
       } catch (e) {
         print('Warning: Could not fetch pertemuan count: $e');
       }
@@ -97,8 +126,6 @@ class PesertaService {
       final pesertaList = <Map<String, dynamic>>[];
 
       for (var item in response as List) {
-        // Skip attendance query for now - just display peserta
-        // TODO: Fix attendance query when table structure is confirmed
         int kehadiranCount = 0;
 
         try {
@@ -114,7 +141,7 @@ class PesertaService {
           kehadiranCount = 0;
         }
 
-        pesertaList.add({
+        final peserta = {
           'id_follow': item['id_follow'],
           'id_user': item['id_user'],
           'nama': item['users']['username'],
@@ -126,11 +153,17 @@ class PesertaService {
           'deskripsi': item['deskripsi'],
           'kehadiran_count': kehadiranCount,
           'total_pertemuan': totalPertemuan,
-        });
+        };
+
+        print('  ✓ Peserta: ${peserta['nama']} (${peserta['nim']})');
+        pesertaList.add(peserta);
       }
 
+      print('=== Total peserta loaded: ${pesertaList.length} ===\n');
       return pesertaList;
     } catch (e) {
+      print('❌ ERROR in getPesertaByUkm: $e');
+      print('Stack trace: ${StackTrace.current}');
       throw Exception('Failed to load peserta: $e');
     }
   }
