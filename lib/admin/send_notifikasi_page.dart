@@ -23,8 +23,8 @@ class _SendNotifikasiPageState extends State<SendNotifikasiPage> {
   String? _selectedEventId;
   String? _selectedInfoId;
 
-  List<String> _selectedUkmIds = [];
-  List<String> _selectedUserIds = [];
+  final List<String> _selectedUkmIds = [];
+  final List<String> _selectedUserIds = [];
 
   // Data from database
   List<Map<String, dynamic>> _events = [];
@@ -501,7 +501,7 @@ class _SendNotifikasiPageState extends State<SendNotifikasiPage> {
         ),
         SizedBox(height: isMobile ? 6 : 8),
         DropdownButtonFormField<String>(
-          value: _selectedType,
+          initialValue: _selectedType,
           decoration: InputDecoration(
             filled: true,
             fillColor: Colors.grey[50],
@@ -608,7 +608,7 @@ class _SendNotifikasiPageState extends State<SendNotifikasiPage> {
         ),
         SizedBox(height: isMobile ? 6 : 8),
         DropdownButtonFormField<String>(
-          value: _selectedEventId,
+          initialValue: _selectedEventId,
           hint: Text(
             'Pilih event (opsional)',
             style: GoogleFonts.inter(
@@ -656,7 +656,7 @@ class _SendNotifikasiPageState extends State<SendNotifikasiPage> {
         ),
         SizedBox(height: isMobile ? 6 : 8),
         DropdownButtonFormField<String>(
-          value: _selectedInfoId,
+          initialValue: _selectedInfoId,
           hint: Text(
             'Pilih informasi (opsional)',
             style: GoogleFonts.inter(
@@ -704,7 +704,7 @@ class _SendNotifikasiPageState extends State<SendNotifikasiPage> {
         ),
         SizedBox(height: isMobile ? 6 : 8),
         DropdownButtonFormField<String>(
-          value: _selectedTarget,
+          initialValue: _selectedTarget,
           decoration: InputDecoration(
             filled: true,
             fillColor: Colors.grey[50],

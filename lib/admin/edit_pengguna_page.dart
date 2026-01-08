@@ -367,7 +367,7 @@ class _EditPenggunaPageState extends State<EditPenggunaPage> {
                                     }
                                   });
                                 },
-                                activeColor: const Color(0xFF4169E1),
+                                activeThumbColor: const Color(0xFF4169E1),
                               ),
                             ],
                           ),
