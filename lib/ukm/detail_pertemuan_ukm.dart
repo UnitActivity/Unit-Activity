@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:unit_activity/services/ukm_dashboard_service.dart';
-import 'package:unit_activity/widgets/dynamic_qr_widget.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class DetailPertemuanUKMPage extends StatefulWidget {
@@ -35,6 +34,31 @@ class _DetailPertemuanUKMPageState extends State<DetailPertemuanUKMPage>
 
   // Track attendance by user ID
   final Map<String, bool> _attendanceData = {};
+
+  // Check if meeting is completed
+  bool get _isMeetingCompleted {
+    if (widget.pertemuan['isCompleted'] != null) {
+      return widget.pertemuan['isCompleted'] as bool;
+    }
+    // Fallback: check from tanggalRaw
+    final tanggalRaw = widget.pertemuan['tanggalRaw'];
+    if (tanggalRaw != null) {
+      try {
+        final meetingDate = DateTime.parse(tanggalRaw);
+        final now = DateTime.now();
+        final today = DateTime(now.year, now.month, now.day);
+        final meeting = DateTime(
+          meetingDate.year,
+          meetingDate.month,
+          meetingDate.day,
+        );
+        return meeting.isBefore(today);
+      } catch (e) {
+        return false;
+      }
+    }
+    return false;
+  }
 
   @override
   void initState() {
@@ -634,6 +658,87 @@ class _DetailPertemuanUKMPageState extends State<DetailPertemuanUKMPage>
   }
 
   Widget _buildQRTab(bool isMobile) {
+    // Check if meeting is completed
+    if (_isMeetingCompleted) {
+      return SingleChildScrollView(
+        padding: EdgeInsets.all(isMobile ? 16 : 24),
+        child: Container(
+          padding: EdgeInsets.all(isMobile ? 32 : 48),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.lock_clock_rounded,
+                  size: 80,
+                  color: Colors.grey[600],
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Sesi Absen Sudah Ditutup!',
+                style: GoogleFonts.inter(
+                  fontSize: isMobile ? 18 : 22,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey[800],
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Pertemuan ini telah selesai. QR code absensi tidak dapat dibuat untuk pertemuan yang sudah lewat.',
+                style: GoogleFonts.inter(
+                  fontSize: isMobile ? 14 : 16,
+                  color: Colors.grey[600],
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.blue[200]!),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.blue[700], size: 24),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Lihat data kehadiran pada tab Kehadiran',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          color: Colors.blue[700],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return SingleChildScrollView(
       padding: EdgeInsets.all(isMobile ? 16 : 24),
       child: Container(
@@ -955,62 +1060,6 @@ class _DetailPertemuanUKMPageState extends State<DetailPertemuanUKMPage>
           ],
         ),
       ),
-    );
-  }
-
-  void _showQRCodeDialog() {
-    // Check if meeting has ended
-    bool isMeetingEnded() {
-      try {
-        final tanggal = widget.pertemuan['tanggal'].split('-');
-        final jamAkhir = widget.pertemuan['jamAkhir'].split(':');
-
-        final endDateTime = DateTime(
-          int.parse(tanggal[2]), // year
-          int.parse(tanggal[1]), // month
-          int.parse(tanggal[0]), // day
-          int.parse(jamAkhir[0]), // hour
-          int.parse(jamAkhir[1]), // minute
-        );
-
-        return DateTime.now().isAfter(endDateTime);
-      } catch (e) {
-        return false;
-      }
-    }
-
-    final meetingEnded = isMeetingEnded();
-
-    if (meetingEnded) {
-      // Show ended message dialog
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text(
-            'Pertemuan Telah Selesai',
-            style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
-          ),
-          content: Text(
-            'QR Code tidak dapat ditampilkan karena pertemuan telah berakhir.',
-            style: GoogleFonts.inter(),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      );
-      return;
-    }
-
-    // Show dynamic QR code dialog
-    DynamicQRCodeDialog.show(
-      context: context,
-      type: 'PERTEMUAN',
-      id: widget.pertemuan['id'],
-      title: 'QR Code Absensi\n${widget.pertemuan['topik']}',
     );
   }
 }

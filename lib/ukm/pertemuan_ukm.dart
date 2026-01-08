@@ -41,7 +41,9 @@ class _PertemuanUKMPageState extends State<PertemuanUKMPage> {
     if (startIndex >= _filteredPertemuanList.length) return [];
     return _filteredPertemuanList.sublist(
       startIndex,
-      endIndex > _filteredPertemuanList.length ? _filteredPertemuanList.length : endIndex,
+      endIndex > _filteredPertemuanList.length
+          ? _filteredPertemuanList.length
+          : endIndex,
     );
   }
 
@@ -69,6 +71,33 @@ class _PertemuanUKMPageState extends State<PertemuanUKMPage> {
             return false;
           }
         }
+
+        // Status filter based on date
+        if (_selectedFilter == 'Mendatang') {
+          // Show only future meetings
+          if (p.tanggal == null) return false;
+          final now = DateTime.now();
+          final today = DateTime(now.year, now.month, now.day);
+          final meetingDate = DateTime(
+            p.tanggal!.year,
+            p.tanggal!.month,
+            p.tanggal!.day,
+          );
+          return meetingDate.isAfter(today) ||
+              meetingDate.isAtSameMomentAs(today);
+        } else if (_selectedFilter == 'Selesai') {
+          // Show only past meetings
+          if (p.tanggal == null) return false;
+          final now = DateTime.now();
+          final today = DateTime(now.year, now.month, now.day);
+          final meetingDate = DateTime(
+            p.tanggal!.year,
+            p.tanggal!.month,
+            p.tanggal!.day,
+          );
+          return meetingDate.isBefore(today);
+        }
+
         return true;
       }).toList();
       _currentPage = 1;
@@ -181,7 +210,10 @@ class _PertemuanUKMPageState extends State<PertemuanUKMPage> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.white,
                       foregroundColor: const Color(0xFF4169E1),
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 14,
+                      ),
                       elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
@@ -191,7 +223,7 @@ class _PertemuanUKMPageState extends State<PertemuanUKMPage> {
               ],
             ),
           ),
-          
+
           if (isMobile) ...[
             const SizedBox(height: 16),
             SizedBox(
@@ -201,14 +233,19 @@ class _PertemuanUKMPageState extends State<PertemuanUKMPage> {
                 icon: const Icon(Icons.add, size: 20),
                 label: Text(
                   'Tambah Pertemuan',
-                  style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600),
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF4169E1),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
               ),
             ),
@@ -224,7 +261,10 @@ class _PertemuanUKMPageState extends State<PertemuanUKMPage> {
             },
             decoration: InputDecoration(
               hintText: 'Cari pertemuan...',
-              hintStyle: GoogleFonts.inter(fontSize: 14, color: Colors.grey[400]),
+              hintStyle: GoogleFonts.inter(
+                fontSize: 14,
+                color: Colors.grey[400],
+              ),
               prefixIcon: Icon(Icons.search_rounded, color: Colors.grey[400]),
               filled: true,
               fillColor: Colors.white,
@@ -271,7 +311,7 @@ class _PertemuanUKMPageState extends State<PertemuanUKMPage> {
                     return _buildPertemuanCard(pertemuan);
                   },
                 ),
-          
+
           if (_filteredPertemuanList.isNotEmpty && _totalPages > 1) ...[
             const SizedBox(height: 24),
             _buildPagination(),
@@ -327,6 +367,19 @@ class _PertemuanUKMPageState extends State<PertemuanUKMPage> {
         ? DateFormat('dd MMM yyyy').format(pertemuan.tanggal!)
         : '-';
 
+    // Check if meeting is completed
+    bool isCompleted = false;
+    if (pertemuan.tanggal != null) {
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final meetingDate = DateTime(
+        pertemuan.tanggal!.year,
+        pertemuan.tanggal!.month,
+        pertemuan.tanggal!.day,
+      );
+      isCompleted = meetingDate.isBefore(today);
+    }
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: EdgeInsets.all(isMobile ? 12 : 16),
@@ -348,14 +401,17 @@ class _PertemuanUKMPageState extends State<PertemuanUKMPage> {
             'id': pertemuan.idPertemuan,
             'topik': pertemuan.topik,
             'tanggal': tanggalStr,
+            'tanggalRaw': pertemuan.tanggal?.toIso8601String(),
             'jamMulai': pertemuan.jamMulai,
             'jamAkhir': pertemuan.jamAkhir,
             'lokasi': pertemuan.lokasi,
+            'isCompleted': isCompleted,
           };
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => DetailPertemuanUKMPage(pertemuan: pertemuanMap),
+              builder: (context) =>
+                  DetailPertemuanUKMPage(pertemuan: pertemuanMap),
             ),
           );
         },
@@ -398,7 +454,42 @@ class _PertemuanUKMPageState extends State<PertemuanUKMPage> {
                       ),
                       const SizedBox(height: 8),
                       Container(
-                        padding: EdgeInsets.symmetric(horizontal: isMobile ? 8 : 10, vertical: isMobile ? 4 : 5),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isMobile ? 8 : 10,
+                          vertical: isMobile ? 4 : 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isCompleted
+                              ? Colors.grey.withOpacity(0.1)
+                              : Colors.green.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              isCompleted ? Icons.check_circle : Icons.schedule,
+                              size: isMobile ? 12 : 14,
+                              color: isCompleted ? Colors.grey : Colors.green,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              isCompleted ? 'Selesai' : 'Mendatang',
+                              style: GoogleFonts.inter(
+                                fontSize: isMobile ? 10 : 12,
+                                fontWeight: FontWeight.w600,
+                                color: isCompleted ? Colors.grey : Colors.green,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isMobile ? 8 : 10,
+                          vertical: isMobile ? 4 : 5,
+                        ),
                         decoration: BoxDecoration(
                           color: const Color(0xFF4169E1).withOpacity(0.1),
                           borderRadius: BorderRadius.circular(6),
@@ -406,7 +497,11 @@ class _PertemuanUKMPageState extends State<PertemuanUKMPage> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.location_on_rounded, size: isMobile ? 12 : 14, color: const Color(0xFF4169E1)),
+                            Icon(
+                              Icons.location_on_rounded,
+                              size: isMobile ? 12 : 14,
+                              color: const Color(0xFF4169E1),
+                            ),
                             const SizedBox(width: 4),
                             Flexible(
                               child: Text(
@@ -448,7 +543,10 @@ class _PertemuanUKMPageState extends State<PertemuanUKMPage> {
               runSpacing: 6,
               children: [
                 Container(
-                  padding: EdgeInsets.symmetric(horizontal: isMobile ? 8 : 10, vertical: isMobile ? 4 : 5),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isMobile ? 8 : 10,
+                    vertical: isMobile ? 4 : 5,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.grey[100],
                     borderRadius: BorderRadius.circular(6),
@@ -456,17 +554,28 @@ class _PertemuanUKMPageState extends State<PertemuanUKMPage> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.calendar_today_rounded, size: isMobile ? 10 : 12, color: Colors.grey[700]),
+                      Icon(
+                        Icons.calendar_today_rounded,
+                        size: isMobile ? 10 : 12,
+                        color: Colors.grey[700],
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         tanggalStr,
-                        style: GoogleFonts.inter(fontSize: isMobile ? 10 : 11, fontWeight: FontWeight.w600, color: Colors.grey[700]),
+                        style: GoogleFonts.inter(
+                          fontSize: isMobile ? 10 : 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[700],
+                        ),
                       ),
                     ],
                   ),
                 ),
                 Container(
-                  padding: EdgeInsets.symmetric(horizontal: isMobile ? 8 : 10, vertical: isMobile ? 4 : 5),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isMobile ? 8 : 10,
+                    vertical: isMobile ? 4 : 5,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.grey[100],
                     borderRadius: BorderRadius.circular(6),
@@ -474,11 +583,19 @@ class _PertemuanUKMPageState extends State<PertemuanUKMPage> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.access_time_rounded, size: isMobile ? 10 : 12, color: Colors.grey[700]),
+                      Icon(
+                        Icons.access_time_rounded,
+                        size: isMobile ? 10 : 12,
+                        color: Colors.grey[700],
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         pertemuan.jamMulai ?? '00:00',
-                        style: GoogleFonts.inter(fontSize: isMobile ? 10 : 11, fontWeight: FontWeight.w600, color: Colors.grey[700]),
+                        style: GoogleFonts.inter(
+                          fontSize: isMobile ? 10 : 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[700],
+                        ),
                       ),
                     ],
                   ),
@@ -501,7 +618,11 @@ class _PertemuanUKMPageState extends State<PertemuanUKMPage> {
             const SizedBox(height: 16),
             Text(
               'Belum ada pertemuan',
-              style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.grey[600]),
+              style: GoogleFonts.inter(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[600],
+              ),
             ),
             const SizedBox(height: 8),
             Text(
@@ -527,7 +648,11 @@ class _PertemuanUKMPageState extends State<PertemuanUKMPage> {
         children: [
           Text(
             'Halaman $_currentPage dari $_totalPages',
-            style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.grey[700]),
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey[700],
+            ),
           ),
           Row(
             children: [
