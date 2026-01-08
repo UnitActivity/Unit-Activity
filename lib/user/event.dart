@@ -445,95 +445,106 @@ class _UserEventPageState extends State<UserEventPage>
   Widget _buildTabletLayout() {
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      body: Row(
+      body: Stack(
         children: [
-          UserSidebar(
-            selectedMenu: 'event',
-            onMenuSelected: (menu) {
-              if (menu == 'dashboard') {
-                Navigator.pushReplacement(
+          Row(
+            children: [
+              UserSidebar(
+                selectedMenu: 'event',
+                onMenuSelected: (menu) {
+                  if (menu == 'dashboard') {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const DashboardUser(),
+                      ),
+                    );
+                  } else if (menu == 'ukm') {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(builder: (context) => const UserUKMPage()),
+                    );
+                  } else if (menu == 'histori') {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(builder: (context) => const HistoryPage()),
+                    );
+                  } else if (menu == 'profile') {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const ProfilePage()),
+                    );
+                  }
+                },
+                onLogout: () => Navigator.pushNamedAndRemoveUntil(
                   context,
-                  MaterialPageRoute(
-                    builder: (context) => const DashboardUser(),
-                  ),
-                );
-              } else if (menu == 'ukm') {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => const UserUKMPage()),
-                );
-              } else if (menu == 'histori') {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => const HistoryPage()),
-                );
-              } else if (menu == 'profile') {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const ProfilePage()),
-                );
-              }
-            },
-            onLogout: () => Navigator.pushNamedAndRemoveUntil(
-              context,
-              '/login',
-              (route) => false,
-            ),
-          ),
-          Expanded(
-            child: Column(
-              children: [
-                _buildFloatingTopBar(isMobile: false),
-                // Tab bar
-                Container(
-                  color: Colors.white,
-                  child: TabBar(
-                    controller: _tabController,
-                    labelColor: Colors.blue[700],
-                    unselectedLabelColor: Colors.grey[600],
-                    indicatorColor: Colors.blue[700],
-                    indicatorWeight: 3,
-                    labelStyle: GoogleFonts.poppins(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    unselectedLabelStyle: GoogleFonts.poppins(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    tabs: const [
-                      Tab(text: 'Seluruh Event'),
-                      Tab(text: 'Event yang Diikuti'),
-                      Tab(text: 'Event dari UKM Saya'),
-                    ],
-                  ),
+                  '/login',
+                  (route) => false,
                 ),
-                Expanded(
-                  child: _isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : TabBarView(
-                          controller: _tabController,
-                          children: [
-                            _buildEventTabContent(
-                              _allEvents,
-                              'Belum ada event tersedia',
-                              isMobile: false,
-                            ),
-                            _buildEventTabContent(
-                              _followedEvents,
-                              'Belum ada event yang diikuti',
-                              isMobile: false,
-                            ),
-                            _buildEventTabContent(
-                              _myUKMEvents,
-                              'Belum ada event dari UKM yang kamu ikuti',
-                              isMobile: false,
-                            ),
-                          ],
+              ),
+              Expanded(
+                child: Column(
+                  children: [
+                    const SizedBox(height: 70), // Space for floating top bar
+                    // Tab bar
+                    Container(
+                      margin: const EdgeInsets.only(top: 8),
+                      color: Colors.white,
+                      child: TabBar(
+                        controller: _tabController,
+                        labelColor: Colors.blue[700],
+                        unselectedLabelColor: Colors.grey[600],
+                        indicatorColor: Colors.blue[700],
+                        indicatorWeight: 3,
+                        labelStyle: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
                         ),
+                        unselectedLabelStyle: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        tabs: const [
+                          Tab(text: 'Seluruh Event'),
+                          Tab(text: 'Event yang Diikuti'),
+                          Tab(text: 'Event dari UKM Saya'),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: _isLoading
+                          ? const Center(child: CircularProgressIndicator())
+                          : TabBarView(
+                              controller: _tabController,
+                              children: [
+                                _buildEventTabContent(
+                                  _allEvents,
+                                  'Belum ada event tersedia',
+                                  isMobile: false,
+                                ),
+                                _buildEventTabContent(
+                                  _followedEvents,
+                                  'Belum ada event yang diikuti',
+                                  isMobile: false,
+                                ),
+                                _buildEventTabContent(
+                                  _myUKMEvents,
+                                  'Belum ada event dari UKM yang kamu ikuti',
+                                  isMobile: false,
+                                ),
+                              ],
+                            ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
+          ),
+          Positioned(
+            top: 0,
+            left: 260,
+            right: 0,
+            child: _buildFloatingTopBar(isMobile: false),
           ),
         ],
       ),
@@ -544,95 +555,106 @@ class _UserEventPageState extends State<UserEventPage>
   Widget _buildDesktopLayout() {
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      body: Row(
+      body: Stack(
         children: [
-          UserSidebar(
-            selectedMenu: 'event',
-            onMenuSelected: (menu) {
-              if (menu == 'dashboard') {
-                Navigator.pushReplacement(
+          Row(
+            children: [
+              UserSidebar(
+                selectedMenu: 'event',
+                onMenuSelected: (menu) {
+                  if (menu == 'dashboard') {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const DashboardUser(),
+                      ),
+                    );
+                  } else if (menu == 'ukm') {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(builder: (context) => const UserUKMPage()),
+                    );
+                  } else if (menu == 'histori') {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(builder: (context) => const HistoryPage()),
+                    );
+                  } else if (menu == 'profile') {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const ProfilePage()),
+                    );
+                  }
+                },
+                onLogout: () => Navigator.pushNamedAndRemoveUntil(
                   context,
-                  MaterialPageRoute(
-                    builder: (context) => const DashboardUser(),
-                  ),
-                );
-              } else if (menu == 'ukm') {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => const UserUKMPage()),
-                );
-              } else if (menu == 'histori') {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => const HistoryPage()),
-                );
-              } else if (menu == 'profile') {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const ProfilePage()),
-                );
-              }
-            },
-            onLogout: () => Navigator.pushNamedAndRemoveUntil(
-              context,
-              '/login',
-              (route) => false,
-            ),
-          ),
-          Expanded(
-            child: Column(
-              children: [
-                _buildFloatingTopBar(isMobile: false),
-                // Tab bar
-                Container(
-                  color: Colors.white,
-                  child: TabBar(
-                    controller: _tabController,
-                    labelColor: Colors.blue[700],
-                    unselectedLabelColor: Colors.grey[600],
-                    indicatorColor: Colors.blue[700],
-                    indicatorWeight: 3,
-                    labelStyle: GoogleFonts.poppins(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    unselectedLabelStyle: GoogleFonts.poppins(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    tabs: const [
-                      Tab(text: 'Seluruh Event'),
-                      Tab(text: 'Event yang Diikuti'),
-                      Tab(text: 'Event dari UKM Saya'),
-                    ],
-                  ),
+                  '/login',
+                  (route) => false,
                 ),
-                Expanded(
-                  child: _isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : TabBarView(
-                          controller: _tabController,
-                          children: [
-                            _buildEventTabContent(
-                              _allEvents,
-                              'Belum ada event tersedia',
-                              isMobile: false,
-                            ),
-                            _buildEventTabContent(
-                              _followedEvents,
-                              'Belum ada event yang diikuti',
-                              isMobile: false,
-                            ),
-                            _buildEventTabContent(
-                              _myUKMEvents,
-                              'Belum ada event dari UKM yang kamu ikuti',
-                              isMobile: false,
-                            ),
-                          ],
+              ),
+              Expanded(
+                child: Column(
+                  children: [
+                    const SizedBox(height: 70), // Space for floating top bar
+                    // Tab bar
+                    Container(
+                      margin: const EdgeInsets.only(top: 8),
+                      color: Colors.white,
+                      child: TabBar(
+                        controller: _tabController,
+                        labelColor: Colors.blue[700],
+                        unselectedLabelColor: Colors.grey[600],
+                        indicatorColor: Colors.blue[700],
+                        indicatorWeight: 3,
+                        labelStyle: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
                         ),
+                        unselectedLabelStyle: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        tabs: const [
+                          Tab(text: 'Seluruh Event'),
+                          Tab(text: 'Event yang Diikuti'),
+                          Tab(text: 'Event dari UKM Saya'),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: _isLoading
+                          ? const Center(child: CircularProgressIndicator())
+                          : TabBarView(
+                              controller: _tabController,
+                              children: [
+                                _buildEventTabContent(
+                                  _allEvents,
+                                  'Belum ada event tersedia',
+                                  isMobile: false,
+                                ),
+                                _buildEventTabContent(
+                                  _followedEvents,
+                                  'Belum ada event yang diikuti',
+                                  isMobile: false,
+                                ),
+                                _buildEventTabContent(
+                                  _myUKMEvents,
+                                  'Belum ada event dari UKM yang kamu ikuti',
+                                  isMobile: false,
+                                ),
+                              ],
+                            ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
+          ),
+          Positioned(
+            top: 0,
+            left: 260,
+            right: 0,
+            child: _buildFloatingTopBar(isMobile: false),
           ),
         ],
       ),
@@ -794,10 +816,14 @@ class _UserEventPageState extends State<UserEventPage>
                       ),
                     ),
                   ],
-                  child: const CircleAvatar(
-                    radius: 16,
-                    backgroundColor: Colors.blue,
-                    child: Icon(Icons.person, color: Colors.white, size: 20),
+                  child: CircleAvatar(
+                    radius: 20,
+                    backgroundColor: const Color(0xFF4169E1).withOpacity(0.2),
+                    child: const Icon(
+                      Icons.person,
+                      color: Color(0xFF4169E1),
+                      size: 24,
+                    ),
                   ),
                 ),
               ],

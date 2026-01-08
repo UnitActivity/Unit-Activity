@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:unit_activity/widgets/qr_scanner_mixin.dart';
 import 'package:unit_activity/widgets/notification_bell_widget.dart';
+import 'package:unit_activity/widgets/user_sidebar.dart';
 import 'package:unit_activity/user/notifikasi_user.dart';
 import 'package:unit_activity/user/dashboard_user.dart';
 import 'package:unit_activity/user/event.dart';
@@ -286,19 +287,17 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
       backgroundColor: Colors.grey[50],
       body: Stack(
         children: [
-          Column(
+          Row(
             children: [
-              SizedBox(height: 70), // Space for floating top bar
+              UserSidebar(
+                selectedMenu: _selectedMenu,
+                onMenuSelected: _handleMenuSelected,
+                onLogout: _showLogoutDialog,
+              ),
               Expanded(
-                child: Row(
+                child: Column(
                   children: [
-                    SizedBox(
-                      width: 200,
-                      child: Container(
-                        color: Colors.white,
-                        child: _buildSidebarVerticalModern(),
-                      ),
-                    ),
+                    const SizedBox(height: 70),
                     Expanded(
                       child: SingleChildScrollView(
                         padding: const EdgeInsets.all(16),
@@ -312,7 +311,7 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
           ),
           Positioned(
             top: 0,
-            left: 0,
+            left: 260,
             right: 0,
             child: _buildFloatingTopBar(isMobile: false),
           ),
@@ -330,11 +329,15 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
         children: [
           Row(
             children: [
-              _buildSidebarModern(),
+              UserSidebar(
+                selectedMenu: _selectedMenu,
+                onMenuSelected: _handleMenuSelected,
+                onLogout: _showLogoutDialog,
+              ),
               Expanded(
                 child: Column(
                   children: [
-                    SizedBox(height: 70), // Space for floating top bar
+                    const SizedBox(height: 70), // Space for floating top bar
                     Expanded(
                       child: SingleChildScrollView(
                         padding: const EdgeInsets.all(24),
@@ -348,7 +351,7 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
           ),
           Positioned(
             top: 0,
-            left: 250,
+            left: 260,
             right: 0,
             child: _buildFloatingTopBar(isMobile: false),
           ),
@@ -800,216 +803,7 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
     );
   }
 
-  // ==================== SIDEBAR ====================
-  Widget _buildSidebarModern() {
-    return Container(
-      width: 260,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 10,
-            offset: const Offset(2, 0),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text(
-              'UNIT ACTIVITY',
-              style: GoogleFonts.orbitron(
-                fontSize: 22,
-                fontWeight: FontWeight.w900,
-                color: const Color(0xFF4169E1),
-                letterSpacing: 1.2,
-              ),
-            ),
-          ),
-          const Divider(height: 1),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              children: [
-                _buildModernMenuItem(Icons.dashboard, 'Dashboard', 'dashboard'),
-                _buildModernMenuItem(Icons.event, 'Event', 'event'),
-                _buildModernMenuItem(Icons.groups, 'UKM', 'ukm'),
-                _buildModernMenuItem(Icons.history, 'Histori', 'history'),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildModernMenuItem(IconData icon, String title, String route) {
-    final isSelected = _selectedMenu == title;
-
-    return InkWell(
-      onTap: () {
-        setState(() => _selectedMenu = title);
-        if (route == 'dashboard') {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const DashboardUser()),
-          );
-        } else if (route == 'event') {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const UserEventPage()),
-          );
-        } else if (route == 'ukm') {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const UserUKMPage()),
-          );
-        } else if (route == 'history') {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const HistoryPage()),
-          );
-        }
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.blue[50] : Colors.transparent,
-          border: Border(
-            left: BorderSide(
-              color: isSelected ? Colors.blue[700]! : Colors.transparent,
-              width: 3,
-            ),
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              size: 20,
-              color: isSelected ? Colors.blue[700] : Colors.grey[600],
-            ),
-            const SizedBox(width: 12),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                color: isSelected ? Colors.blue[700] : Colors.grey[700],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ==================== MODERN VERTICAL SIDEBAR (MOBILE/TABLET) ====================
-  Widget _buildSidebarVerticalModern() {
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.blue[100],
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Icon(Icons.school, color: Colors.blue[700], size: 20),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'UNIT ACTIVITY',
-                  style: GoogleFonts.orbitron(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.8,
-                    color: Colors.blue[700],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1),
-          _buildMenuItemCompactModern(
-            Icons.dashboard_rounded,
-            'Dashboard',
-            'dashboard',
-          ),
-          _buildMenuItemCompactModern(Icons.event_rounded, 'Event', 'event'),
-          _buildMenuItemCompactModern(Icons.groups_rounded, 'UKM', 'ukm'),
-          _buildMenuItemCompactModern(
-            Icons.history_rounded,
-            'Histori',
-            'history',
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMenuItemCompactModern(
-    IconData icon,
-    String title,
-    String route,
-  ) {
-    final isSelected = _selectedMenu == title;
-
-    return ListTile(
-      dense: true,
-      leading: Icon(
-        icon,
-        size: 18,
-        color: isSelected ? Colors.blue[700] : Colors.grey[600],
-      ),
-      title: Text(
-        title,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-          color: isSelected ? Colors.blue[700] : Colors.grey[700],
-        ),
-      ),
-      selected: isSelected,
-      selectedTileColor: Colors.blue[50],
-      onTap: () {
-        setState(() => _selectedMenu = title);
-        Navigator.pop(context);
-        Future.delayed(const Duration(milliseconds: 200), () {
-          if (route == 'dashboard') {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const DashboardUser()),
-            );
-          } else if (route == 'event') {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const UserEventPage()),
-            );
-          } else if (route == 'ukm') {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const UserUKMPage()),
-            );
-          } else if (route == 'history') {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const HistoryPage()),
-            );
-          }
-        });
-      },
-    );
-  } // ==================== FLOATING TOP BAR ====================
+  // ==================== FLOATING TOP BAR ====================", "StartLine">804
 
   Widget _buildFloatingTopBar({required bool isMobile}) {
     return Container(
@@ -1160,8 +954,8 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
                 _buildNavItem(
                   Icons.history_rounded,
                   'History',
-                  _selectedMenu == 'history',
-                  () => _handleMenuSelected('history'),
+                  _selectedMenu == 'histori',
+                  () => _handleMenuSelected('histori'),
                 ),
               ],
             ),
@@ -1229,13 +1023,67 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
           MaterialPageRoute(builder: (context) => const UserUKMPage()),
         );
         break;
-      case 'history':
+      case 'histori':
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const HistoryPage()),
         );
         break;
     }
+  }
+
+  void _showLogoutDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.logout, color: Colors.red[600]),
+            const SizedBox(width: 12),
+            Text(
+              'Logout',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: Text(
+          'Apakah Anda yakin ingin keluar?',
+          style: GoogleFonts.inter(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Batal', style: GoogleFonts.inter()),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              try {
+                await _supabase.auth.signOut();
+              } catch (e) {
+                debugPrint('Error signing out: $e');
+              }
+              if (mounted) {
+                Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  '/login',
+                  (route) => false,
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red[600],
+              foregroundColor: Colors.white,
+            ),
+            child: Text(
+              'Logout',
+              style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // ==================== QR SCANNER OVERLAY ====================
