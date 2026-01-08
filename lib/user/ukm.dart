@@ -33,6 +33,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
   List<Map<String, dynamic>> _ukmEventsList = [];
   bool _isLoadingPertemuan = false;
   bool _isLoadingEvents = false;
+  Map<String, dynamic>? _currentPeriode; // Store current periode info
   late final _LifecycleObserver _lifecycleObserver;
 
   @override
@@ -71,6 +72,9 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
     });
 
     try {
+      // Load current periode
+      _currentPeriode = await _getCurrentPeriode();
+      
       // Get UKMs from database
       final response = await _supabase
           .from('ukm')
@@ -231,11 +235,11 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
           .from('pertemuan')
           .select('''
             id_pertemuan,
-            judul,
+            topik,
             deskripsi,
             tanggal,
-            waktu_mulai,
-            waktu_selesai,
+            jam_mulai,
+            jam_akhir,
             lokasi,
             status
           ''')
@@ -296,12 +300,12 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
             nama_event,
             deskripsi,
             tanggal_mulai,
-            tanggal_selesai,
+            tanggal_akhir,
             lokasi,
-            status,
-            gambar
+            status
           ''')
           .eq('id_ukm', ukmId)
+          .eq('status', true)
           .order('tanggal_mulai', ascending: false)
           .limit(5);
 
@@ -319,10 +323,14 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
   Future<Map<String, dynamic>?> _getCurrentPeriode() async {
     try {
       final response = await _supabase
-          .from('periode')
-          .select('id_periode, nama_periode')
+          .from('periode_ukm')
+          .select('''
+            id_periode, nama_periode, semester, tahun,
+            tanggal_awal, tanggal_akhir, status,
+            is_registration_open, registration_start_date, registration_end_date
+          ''')
           .eq('status', 'Aktif')
-          .order('tahun_mulai', ascending: false)
+          .order('create_at', ascending: false)
           .limit(1)
           .maybeSingle();
 
@@ -499,7 +507,81 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
   }
 
   Future<void> _showRegisterDialog(Map<String, dynamic> ukm) async {
-    // Check cooldown period
+    // Get current periode first
+    final currentPeriode = await _getCurrentPeriode();
+
+    // Check if there's an active periode
+    if (currentPeriode == null) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.orange[700], size: 28),
+              const SizedBox(width: 12),
+              const Text(
+                'Tidak Ada Periode Aktif',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Saat ini tidak ada periode pendaftaran yang berlangsung.',
+                style: TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange[200]!),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.orange[700], size: 20),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'Silakan tunggu pengumuman periode pendaftaran berikutnya.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue[600],
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+              ),
+              child: const Text('Mengerti'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // Check cooldown period (for users who previously left)
     final cooldownCheck = await _checkCooldownPeriod(ukm['id']);
     if (cooldownCheck['has_cooldown'] == true) {
       final currentPeriodeName = cooldownCheck['current_periode'] ?? 'saat ini';
@@ -512,7 +594,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
           ),
           title: Row(
             children: [
-              Icon(Icons.info_outline, color: Colors.orange[700], size: 28),
+              Icon(Icons.block, color: Colors.red[700], size: 28),
               const SizedBox(width: 12),
               const Text(
                 'Tidak Dapat Bergabung',
@@ -532,20 +614,112 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.orange[50],
+                  color: Colors.red[50],
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.orange[200]!),
+                  border: Border.all(color: Colors.red[200]!),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.schedule, color: Colors.orange[700], size: 20),
+                    Icon(Icons.schedule, color: Colors.red[700], size: 20),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         'Anda harus menunggu sampai periode berikutnya untuk bergabung kembali.',
                         style: TextStyle(
                           fontSize: 13,
-                          color: Colors.orange[900],
+                          color: Colors.red[900],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue[600],
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+              ),
+              child: const Text('Mengerti'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // Check if registration is open
+    final isRegistrationOpen = currentPeriode['is_registration_open'] ?? false;
+    if (!isRegistrationOpen) {
+      final regStartDate = currentPeriode['registration_start_date'];
+      final regEndDate = currentPeriode['registration_end_date'];
+      
+      String message = 'Periode pendaftaran belum dibuka atau sudah ditutup.';
+      if (regStartDate != null && regEndDate != null) {
+        try {
+          final startDate = DateTime.parse(regStartDate);
+          final endDate = DateTime.parse(regEndDate);
+          final now = DateTime.now();
+          
+          if (now.isBefore(startDate)) {
+            message = 'Periode pendaftaran akan dibuka pada ${_formatDateIndo(startDate)}.';
+          } else if (now.isAfter(endDate)) {
+            message = 'Periode pendaftaran telah ditutup pada ${_formatDateIndo(endDate)}.';
+          }
+        } catch (e) {
+          print('Error parsing registration dates: $e');
+        }
+      }
+
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.event_busy, color: Colors.orange[700], size: 28),
+              const SizedBox(width: 12),
+              const Text(
+                'Pendaftaran Ditutup',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                message,
+                style: const TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange[200]!),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.orange[700], size: 20),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'Silakan tunggu hingga periode pendaftaran dibuka.',
+                        style: TextStyle(
+                          fontSize: 13,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -645,24 +819,6 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                                     style: TextStyle(color: Colors.white),
                                   ),
                                   backgroundColor: Colors.red[600],
-                                ),
-                              );
-                              return;
-                            }
-
-                            // Get current periode
-                            final currentPeriode = await _getCurrentPeriode();
-
-                            if (currentPeriode == null) {
-                              if (!mounted) return;
-                              Navigator.pop(context);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: const Text(
-                                    'Tidak ada periode aktif saat ini',
-                                    style: TextStyle(color: Colors.white),
-                                  ),
-                                  backgroundColor: Colors.orange[600],
                                 ),
                               );
                               return;
@@ -819,6 +975,17 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
         ),
       ),
     );
+
+  // Helper function to format date in Indonesian
+  String _formatDateIndo(DateTime date) {
+    final months = [
+      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
+  }
+
+  // ==================== BUILD METHOD ====================
   }
 
   @override
@@ -2413,6 +2580,11 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
             items: _selectedUKM!['kontak'] as List,
             isMobile: isMobile,
           ),
+          // Periode Section
+          if (_currentPeriode != null) ...[
+            const SizedBox(height: 12),
+            _buildPeriodeSection(isMobile: isMobile),
+          ],
           const SizedBox(height: 24),
           // Kegiatan Pertemuan Section
           _buildPertemuanSection(isMobile: isMobile),
@@ -2523,7 +2695,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                             children: [
                               Expanded(
                                 child: Text(
-                                  pertemuan['judul'] ?? 'Pertemuan',
+                                  pertemuan['topik'] ?? 'Pertemuan',
                                   style: GoogleFonts.poppins(
                                     fontSize: isMobile ? 14 : 15,
                                     fontWeight: FontWeight.w600,
@@ -2540,7 +2712,9 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                                     vertical: 4,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: pertemuan['user_status_hadir'] == 'hadir'
+                                    color:
+                                        pertemuan['user_status_hadir'] ==
+                                            'hadir'
                                         ? Colors.green[50]
                                         : Colors.orange[50],
                                     borderRadius: BorderRadius.circular(12),
@@ -2552,7 +2726,9 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                                     style: GoogleFonts.inter(
                                       fontSize: isMobile ? 10 : 11,
                                       fontWeight: FontWeight.w600,
-                                      color: pertemuan['user_status_hadir'] == 'hadir'
+                                      color:
+                                          pertemuan['user_status_hadir'] ==
+                                              'hadir'
                                           ? Colors.green[700]
                                           : Colors.orange[700],
                                     ),
@@ -2593,7 +2769,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                               const SizedBox(width: 6),
                               Flexible(
                                 child: Text(
-                                  '${pertemuan['waktu_mulai'] ?? '-'} - ${pertemuan['waktu_selesai'] ?? '-'}',
+                                  '${pertemuan['jam_mulai'] ?? '-'} - ${pertemuan['jam_akhir'] ?? '-'}',
                                   style: GoogleFonts.inter(
                                     fontSize: isMobile ? 11 : 12,
                                     color: Colors.grey[700],
@@ -2690,7 +2866,6 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
         else
           ...List.generate(_ukmEventsList.length, (index) {
             final event = _ukmEventsList[index];
-            final String? imageUrl = event['gambar'];
             return Container(
               margin: EdgeInsets.only(
                 bottom: index < _ukmEventsList.length - 1 ? 12 : 0,
@@ -2710,60 +2885,24 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Image section (left side)
+                  // Icon section (left side)
                   Container(
                     width: isMobile ? 100 : 140,
                     height: isMobile ? 100 : 120,
                     decoration: BoxDecoration(
-                      color: Colors.grey[200],
+                      color: Colors.orange[50],
                       borderRadius: const BorderRadius.only(
                         topLeft: Radius.circular(12),
                         bottomLeft: Radius.circular(12),
                       ),
                     ),
-                    child: imageUrl != null && imageUrl.isNotEmpty
-                        ? ClipRRect(
-                            borderRadius: const BorderRadius.only(
-                              topLeft: Radius.circular(12),
-                              bottomLeft: Radius.circular(12),
-                            ),
-                            child: Image.network(
-                              imageUrl,
-                              fit: BoxFit.cover,
-                              width: double.infinity,
-                              height: double.infinity,
-                              cacheWidth: 200,
-                              cacheHeight: 200,
-                              loadingBuilder: (context, child, loadingProgress) {
-                                if (loadingProgress == null) return child;
-                                return Center(
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    value: loadingProgress.expectedTotalBytes != null
-                                        ? loadingProgress.cumulativeBytesLoaded /
-                                            loadingProgress.expectedTotalBytes!
-                                        : null,
-                                  ),
-                                );
-                              },
-                              errorBuilder: (context, error, stackTrace) {
-                                return Center(
-                                  child: Icon(
-                                    Icons.event,
-                                    size: isMobile ? 40 : 50,
-                                    color: Colors.grey[400],
-                                  ),
-                                );
-                              },
-                            ),
-                          )
-                        : Center(
-                            child: Icon(
-                              Icons.event,
-                              size: isMobile ? 40 : 50,
-                              color: Colors.grey[400],
-                            ),
-                          ),
+                    child: Center(
+                      child: Icon(
+                        Icons.event,
+                        size: isMobile ? 40 : 50,
+                        color: Colors.orange[700],
+                      ),
+                    ),
                   ),
                   // Content section (right side)
                   Expanded(
@@ -2792,17 +2931,17 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                                   vertical: 4,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: event['status'] == 'aktif'
+                                  color: event['status'] == true
                                       ? Colors.green[50]
                                       : Colors.grey[100],
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Text(
-                                  event['status'] ?? 'Draft',
+                                  event['status'] == true ? 'Aktif' : 'Draft',
                                   style: GoogleFonts.inter(
                                     fontSize: isMobile ? 10 : 11,
                                     fontWeight: FontWeight.w600,
-                                    color: event['status'] == 'aktif'
+                                    color: event['status'] == true
                                         ? Colors.green[700]
                                         : Colors.grey[600],
                                   ),
@@ -2821,7 +2960,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                               const SizedBox(width: 6),
                               Expanded(
                                 child: Text(
-                                  '${event['tanggal_mulai'] ?? '-'} - ${event['tanggal_selesai'] ?? '-'}',
+                                  '${event['tanggal_mulai'] ?? '-'} - ${event['tanggal_akhir'] ?? '-'}',
                                   style: GoogleFonts.inter(
                                     fontSize: isMobile ? 11 : 12,
                                     color: Colors.grey[700],
@@ -2912,6 +3051,231 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
           );
         }),
       ],
+    );
+  }
+
+  // ==================== PERIODE SECTION ====================
+  Widget _buildPeriodeSection({required bool isMobile}) {
+    if (_currentPeriode == null) return const SizedBox.shrink();
+
+    final namaPeriode = _currentPeriode!['nama_periode'] ?? '-';
+    final tanggalAwal = _currentPeriode!['tanggal_awal'];
+    final tanggalAkhir = _currentPeriode!['tanggal_akhir'];
+    final isRegistrationOpen = _currentPeriode!['is_registration_open'] ?? false;
+
+    String formatTanggal(String? dateStr) {
+      if (dateStr == null) return '-';
+      try {
+        final date = DateTime.parse(dateStr);
+        return _formatDateIndo(date);
+      } catch (e) {
+        return dateStr;
+      }
+    }
+
+    return Container(
+      padding: EdgeInsets.all(isMobile ? 12 : 16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.blue[50]!, Colors.blue[100]!],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blue[200]!, width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.blue[600],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.calendar_month,
+                  color: Colors.white,
+                  size: isMobile ? 18 : 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Periode Aktif',
+                      style: GoogleFonts.poppins(
+                        fontSize: isMobile ? 11 : 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.blue[900],
+                      ),
+                    ),
+                    Text(
+                      namaPeriode,
+                      style: GoogleFonts.poppins(
+                        fontSize: isMobile ? 13 : 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue[700],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (isRegistrationOpen)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.green[600],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.check_circle,
+                        color: Colors.white,
+                        size: isMobile ? 12 : 14,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Buka',
+                        style: GoogleFonts.inter(
+                          fontSize: isMobile ? 10 : 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.orange[600],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.lock,
+                        color: Colors.white,
+                        size: isMobile ? 12 : 14,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Tutup',
+                        style: GoogleFonts.inter(
+                          fontSize: isMobile ? 10 : 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: EdgeInsets.all(isMobile ? 10 : 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.event_available,
+                      size: isMobile ? 16 : 18,
+                      color: Colors.green[600],
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Periode Dimulai',
+                            style: GoogleFonts.inter(
+                              fontSize: isMobile ? 10 : 11,
+                              color: Colors.grey[600],
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            formatTanggal(tanggalAwal),
+                            style: GoogleFonts.poppins(
+                              fontSize: isMobile ? 12 : 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[800],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  height: 1,
+                  color: Colors.grey[200],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.event_busy,
+                      size: isMobile ? 16 : 18,
+                      color: Colors.red[600],
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Periode Berakhir',
+                            style: GoogleFonts.inter(
+                              fontSize: isMobile ? 10 : 11,
+                              color: Colors.grey[600],
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            formatTanggal(tanggalAkhir),
+                            style: GoogleFonts.poppins(
+                              fontSize: isMobile ? 12 : 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[800],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

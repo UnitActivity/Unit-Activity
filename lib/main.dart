@@ -1,5 +1,6 @@
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -15,6 +16,16 @@ import 'package:unit_activity/config/config.dart';
 import 'package:unit_activity/services/custom_auth_service.dart';
 import 'package:unit_activity/services/push_notification_service.dart';
 
+/// Check if current platform supports Firebase Messaging (mobile only)
+bool get _isMobilePlatform {
+  if (kIsWeb) return false;
+  try {
+    return Platform.isAndroid || Platform.isIOS;
+  } catch (e) {
+    return false;
+  }
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -23,8 +34,13 @@ Future<void> main() async {
     usePathUrlStrategy();
   }
 
-  // Load environment variables
-  await dotenv.load(fileName: ".env");
+  // Load environment variables with error handling
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    print('Warning: Could not load .env file: $e');
+    // Continue without .env - use fallback values in config
+  }
 
   // Initialize Supabase
   await Supabase.initialize(
@@ -32,8 +48,8 @@ Future<void> main() async {
     anonKey: SupabaseConfig.supabaseAnonKey,
   );
 
-  // Initialize Firebase Messaging background handler (must be before runApp)
-  if (!kIsWeb) {
+  // Initialize Firebase Messaging background handler (mobile only - not supported on Windows/macOS/Linux)
+  if (_isMobilePlatform) {
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   }
 
@@ -48,8 +64,8 @@ Future<void> main() async {
     );
   }
 
-  // Initialize Push Notifications (works for all users, even logged out)
-  if (!kIsWeb) {
+  // Initialize Push Notifications (mobile only - not supported on desktop)
+  if (_isMobilePlatform) {
     print('========== INITIALIZING PUSH NOTIFICATIONS ==========');
     final pushNotificationService = PushNotificationService();
     await pushNotificationService.initialize();
@@ -66,9 +82,12 @@ Future<void> main() async {
     }
   }
 
+  // Disable DevicePreview in release mode for better performance
+  final enableDevicePreview = !kReleaseMode;
+
   runApp(
     DevicePreview(
-      enabled: true, // Set to false untuk disable device preview
+      enabled: enableDevicePreview,
       builder: (context) => const MyApp(),
     ),
   );
