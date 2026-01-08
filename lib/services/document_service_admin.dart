@@ -10,9 +10,6 @@ import '../models/document_model.dart';
 class DocumentService {
   final SupabaseClient _supabase = Supabase.instance.client;
 
-  // Public getter for supabase client (needed for UKM lookups)
-  SupabaseClient get supabase => _supabase;
-
   // ========== UNIFIED DOCUMENT METHODS ==========
 
   /// Get all documents with optional filters
@@ -419,141 +416,13 @@ class DocumentService {
   }
 
   /// Get all comments for a document
-  /// Add comment by UKM (using id_ukm)
-  Future<void> addCommentByUkm({
-    required String documentId,
-    required String comment,
-    required String ukmId,
-  }) async {
-    final now = DateTime.now().toIso8601String();
-
-    try {
-      // Get document type first
-      final docResponse = await _supabase
-          .from('event_documents')
-          .select('document_type')
-          .eq('id_document', documentId)
-          .single();
-
-      final documentType = docResponse['document_type'] as String;
-
-      // INSERT into document_comments with id_ukm
-      final insertData = {
-        'document_id': documentId,
-        'document_type': documentType,
-        'id_ukm': ukmId,
-        'comment': comment,
-        'created_at': now,
-      };
-
-      print('📝 Inserting UKM comment data: $insertData');
-
-      final insertResult = await _supabase
-          .from('document_comments')
-          .insert(insertData)
-          .select();
-
-      print('✅ UKM comment insert result: $insertResult');
-    } catch (e) {
-      print('❌ Error adding UKM comment: $e');
-      throw Exception('Gagal menambahkan komentar: $e');
-    }
-  }
-
-  /// Add comment by regular user (using id_user)
-  Future<void> addCommentByUser({
-    required String documentId,
-    required String comment,
-    required String userId,
-  }) async {
-    final now = DateTime.now().toIso8601String();
-
-    try {
-      // Get document type first
-      final docResponse = await _supabase
-          .from('event_documents')
-          .select('document_type')
-          .eq('id_document', documentId)
-          .single();
-
-      final documentType = docResponse['document_type'] as String;
-
-      // INSERT into document_comments with id_user
-      final insertData = {
-        'document_id': documentId,
-        'document_type': documentType,
-        'id_user': userId,
-        'comment': comment,
-        'created_at': now,
-      };
-
-      print('📝 Inserting user comment data: $insertData');
-
-      final insertResult = await _supabase
-          .from('document_comments')
-          .insert(insertData)
-          .select();
-
-      print('✅ User comment insert result: $insertResult');
-    } catch (e) {
-      print('❌ Error adding user comment: $e');
-      throw Exception('Gagal menambahkan komentar: $e');
-    }
-  }
-
-  /// Legacy methods for UKM users (backward compatibility)
-  Future<void> addProposalCommentByUkm({
-    required String proposalId,
-    required String comment,
-    required String ukmId,
-  }) async {
-    return addCommentByUkm(
-      documentId: proposalId,
-      comment: comment,
-      ukmId: ukmId,
-    );
-  }
-
-  Future<void> addLPJCommentByUkm({
-    required String lpjId,
-    required String comment,
-    required String ukmId,
-  }) async {
-    return addCommentByUkm(documentId: lpjId, comment: comment, ukmId: ukmId);
-  }
-
-  /// Legacy methods for regular users (backward compatibility)
-  Future<void> addProposalCommentByUser({
-    required String proposalId,
-    required String comment,
-    required String userId,
-  }) async {
-    return addCommentByUser(
-      documentId: proposalId,
-      comment: comment,
-      userId: userId,
-    );
-  }
-
-  Future<void> addLPJCommentByUser({
-    required String lpjId,
-    required String comment,
-    required String userId,
-  }) async {
-    return addCommentByUser(
-      documentId: lpjId,
-      comment: comment,
-      userId: userId,
-    );
-  }
-
   Future<List<DocumentComment>> getDocumentComments(
     String documentId,
     String documentType,
   ) async {
     try {
       print(
-        '🔍 [UKM SERVICE] Loading comments for document: $documentId, type: $documentType',
+        '🔍 [ADMIN SERVICE] Loading comments for document: $documentId, type: $documentType',
       );
 
       // Use proper relation naming for foreign keys
@@ -562,26 +431,28 @@ class DocumentService {
           .select('''
             *,
             admin:admin!document_comments_id_admin_fkey(username_admin, email_admin),
-            users:users!document_comments_id_user_fkey(username, email, picture),
-            ukm:ukm!document_comments_id_ukm_fkey(nama_ukm, logo, email)
+            ukm:ukm!document_comments_id_ukm_fkey(nama_ukm, logo, email),
+            users:users!document_comments_id_user_fkey(username, email, picture)
           ''')
           .eq('document_id', documentId)
           .eq('document_type', documentType)
           .order('created_at', ascending: false);
 
-      print('📦 [UKM SERVICE] Comments response: $response');
-      print('📊 [UKM SERVICE] Comments count: ${(response as List).length}');
+      print('📦 [ADMIN SERVICE] Comments response: $response');
+      print('📊 [ADMIN SERVICE] Comments count: ${(response as List).length}');
 
       final comments = (response as List).map((json) {
-        print('🔍 [UKM SERVICE] Comment JSON: $json');
+        print('🔍 [ADMIN SERVICE] Comment JSON: $json');
         return DocumentComment.fromJson(json);
       }).toList();
 
-      print('✅ [UKM SERVICE] Successfully loaded ${comments.length} comments');
+      print(
+        '✅ [ADMIN SERVICE] Successfully loaded ${comments.length} comments',
+      );
       return comments;
     } catch (e, stackTrace) {
-      print('⚠️ [UKM SERVICE] Error loading comments: $e');
-      print('⚠️ [UKM SERVICE] Stack trace: $stackTrace');
+      print('⚠️ [ADMIN SERVICE] Error loading comments: $e');
+      print('⚠️ [ADMIN SERVICE] Stack trace: $stackTrace');
       return [];
     }
   }
