@@ -28,7 +28,7 @@ class _AddPeriodePageState extends State<AddPeriodePage> {
   DateTime? _registrationEndDate;
   TimeOfDay? _registrationEndTime;
 
-  String _status = 'draft';
+  final String _status = 'draft';
   bool _isSaving = false;
 
   @override

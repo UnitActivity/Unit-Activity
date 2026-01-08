@@ -697,13 +697,13 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                             }
 
                             print(
-                              'Current periode: ${currentPeriode?['id_periode']}',
+                              'Current periode: ${currentPeriode['id_periode']}',
                             );
 
                             await _supabase.from('user_halaman_ukm').insert({
                               'id_ukm': ukm['id'],
                               'id_user': userId,
-                              'id_periode': currentPeriode?['id_periode'],
+                              'id_periode': currentPeriode['id_periode'],
                               'status': 'aktif',
                             });
 

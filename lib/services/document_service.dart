@@ -53,6 +53,7 @@ class DocumentService {
   /// Get single document by ID
   Future<EventDocument> getDocument(String documentId) async {
     try {
+      print('🔍 [getDocument] Querying document ID: $documentId');
       final response = await _supabase
           .from('event_documents')
           .select('''
@@ -65,8 +66,15 @@ class DocumentService {
           .eq('id_document', documentId)
           .single();
 
-      return EventDocument.fromJson(response);
-    } catch (e) {
+      print('✅ [getDocument] Query successful');
+      print('📦 [getDocument] Response: $response');
+
+      final doc = EventDocument.fromJson(response);
+      print('✅ [getDocument] Parsed to EventDocument successfully');
+      return doc;
+    } catch (e, stackTrace) {
+      print('❌ [getDocument] Error: $e');
+      print('❌ [getDocument] Stack trace: $stackTrace');
       throw Exception('Gagal memuat detail dokumen: $e');
     }
   }
@@ -236,54 +244,36 @@ class DocumentService {
   /// Get proposal details (Legacy wrapper)
   Future<DocumentProposal> getProposalDetails(String proposalId) async {
     try {
+      print('🔍 [SERVICE] Loading proposal details for ID: $proposalId');
       final doc = await getDocument(proposalId);
+      print('✅ [SERVICE] Document loaded successfully');
+      print('📄 [SERVICE] Document type: ${doc.documentType}');
+      print('📄 [SERVICE] Event data: ${doc.event}');
+      print('📄 [SERVICE] UKM data: ${doc.ukm}');
+      print('📄 [SERVICE] User data: ${doc.user}');
       return DocumentProposal.fromEventDocument(doc);
-    } catch (e) {
-      // Fallback to old table if migration not done yet
-      try {
-        final response = await _supabase
-            .from('event_proposal')
-            .select('''
-              *,
-              events(nama_event, tanggal_mulai, lokasi),
-              ukm(nama_ukm, logo),
-              users(username, email),
-              admin(username_admin, email_admin)
-            ''')
-            .eq('id_proposal', proposalId)
-            .single();
-
-        return DocumentProposal.fromJson(response);
-      } catch (e2) {
-        throw Exception('Gagal memuat detail proposal: $e2');
-      }
+    } catch (e, stackTrace) {
+      print('❌ [SERVICE] Error loading proposal details: $e');
+      print('❌ [SERVICE] Stack trace: $stackTrace');
+      throw Exception('Gagal memuat detail proposal: $e');
     }
   }
 
   /// Get LPJ details (Legacy wrapper)
   Future<DocumentLPJ> getLPJDetails(String lpjId) async {
     try {
+      print('🔍 [SERVICE] Loading LPJ details for ID: $lpjId');
       final doc = await getDocument(lpjId);
+      print('✅ [SERVICE] Document loaded successfully');
+      print('📄 [SERVICE] Document type: ${doc.documentType}');
+      print('📄 [SERVICE] Event data: ${doc.event}');
+      print('📄 [SERVICE] UKM data: ${doc.ukm}');
+      print('📄 [SERVICE] User data: ${doc.user}');
       return DocumentLPJ.fromEventDocument(doc);
-    } catch (e) {
-      // Fallback to old table if migration not done yet
-      try {
-        final response = await _supabase
-            .from('event_lpj')
-            .select('''
-              *,
-              events(nama_event, tanggal_mulai, lokasi),
-              ukm(nama_ukm, logo),
-              users(username, email),
-              admin(username_admin, email_admin)
-            ''')
-            .eq('id_lpj', lpjId)
-            .single();
-
-        return DocumentLPJ.fromJson(response);
-      } catch (e2) {
-        throw Exception('Gagal memuat detail LPJ: $e2');
-      }
+    } catch (e, stackTrace) {
+      print('❌ [SERVICE] Error loading LPJ details: $e');
+      print('❌ [SERVICE] Stack trace: $stackTrace');
+      throw Exception('Gagal memuat detail LPJ: $e');
     }
   }
 

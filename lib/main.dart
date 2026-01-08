@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:device_preview/device_preview.dart';
 import 'package:unit_activity/auth/login.dart';
@@ -15,7 +14,6 @@ import 'package:unit_activity/user/dashboard_user.dart';
 import 'package:unit_activity/config/config.dart';
 import 'package:unit_activity/services/custom_auth_service.dart';
 import 'package:unit_activity/services/push_notification_service.dart';
-import 'package:unit_activity/widgets/auth_guard.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

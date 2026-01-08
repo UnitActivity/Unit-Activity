@@ -655,7 +655,7 @@ class _EditPeriodePageState extends State<EditPeriodePage> {
 
             // Status Dropdown
             DropdownButtonFormField<String>(
-              value: _status,
+              initialValue: _status,
               decoration: InputDecoration(
                 labelText: 'Status Periode',
                 border: OutlineInputBorder(

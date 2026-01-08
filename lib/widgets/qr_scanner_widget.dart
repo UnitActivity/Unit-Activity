@@ -12,12 +12,12 @@ class QRScannerDialog extends StatefulWidget {
   final String manualInputLabel;
 
   const QRScannerDialog({
-    Key? key,
+    super.key,
     required this.onCodeScanned,
     this.title = 'Scan QR Code',
     this.cancelButtonLabel = 'Batal',
     this.manualInputLabel = 'Masukkan Manual',
-  }) : super(key: key);
+  });
 
   @override
   State<QRScannerDialog> createState() => _QRScannerDialogState();
