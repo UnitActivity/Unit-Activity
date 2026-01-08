@@ -171,31 +171,6 @@ class _EditInformasiPageState extends State<EditInformasiPage> {
     setState(() => _isSaving = true);
 
     try {
-      String? idAdmin;
-
-      // Get admin ID only if UKM is not selected
-      if (_selectedUkmId == null) {
-        try {
-          // Try to get current session user
-          final session = _supabase.auth.currentSession;
-          if (session != null && session.user.email != null) {
-            // Get admin ID from admin table using email
-            final adminData = await _supabase
-                .from('admin')
-                .select('id_admin')
-                .eq('email_admin', session.user.email!)
-                .maybeSingle();
-
-            if (adminData != null) {
-              idAdmin = adminData['id_admin'];
-            }
-          }
-        } catch (e) {
-          print('Could not get admin ID: $e');
-          // Continue without admin ID if there's an error
-        }
-      }
-
       // Delete old image if changed
       if (_oldImagePath != null &&
           _oldImagePath != _uploadedImagePath &&
@@ -219,7 +194,6 @@ class _EditInformasiPageState extends State<EditInformasiPage> {
             'status': _selectedStatus,
             'id_ukm': _selectedUkmId,
             'id_periode': _selectedPeriodeId,
-            'id_admin': idAdmin,
             'update_at': DateTime.now().toIso8601String(),
           })
           .eq('id_informasi', widget.informasi['id_informasi']);
@@ -871,7 +845,7 @@ class _EditInformasiPageState extends State<EditInformasiPage> {
         ),
         const SizedBox(height: 10),
         DropdownButtonFormField<String>(
-          value: value,
+          initialValue: value,
           decoration: InputDecoration(
             filled: true,
             fillColor: Colors.grey[50],
@@ -968,7 +942,7 @@ class _EditInformasiPageState extends State<EditInformasiPage> {
         ),
         const SizedBox(height: 10),
         DropdownButtonFormField<String>(
-          value: value,
+          initialValue: value,
           decoration: InputDecoration(
             hintText: 'Pilih $label',
             hintStyle: GoogleFonts.inter(fontSize: 14, color: Colors.grey[400]),
