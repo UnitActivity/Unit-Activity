@@ -134,6 +134,7 @@ class _DetailDocumentUKMPageState extends State<DetailDocumentUKMPage> {
 
       // Add comment using UKM ID
       if (widget.documentType == 'proposal') {
+<<<<<<< HEAD
         await _documentService.addProposalCommentByUkm(
           proposalId: widget.documentId,
           comment: _commentController.text.trim(),
@@ -144,6 +145,18 @@ class _DetailDocumentUKMPageState extends State<DetailDocumentUKMPage> {
           lpjId: widget.documentId,
           comment: _commentController.text.trim(),
           ukmId: ukmId,
+=======
+        await _documentService.addProposalComment(
+          proposalId: widget.documentId,
+          comment: _commentController.text.trim(),
+          adminId: userId,
+        );
+      } else {
+        await _documentService.addLPJComment(
+          lpjId: widget.documentId,
+          comment: _commentController.text.trim(),
+          adminId: userId,
+>>>>>>> ede8354fa409339ffe61265693f8d4224df36e3c
         );
       }
 
@@ -987,10 +1000,13 @@ class _DetailDocumentUKMPageState extends State<DetailDocumentUKMPage> {
         border: Border.all(
           color: isStatusChange
               ? Colors.blue.withOpacity(0.2)
+<<<<<<< HEAD
               : isAdminComment
               ? Colors.red.withOpacity(0.2)
               : isUkmComment
               ? Colors.orange.withOpacity(0.2)
+=======
+>>>>>>> ede8354fa409339ffe61265693f8d4224df36e3c
               : Colors.grey.withOpacity(0.2),
         ),
       ),
@@ -1003,6 +1019,7 @@ class _DetailDocumentUKMPageState extends State<DetailDocumentUKMPage> {
                 radius: isMobile ? 14 : 16,
                 backgroundColor: isAdminComment
                     ? Colors.red.withOpacity(0.1)
+<<<<<<< HEAD
                     : isUkmComment
                     ? Colors.orange.withOpacity(0.1)
                     : const Color(0xFF4169E1).withOpacity(0.1),
@@ -1029,6 +1046,14 @@ class _DetailDocumentUKMPageState extends State<DetailDocumentUKMPage> {
                             ? Colors.orange
                             : const Color(0xFF4169E1),
                       ),
+=======
+                    : const Color(0xFF4169E1).withOpacity(0.1),
+                child: Icon(
+                  isAdminComment ? Icons.admin_panel_settings : Icons.person,
+                  size: isMobile ? 14 : 16,
+                  color: isAdminComment ? Colors.red : const Color(0xFF4169E1),
+                ),
+>>>>>>> ede8354fa409339ffe61265693f8d4224df36e3c
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -1067,6 +1092,7 @@ class _DetailDocumentUKMPageState extends State<DetailDocumentUKMPage> {
                                 color: Colors.white,
                               ),
                             ),
+<<<<<<< HEAD
                           ),
                         ],
                         if (isUkmComment) ...[
@@ -1088,6 +1114,8 @@ class _DetailDocumentUKMPageState extends State<DetailDocumentUKMPage> {
                                 color: Colors.white,
                               ),
                             ),
+=======
+>>>>>>> ede8354fa409339ffe61265693f8d4224df36e3c
                           ),
                         ],
                       ],

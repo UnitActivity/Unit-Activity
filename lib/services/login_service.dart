@@ -58,7 +58,7 @@ class LoginService {
         return {'success': false, 'error': errorMessage, 'code': 'AUTH_ERROR'};
       }
 
-      if (authResponse == null || authResponse.user == null) {
+      if (authResponse.user == null) {
         print('Auth response user is null');
         return {'success': false, 'error': 'Login gagal', 'code': 'AUTH_ERROR'};
       }

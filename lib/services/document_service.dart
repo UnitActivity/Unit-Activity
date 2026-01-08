@@ -123,6 +123,48 @@ class DocumentService {
     }
   }
 
+  /// Add comment to document by user (UKM member)
+  Future<void> addCommentByUser({
+    required String documentId,
+    required String comment,
+    required String userId,
+  }) async {
+    final now = DateTime.now().toIso8601String();
+
+    try {
+      // Get document type first
+      final docResponse = await _supabase
+          .from('event_documents')
+          .select('document_type')
+          .eq('id_document', documentId)
+          .single();
+
+      final documentType = docResponse['document_type'] as String;
+
+      // Insert comment by user into document_comments table
+      final insertData = {
+        'document_id': documentId,
+        'document_type': documentType,
+        'id_user': userId, // User comment (not admin)
+        'comment': comment,
+        'created_at': now,
+      };
+
+      print('📝 Inserting user comment data: $insertData');
+
+      final insertResult = await _supabase
+          .from('document_comments')
+          .insert(insertData)
+          .select();
+
+      print('✅ User comment insert result: $insertResult');
+      print('✅ User comment saved successfully to document_comments');
+    } catch (e) {
+      print('❌ Error adding user comment: $e');
+      throw Exception('Gagal menambahkan komentar: $e');
+    }
+  }
+
   /// Update document status (UNIFIED - NO MORE TRIGGER ERROR)
   Future<void> updateStatus({
     required String documentId,
@@ -265,6 +307,32 @@ class DocumentService {
     required String adminId,
   }) async {
     return addComment(documentId: lpjId, comment: comment, adminId: adminId);
+  }
+
+  /// Add comment to proposal by user (UKM member)
+  Future<void> addProposalCommentByUser({
+    required String proposalId,
+    required String comment,
+    required String userId,
+  }) async {
+    return addCommentByUser(
+      documentId: proposalId,
+      comment: comment,
+      userId: userId,
+    );
+  }
+
+  /// Add comment to LPJ by user (UKM member)
+  Future<void> addLPJCommentByUser({
+    required String lpjId,
+    required String comment,
+    required String userId,
+  }) async {
+    return addCommentByUser(
+      documentId: lpjId,
+      comment: comment,
+      userId: userId,
+    );
   }
 
   /// Update proposal status (Legacy wrapper)

@@ -362,7 +362,7 @@ class _AddInformasiUKMPageState extends State<AddInformasiUKMPage> {
             borderRadius: BorderRadius.circular(8),
           ),
           child: DropdownButtonFormField<String>(
-            value: value,
+            initialValue: value,
             isExpanded: true,
             decoration: InputDecoration(
               prefixIcon: Icon(icon, size: isMobile ? 18 : 20),

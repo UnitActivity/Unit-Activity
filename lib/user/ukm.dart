@@ -292,7 +292,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
       final eventData = await _supabase
           .from('events')
           .select('''
-            id_event,
+            id_events,
             nama_event,
             deskripsi,
             tanggal_mulai,
@@ -1153,10 +1153,14 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                       ),
                     ),
                   ],
-                  child: const CircleAvatar(
-                    radius: 16,
-                    backgroundColor: Colors.blue,
-                    child: Icon(Icons.person, color: Colors.white, size: 20),
+                  child: CircleAvatar(
+                    radius: 20,
+                    backgroundColor: const Color(0xFF4169E1).withOpacity(0.2),
+                    child: const Icon(
+                      Icons.person,
+                      color: Color(0xFF4169E1),
+                      size: 24,
+                    ),
                   ),
                 ),
               ],
@@ -1232,10 +1236,14 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                       ),
                     ),
                   ],
-                  child: const CircleAvatar(
-                    radius: 18,
-                    backgroundColor: Colors.blue,
-                    child: Icon(Icons.person, color: Colors.white, size: 22),
+                  child: CircleAvatar(
+                    radius: 20,
+                    backgroundColor: const Color(0xFF4169E1).withOpacity(0.2),
+                    child: const Icon(
+                      Icons.person,
+                      color: Color(0xFF4169E1),
+                      size: 24,
+                    ),
                   ),
                 ),
               ],
@@ -2417,18 +2425,12 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
   }
 
   Widget _buildPertemuanSection({required bool isMobile}) {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(isMobile ? 16 : 20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[300]!),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Text(
             'Kegiatan Pertemuan',
             style: GoogleFonts.poppins(
               fontSize: isMobile ? 16 : 18,
@@ -2436,170 +2438,215 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
               color: Colors.grey[800],
             ),
           ),
-          const SizedBox(height: 16),
-          if (_isLoadingPertemuan)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.all(20.0),
-                child: CircularProgressIndicator(),
+        ),
+        const SizedBox(height: 12),
+        if (_isLoadingPertemuan)
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.all(20.0),
+              child: CircularProgressIndicator(),
+            ),
+          )
+        else if (_ukmPertemuanList.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey[200]!),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, color: Colors.grey[600], size: 24),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Belum ada pertemuan terjadwal',
+                    style: GoogleFonts.inter(
+                      fontSize: isMobile ? 14 : 15,
+                      color: Colors.grey[700],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          ...List.generate(_ukmPertemuanList.length, (index) {
+            final pertemuan = _ukmPertemuanList[index];
+            return Container(
+              margin: EdgeInsets.only(
+                bottom: index < _ukmPertemuanList.length - 1 ? 12 : 0,
               ),
-            )
-          else if (_ukmPertemuanList.isEmpty)
-            Container(
-              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.grey[50],
-                borderRadius: BorderRadius.circular(8),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey[200]!),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.info_outline, color: Colors.grey[600], size: 24),
-                  const SizedBox(width: 12),
+                  // Image/Icon section (left side)
+                  Container(
+                    width: isMobile ? 100 : 140,
+                    height: isMobile ? 100 : 120,
+                    decoration: BoxDecoration(
+                      color: Colors.blue[50],
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(12),
+                        bottomLeft: Radius.circular(12),
+                      ),
+                    ),
+                    child: Center(
+                      child: Icon(
+                        Icons.groups,
+                        size: isMobile ? 40 : 50,
+                        color: Colors.blue[700],
+                      ),
+                    ),
+                  ),
+                  // Content section (right side)
                   Expanded(
-                    child: Text(
-                      'Belum ada pertemuan terjadwal',
-                      style: GoogleFonts.inter(
-                        fontSize: isMobile ? 14 : 15,
-                        color: Colors.grey[700],
+                    child: Padding(
+                      padding: EdgeInsets.all(isMobile ? 12 : 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  pertemuan['judul'] ?? 'Pertemuan',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: isMobile ? 14 : 15,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey[800],
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (pertemuan['user_status_hadir'] != null)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: pertemuan['user_status_hadir'] == 'hadir'
+                                        ? Colors.green[50]
+                                        : Colors.orange[50],
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    pertemuan['user_status_hadir'] == 'hadir'
+                                        ? 'Hadir'
+                                        : 'Tidak Hadir',
+                                    style: GoogleFonts.inter(
+                                      fontSize: isMobile ? 10 : 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: pertemuan['user_status_hadir'] == 'hadir'
+                                          ? Colors.green[700]
+                                          : Colors.orange[700],
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.calendar_today,
+                                size: isMobile ? 12 : 14,
+                                color: Colors.grey[600],
+                              ),
+                              const SizedBox(width: 6),
+                              Flexible(
+                                child: Text(
+                                  pertemuan['tanggal'] ?? '-',
+                                  style: GoogleFonts.inter(
+                                    fontSize: isMobile ? 11 : 12,
+                                    color: Colors.grey[700],
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.access_time,
+                                size: isMobile ? 12 : 14,
+                                color: Colors.grey[600],
+                              ),
+                              const SizedBox(width: 6),
+                              Flexible(
+                                child: Text(
+                                  '${pertemuan['waktu_mulai'] ?? '-'} - ${pertemuan['waktu_selesai'] ?? '-'}',
+                                  style: GoogleFonts.inter(
+                                    fontSize: isMobile ? 11 : 12,
+                                    color: Colors.grey[700],
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (pertemuan['lokasi'] != null) ...[
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.location_on,
+                                  size: isMobile ? 12 : 14,
+                                  color: Colors.grey[600],
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    pertemuan['lokasi'],
+                                    style: GoogleFonts.inter(
+                                      fontSize: isMobile ? 11 : 12,
+                                      color: Colors.grey[700],
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                   ),
                 ],
               ),
-            )
-          else
-            ...List.generate(_ukmPertemuanList.length, (index) {
-              final pertemuan = _ukmPertemuanList[index];
-              return Container(
-                margin: EdgeInsets.only(
-                  bottom: index < _ukmPertemuanList.length - 1 ? 12 : 0,
-                ),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey[200]!),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            pertemuan['judul'] ?? 'Pertemuan',
-                            style: GoogleFonts.poppins(
-                              fontSize: isMobile ? 14 : 15,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey[800],
-                            ),
-                          ),
-                        ),
-                        if (pertemuan['user_status_hadir'] != null)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 5,
-                            ),
-                            decoration: BoxDecoration(
-                              color: pertemuan['user_status_hadir'] == 'hadir'
-                                  ? Colors.green[50]
-                                  : Colors.orange[50],
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              pertemuan['user_status_hadir'] == 'hadir'
-                                  ? 'Hadir'
-                                  : 'Tidak Hadir',
-                              style: GoogleFonts.inter(
-                                fontSize: isMobile ? 11 : 12,
-                                fontWeight: FontWeight.w600,
-                                color: pertemuan['user_status_hadir'] == 'hadir'
-                                    ? Colors.green[700]
-                                    : Colors.orange[700],
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.calendar_today,
-                          size: isMobile ? 14 : 16,
-                          color: Colors.grey[600],
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          pertemuan['tanggal'] ?? '-',
-                          style: GoogleFonts.inter(
-                            fontSize: isMobile ? 13 : 14,
-                            color: Colors.grey[700],
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Icon(
-                          Icons.access_time,
-                          size: isMobile ? 14 : 16,
-                          color: Colors.grey[600],
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          '${pertemuan['waktu_mulai'] ?? '-'} - ${pertemuan['waktu_selesai'] ?? '-'}',
-                          style: GoogleFonts.inter(
-                            fontSize: isMobile ? 13 : 14,
-                            color: Colors.grey[700],
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (pertemuan['lokasi'] != null) ...[
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.location_on,
-                            size: isMobile ? 14 : 16,
-                            color: Colors.grey[600],
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              pertemuan['lokasi'],
-                              style: GoogleFonts.inter(
-                                fontSize: isMobile ? 13 : 14,
-                                color: Colors.grey[700],
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ],
-                ),
-              );
-            }),
-        ],
-      ),
+            );
+          }),
+      ],
     );
   }
 
   Widget _buildEventsSection({required bool isMobile}) {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(isMobile ? 16 : 20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[300]!),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Text(
             'Event UKM',
             style: GoogleFonts.poppins(
               fontSize: isMobile ? 16 : 18,
@@ -2607,139 +2654,217 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
               color: Colors.grey[800],
             ),
           ),
-          const SizedBox(height: 16),
-          if (_isLoadingEvents)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.all(20.0),
-                child: CircularProgressIndicator(),
+        ),
+        const SizedBox(height: 12),
+        if (_isLoadingEvents)
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.all(20.0),
+              child: CircularProgressIndicator(),
+            ),
+          )
+        else if (_ukmEventsList.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey[200]!),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.event_busy, color: Colors.grey[600], size: 24),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Belum ada event',
+                    style: GoogleFonts.inter(
+                      fontSize: isMobile ? 14 : 15,
+                      color: Colors.grey[700],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          ...List.generate(_ukmEventsList.length, (index) {
+            final event = _ukmEventsList[index];
+            final String? imageUrl = event['gambar'];
+            return Container(
+              margin: EdgeInsets.only(
+                bottom: index < _ukmEventsList.length - 1 ? 12 : 0,
               ),
-            )
-          else if (_ukmEventsList.isEmpty)
-            Container(
-              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.grey[50],
-                borderRadius: BorderRadius.circular(8),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey[200]!),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.event_busy, color: Colors.grey[600], size: 24),
-                  const SizedBox(width: 12),
+                  // Image section (left side)
+                  Container(
+                    width: isMobile ? 100 : 140,
+                    height: isMobile ? 100 : 120,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[200],
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(12),
+                        bottomLeft: Radius.circular(12),
+                      ),
+                    ),
+                    child: imageUrl != null && imageUrl.isNotEmpty
+                        ? ClipRRect(
+                            borderRadius: const BorderRadius.only(
+                              topLeft: Radius.circular(12),
+                              bottomLeft: Radius.circular(12),
+                            ),
+                            child: Image.network(
+                              imageUrl,
+                              fit: BoxFit.cover,
+                              width: double.infinity,
+                              height: double.infinity,
+                              cacheWidth: 200,
+                              cacheHeight: 200,
+                              loadingBuilder: (context, child, loadingProgress) {
+                                if (loadingProgress == null) return child;
+                                return Center(
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    value: loadingProgress.expectedTotalBytes != null
+                                        ? loadingProgress.cumulativeBytesLoaded /
+                                            loadingProgress.expectedTotalBytes!
+                                        : null,
+                                  ),
+                                );
+                              },
+                              errorBuilder: (context, error, stackTrace) {
+                                return Center(
+                                  child: Icon(
+                                    Icons.event,
+                                    size: isMobile ? 40 : 50,
+                                    color: Colors.grey[400],
+                                  ),
+                                );
+                              },
+                            ),
+                          )
+                        : Center(
+                            child: Icon(
+                              Icons.event,
+                              size: isMobile ? 40 : 50,
+                              color: Colors.grey[400],
+                            ),
+                          ),
+                  ),
+                  // Content section (right side)
                   Expanded(
-                    child: Text(
-                      'Belum ada event',
-                      style: GoogleFonts.inter(
-                        fontSize: isMobile ? 14 : 15,
-                        color: Colors.grey[700],
+                    child: Padding(
+                      padding: EdgeInsets.all(isMobile ? 12 : 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  event['nama_event'] ?? 'Event',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: isMobile ? 14 : 15,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey[800],
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: event['status'] == 'aktif'
+                                      ? Colors.green[50]
+                                      : Colors.grey[100],
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  event['status'] ?? 'Draft',
+                                  style: GoogleFonts.inter(
+                                    fontSize: isMobile ? 10 : 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: event['status'] == 'aktif'
+                                        ? Colors.green[700]
+                                        : Colors.grey[600],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.calendar_today,
+                                size: isMobile ? 12 : 14,
+                                color: Colors.grey[600],
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  '${event['tanggal_mulai'] ?? '-'} - ${event['tanggal_selesai'] ?? '-'}',
+                                  style: GoogleFonts.inter(
+                                    fontSize: isMobile ? 11 : 12,
+                                    color: Colors.grey[700],
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (event['lokasi'] != null) ...[
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.location_on,
+                                  size: isMobile ? 12 : 14,
+                                  color: Colors.grey[600],
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    event['lokasi'],
+                                    style: GoogleFonts.inter(
+                                      fontSize: isMobile ? 11 : 12,
+                                      color: Colors.grey[700],
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                   ),
                 ],
               ),
-            )
-          else
-            ...List.generate(_ukmEventsList.length, (index) {
-              final event = _ukmEventsList[index];
-              return Container(
-                margin: EdgeInsets.only(
-                  bottom: index < _ukmEventsList.length - 1 ? 12 : 0,
-                ),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey[200]!),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            event['nama_event'] ?? 'Event',
-                            style: GoogleFonts.poppins(
-                              fontSize: isMobile ? 14 : 15,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey[800],
-                            ),
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 5,
-                          ),
-                          decoration: BoxDecoration(
-                            color: event['status'] == 'aktif'
-                                ? Colors.green[50]
-                                : Colors.grey[100],
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            event['status'] ?? 'Draft',
-                            style: GoogleFonts.inter(
-                              fontSize: isMobile ? 11 : 12,
-                              fontWeight: FontWeight.w600,
-                              color: event['status'] == 'aktif'
-                                  ? Colors.green[700]
-                                  : Colors.grey[600],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.calendar_today,
-                          size: isMobile ? 14 : 16,
-                          color: Colors.grey[600],
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            '${event['tanggal_mulai'] ?? '-'} - ${event['tanggal_selesai'] ?? '-'}',
-                            style: GoogleFonts.inter(
-                              fontSize: isMobile ? 13 : 14,
-                              color: Colors.grey[700],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (event['lokasi'] != null) ...[
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.location_on,
-                            size: isMobile ? 14 : 16,
-                            color: Colors.grey[600],
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              event['lokasi'],
-                              style: GoogleFonts.inter(
-                                fontSize: isMobile ? 13 : 14,
-                                color: Colors.grey[700],
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ],
-                ),
-              );
-            }),
-        ],
-      ),
+            );
+          }),
+      ],
     );
   }
 

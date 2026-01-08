@@ -9,8 +9,7 @@ class AuthGuard extends StatefulWidget {
   final Widget child;
   final String? requiredRole; // 'user', 'admin', 'ukm'
 
-  const AuthGuard({Key? key, required this.child, this.requiredRole})
-    : super(key: key);
+  const AuthGuard({super.key, required this.child, this.requiredRole});
 
   @override
   State<AuthGuard> createState() => _AuthGuardState();

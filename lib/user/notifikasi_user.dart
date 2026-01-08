@@ -369,10 +369,14 @@ class _NotifikasiUserPageState extends State<NotifikasiUserPage>
                 ),
               ),
             ],
-            child: const CircleAvatar(
-              radius: 16,
-              backgroundColor: Colors.blue,
-              child: Icon(Icons.person, color: Colors.white, size: 20),
+            child: CircleAvatar(
+              radius: 20,
+              backgroundColor: const Color(0xFF4169E1).withOpacity(0.2),
+              child: const Icon(
+                Icons.person,
+                color: Color(0xFF4169E1),
+                size: 24,
+              ),
             ),
           ),
         ],
