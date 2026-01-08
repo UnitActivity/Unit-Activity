@@ -814,7 +814,7 @@ class _DetailPertemuanUKMPageState extends State<DetailPertemuanUKMPage>
                   Switch(
                     value: _autoRegenerateQR,
                     onChanged: (val) => setState(() => _autoRegenerateQR = val),
-                    activeColor: const Color(0xFF4169E1),
+                    activeThumbColor: const Color(0xFF4169E1),
                   ),
                 ],
               ),

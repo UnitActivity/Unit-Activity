@@ -16,7 +16,7 @@ class PeriodePage extends StatefulWidget {
 class _PeriodePageState extends State<PeriodePage> {
   final _supabase = Supabase.instance.client;
 
-  String _sortBy = 'Urutkan';
+  final String _sortBy = 'Urutkan';
   String _searchQuery = '';
   int _currentPage = 1;
   final int _itemsPerPage = 8;
@@ -1392,7 +1392,7 @@ class _PeriodePageState extends State<PeriodePage> {
               children: [
                 // Results Info - Mobile
                 Text(
-                  'Hal ${_currentPage} dari ${_totalPages}',
+                  'Hal $_currentPage dari $_totalPages',
                   style: GoogleFonts.inter(
                     fontSize: 11,
                     fontWeight: FontWeight.w500,

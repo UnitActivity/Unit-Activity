@@ -6,7 +6,7 @@ import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../models/document_model.dart';
-import '../services/document_service.dart';
+import '../services/document_service_admin.dart'; // CHANGED: Use admin service
 import '../services/document_storage_service.dart';
 import '../services/custom_auth_service.dart';
 import '../utils/pdf_viewer.dart' as pdf_viewer;
@@ -1423,14 +1423,35 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
     // Debug info
     print('🔍 Comment ID: ${comment.idComment}');
     print('👤 Comment Admin ID: ${comment.idAdmin}');
+    print('👤 Comment UKM ID: ${comment.idUkm}');
+    print('👤 Comment User ID: ${comment.idUser}');
     print('👤 Current Admin ID: $currentAdminId');
     print('✅ Has Valid Admin ID: $hasValidAdminId');
     print('✅ Is Own Comment: $isOwnComment');
 
-    // Get admin name for avatar
-    final adminName = comment.getAdminName();
-    final initials = adminName.isNotEmpty
-        ? adminName.split(' ').map((n) => n[0]).take(2).join().toUpperCase()
+    // Get commenter name and avatar based on who commented
+    String commenterName;
+    String initials;
+    Color avatarColor;
+
+    if (comment.isAdminComment()) {
+      commenterName = comment.getAdminName();
+      avatarColor = comment.isStatusChange
+          ? const Color(0xFF4169E1)
+          : const Color(0xFF10B981);
+    } else if (comment.isUkmComment()) {
+      commenterName = comment.getUkmName();
+      avatarColor = const Color(0xFFFF6B35); // Orange for UKM
+    } else if (comment.isUserComment()) {
+      commenterName = comment.getUserName();
+      avatarColor = const Color(0xFF9333EA); // Purple for User
+    } else {
+      commenterName = 'Unknown';
+      avatarColor = Colors.grey;
+    }
+
+    initials = commenterName.isNotEmpty
+        ? commenterName.split(' ').map((n) => n[0]).take(2).join().toUpperCase()
         : '?';
 
     return Container(
@@ -1454,11 +1475,9 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
         children: [
           Row(
             children: [
-              // Avatar dengan initial nama admin
+              // Avatar dengan initial nama commenter
               CircleAvatar(
-                backgroundColor: comment.isStatusChange
-                    ? const Color(0xFF4169E1)
-                    : const Color(0xFF10B981),
+                backgroundColor: avatarColor,
                 radius: 20,
                 child: Text(
                   initials,
@@ -1477,34 +1496,37 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
                     Row(
                       children: [
                         Text(
-                          comment.getAdminName(),
+                          commenterName,
                           style: GoogleFonts.inter(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
                             color: Colors.black87,
                           ),
                         ),
-                        if (isOwnComment) ...[
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF4169E1).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              'Anda',
-                              style: GoogleFonts.inter(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                color: const Color(0xFF4169E1),
-                              ),
+                        const SizedBox(width: 6),
+                        // Badge untuk tipe commenter
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: avatarColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            comment.isAdminComment()
+                                ? (isOwnComment ? 'Anda (Admin)' : 'Admin')
+                                : comment.isUkmComment()
+                                ? 'UKM'
+                                : 'User',
+                            style: GoogleFonts.inter(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: avatarColor,
                             ),
                           ),
-                        ],
+                        ),
                       ],
                     ),
                     const SizedBox(height: 2),

@@ -781,9 +781,7 @@ class _DetailEventPageState extends State<DetailEventPage> {
             ],
           ),
           const SizedBox(height: 20),
-          ...documents
-              .map((doc) => _buildDocumentItem(context, doc, isMobile))
-              .toList(),
+          ...documents.map((doc) => _buildDocumentItem(context, doc, isMobile)),
         ],
       ),
     );

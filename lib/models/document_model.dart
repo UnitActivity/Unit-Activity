@@ -532,7 +532,8 @@ class DocumentComment {
   final String documentType; // 'proposal' or 'lpj'
   final String documentId;
   final String? idAdmin;
-  final String? idUser; // For UKM user comments
+  final String? idUser; // For regular user comments
+  final String? idUkm; // For UKM comments
   final String comment;
   final bool isStatusChange;
   final String? statusFrom;
@@ -542,6 +543,7 @@ class DocumentComment {
   // Related data
   final Map<String, dynamic>? admin;
   final Map<String, dynamic>? user;
+  final Map<String, dynamic>? ukm;
 
   DocumentComment({
     required this.idComment,
@@ -549,6 +551,7 @@ class DocumentComment {
     required this.documentId,
     this.idAdmin,
     this.idUser,
+    this.idUkm,
     required this.comment,
     required this.isStatusChange,
     this.statusFrom,
@@ -556,6 +559,7 @@ class DocumentComment {
     required this.createdAt,
     this.admin,
     this.user,
+    this.ukm,
   });
 
   factory DocumentComment.fromJson(Map<String, dynamic> json) {
@@ -565,6 +569,7 @@ class DocumentComment {
       documentId: json['document_id']?.toString() ?? '',
       idAdmin: json['id_admin'] as String?,
       idUser: json['id_user'] as String?,
+      idUkm: json['id_ukm'] as String?,
       comment: json['comment']?.toString() ?? '',
       isStatusChange: json['is_status_change'] as bool? ?? false,
       statusFrom: json['status_from'] as String?,
@@ -572,6 +577,7 @@ class DocumentComment {
       createdAt: DateTime.parse(json['created_at'] as String),
       admin: json['admin'] as Map<String, dynamic>?,
       user: json['users'] as Map<String, dynamic>?,
+      ukm: json['ukm'] as Map<String, dynamic>?,
     );
   }
 
@@ -582,6 +588,7 @@ class DocumentComment {
       'document_id': documentId,
       'id_admin': idAdmin,
       'id_user': idUser,
+      'id_ukm': idUkm,
       'comment': comment,
       'is_status_change': isStatusChange,
       'status_from': statusFrom,
@@ -606,13 +613,47 @@ class DocumentComment {
     return user?['email'] as String? ?? '';
   }
 
+  String getUserPicture() {
+    return user?['picture'] as String? ?? '';
+  }
+
+  String getUkmName() {
+    return ukm?['nama_ukm'] as String? ?? 'UKM';
+  }
+
+  String getUkmEmail() {
+    return ukm?['email'] as String? ?? '';
+  }
+
+  String getUkmLogo() {
+    return ukm?['logo'] as String? ?? '';
+  }
+
+  // Get commenter name (admin, user, or UKM)
   String getCommenterName() {
     if (idAdmin != null) {
       return getAdminName();
+    } else if (idUkm != null) {
+      return getUkmName();
     } else if (idUser != null) {
       return getUserName();
     }
     return 'Unknown';
+  }
+
+  // Check if comment is from admin
+  bool isAdminComment() {
+    return idAdmin != null;
+  }
+
+  // Check if comment is from UKM
+  bool isUkmComment() {
+    return idUkm != null;
+  }
+
+  // Check if comment is from regular user
+  bool isUserComment() {
+    return idUser != null;
   }
 
   String getDisplayText() {

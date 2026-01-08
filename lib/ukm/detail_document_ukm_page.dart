@@ -111,13 +111,41 @@ class _DetailDocumentUKMPageState extends State<DetailDocumentUKMPage> {
         throw Exception('User tidak terautentikasi');
       }
 
-      final userId = currentUser['id'] as String?;
-      if (userId == null) {
-        throw Exception('User ID tidak ditemukan');
+      final adminId = currentUser['id'] as String?;
+      if (adminId == null) {
+        throw Exception('Admin ID tidak ditemukan');
       }
 
-      // Add comment using UKM user ID
+      print('🔍 Getting UKM ID for admin: $adminId');
+
+      // Get UKM ID from ukm table using admin ID
+      final ukmResponse = await _documentService.supabase
+          .from('ukm')
+          .select('id_ukm')
+          .eq('id_admin', adminId)
+          .maybeSingle();
+
+      if (ukmResponse == null) {
+        throw Exception('UKM tidak ditemukan untuk admin ini');
+      }
+
+      final ukmId = ukmResponse['id_ukm'] as String;
+      print('✅ Found UKM ID: $ukmId');
+
+      // Add comment using UKM ID
       if (widget.documentType == 'proposal') {
+<<<<<<< HEAD
+        await _documentService.addProposalCommentByUkm(
+          proposalId: widget.documentId,
+          comment: _commentController.text.trim(),
+          ukmId: ukmId,
+        );
+      } else {
+        await _documentService.addLPJCommentByUkm(
+          lpjId: widget.documentId,
+          comment: _commentController.text.trim(),
+          ukmId: ukmId,
+=======
         await _documentService.addProposalComment(
           proposalId: widget.documentId,
           comment: _commentController.text.trim(),
@@ -128,6 +156,7 @@ class _DetailDocumentUKMPageState extends State<DetailDocumentUKMPage> {
           lpjId: widget.documentId,
           comment: _commentController.text.trim(),
           adminId: userId,
+>>>>>>> ede8354fa409339ffe61265693f8d4224df36e3c
         );
       }
 
@@ -952,17 +981,32 @@ class _DetailDocumentUKMPageState extends State<DetailDocumentUKMPage> {
 
   Widget _buildCommentItem(DocumentComment comment, bool isMobile) {
     final isStatusChange = comment.isStatusChange;
-    final isAdminComment = comment.idAdmin != null;
+    final isAdminComment = comment.isAdminComment();
+    final isUkmComment = comment.isUkmComment();
+    final isUserComment = comment.isUserComment();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: EdgeInsets.all(isMobile ? 12 : 16),
       decoration: BoxDecoration(
-        color: isStatusChange ? Colors.blue.withOpacity(0.05) : Colors.grey[50],
+        color: isStatusChange
+            ? Colors.blue.withOpacity(0.05)
+            : isAdminComment
+            ? Colors.red.withOpacity(0.05)
+            : isUkmComment
+            ? Colors.orange.withOpacity(0.05)
+            : Colors.grey[50],
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: isStatusChange
               ? Colors.blue.withOpacity(0.2)
+<<<<<<< HEAD
+              : isAdminComment
+              ? Colors.red.withOpacity(0.2)
+              : isUkmComment
+              ? Colors.orange.withOpacity(0.2)
+=======
+>>>>>>> ede8354fa409339ffe61265693f8d4224df36e3c
               : Colors.grey.withOpacity(0.2),
         ),
       ),
@@ -975,12 +1019,41 @@ class _DetailDocumentUKMPageState extends State<DetailDocumentUKMPage> {
                 radius: isMobile ? 14 : 16,
                 backgroundColor: isAdminComment
                     ? Colors.red.withOpacity(0.1)
+<<<<<<< HEAD
+                    : isUkmComment
+                    ? Colors.orange.withOpacity(0.1)
+                    : const Color(0xFF4169E1).withOpacity(0.1),
+                backgroundImage:
+                    (isUserComment && comment.getUserPicture().isNotEmpty)
+                    ? NetworkImage(comment.getUserPicture())
+                    : (isUkmComment && comment.getUkmLogo().isNotEmpty)
+                    ? NetworkImage(comment.getUkmLogo())
+                    : null,
+                child:
+                    ((isUserComment && comment.getUserPicture().isNotEmpty) ||
+                        (isUkmComment && comment.getUkmLogo().isNotEmpty))
+                    ? null
+                    : Icon(
+                        isAdminComment
+                            ? Icons.admin_panel_settings
+                            : isUkmComment
+                            ? Icons.groups
+                            : Icons.person,
+                        size: isMobile ? 14 : 16,
+                        color: isAdminComment
+                            ? Colors.red
+                            : isUkmComment
+                            ? Colors.orange
+                            : const Color(0xFF4169E1),
+                      ),
+=======
                     : const Color(0xFF4169E1).withOpacity(0.1),
                 child: Icon(
                   isAdminComment ? Icons.admin_panel_settings : Icons.person,
                   size: isMobile ? 14 : 16,
                   color: isAdminComment ? Colors.red : const Color(0xFF4169E1),
                 ),
+>>>>>>> ede8354fa409339ffe61265693f8d4224df36e3c
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -1019,6 +1092,30 @@ class _DetailDocumentUKMPageState extends State<DetailDocumentUKMPage> {
                                 color: Colors.white,
                               ),
                             ),
+<<<<<<< HEAD
+                          ),
+                        ],
+                        if (isUkmComment) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.orange,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              'UKM',
+                              style: GoogleFonts.inter(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+=======
+>>>>>>> ede8354fa409339ffe61265693f8d4224df36e3c
                           ),
                         ],
                       ],

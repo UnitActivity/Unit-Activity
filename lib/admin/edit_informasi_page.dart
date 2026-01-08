@@ -871,7 +871,7 @@ class _EditInformasiPageState extends State<EditInformasiPage> {
         ),
         const SizedBox(height: 10),
         DropdownButtonFormField<String>(
-          value: value,
+          initialValue: value,
           decoration: InputDecoration(
             filled: true,
             fillColor: Colors.grey[50],
@@ -968,7 +968,7 @@ class _EditInformasiPageState extends State<EditInformasiPage> {
         ),
         const SizedBox(height: 10),
         DropdownButtonFormField<String>(
-          value: value,
+          initialValue: value,
           decoration: InputDecoration(
             hintText: 'Pilih $label',
             hintStyle: GoogleFonts.inter(fontSize: 14, color: Colors.grey[400]),

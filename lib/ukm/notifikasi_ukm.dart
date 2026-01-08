@@ -3,7 +3,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:unit_activity/ukm/send_notifikasi_ukm_page.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:unit_activity/services/ukm_dashboard_service.dart';
-import 'package:intl/intl.dart';
 
 class NotifikasiUKMPage extends StatefulWidget {
   const NotifikasiUKMPage({super.key});
@@ -185,7 +184,12 @@ class _NotifikasiUKMPageState extends State<NotifikasiUKMPage> {
 
           // Notifications List
           _isLoading
-              ? const Center(child: Padding(padding: EdgeInsets.all(40), child: CircularProgressIndicator()))
+              ? const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(40),
+                    child: CircularProgressIndicator(),
+                  ),
+                )
               : _notifikasiList.isEmpty
               ? _buildEmptyState()
               : ListView.builder(
@@ -214,7 +218,9 @@ class _NotifikasiUKMPageState extends State<NotifikasiUKMPage> {
           padding: EdgeInsets.symmetric(vertical: isMobile ? 10 : 12),
           decoration: BoxDecoration(
             gradient: isSelected
-                ? const LinearGradient(colors: [Color(0xFF4169E1), Color(0xFF5B7FE8)])
+                ? const LinearGradient(
+                    colors: [Color(0xFF4169E1), Color(0xFF5B7FE8)],
+                  )
                 : null,
             borderRadius: BorderRadius.circular(10),
           ),
@@ -222,7 +228,11 @@ class _NotifikasiUKMPageState extends State<NotifikasiUKMPage> {
               ? Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(icon, size: 18, color: isSelected ? Colors.white : Colors.grey[600]),
+                    Icon(
+                      icon,
+                      size: 18,
+                      color: isSelected ? Colors.white : Colors.grey[600],
+                    ),
                     const SizedBox(height: 4),
                     Text(
                       label.split(' ').first, // Only show first word on mobile
@@ -238,7 +248,11 @@ class _NotifikasiUKMPageState extends State<NotifikasiUKMPage> {
               : Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(icon, size: 18, color: isSelected ? Colors.white : Colors.grey[600]),
+                    Icon(
+                      icon,
+                      size: 18,
+                      color: isSelected ? Colors.white : Colors.grey[600],
+                    ),
                     const SizedBox(width: 8),
                     Text(
                       label,
@@ -257,9 +271,10 @@ class _NotifikasiUKMPageState extends State<NotifikasiUKMPage> {
 
   Widget _buildNotificationCard(Map<String, dynamic> notif) {
     final type = notif['type'] ?? 'info';
-    final isWarning = type.toLowerCase() == 'warning' || type.toLowerCase() == 'peringatan';
+    final isWarning =
+        type.toLowerCase() == 'warning' || type.toLowerCase() == 'peringatan';
     final isMobile = MediaQuery.of(context).size.width < 600;
-    
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: EdgeInsets.all(isMobile ? 12 : 16),
@@ -267,11 +282,15 @@ class _NotifikasiUKMPageState extends State<NotifikasiUKMPage> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isWarning ? Colors.red.withOpacity(0.2) : const Color(0xFF4169E1).withOpacity(0.2),
+          color: isWarning
+              ? Colors.red.withOpacity(0.2)
+              : const Color(0xFF4169E1).withOpacity(0.2),
         ),
         boxShadow: [
           BoxShadow(
-            color: isWarning ? Colors.red.withOpacity(0.08) : const Color(0xFF4169E1).withOpacity(0.08),
+            color: isWarning
+                ? Colors.red.withOpacity(0.08)
+                : const Color(0xFF4169E1).withOpacity(0.08),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -303,9 +322,14 @@ class _NotifikasiUKMPageState extends State<NotifikasiUKMPage> {
                     Row(
                       children: [
                         Container(
-                          padding: EdgeInsets.symmetric(horizontal: isMobile ? 6 : 10, vertical: isMobile ? 2 : 4),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isMobile ? 6 : 10,
+                            vertical: isMobile ? 2 : 4,
+                          ),
                           decoration: BoxDecoration(
-                            color: isWarning ? Colors.red : const Color(0xFF4169E1),
+                            color: isWarning
+                                ? Colors.red
+                                : const Color(0xFF4169E1),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
@@ -319,12 +343,19 @@ class _NotifikasiUKMPageState extends State<NotifikasiUKMPage> {
                         ),
                         const Spacer(),
                         if (!isMobile) ...[
-                          Icon(Icons.access_time, size: 14, color: Colors.grey[500]),
+                          Icon(
+                            Icons.access_time,
+                            size: 14,
+                            color: Colors.grey[500],
+                          ),
                           const SizedBox(width: 4),
                         ],
                         Text(
                           _getTimeAgo(notif['create_at']),
-                          style: GoogleFonts.inter(fontSize: isMobile ? 10 : 12, color: Colors.grey[500]),
+                          style: GoogleFonts.inter(
+                            fontSize: isMobile ? 10 : 12,
+                            color: Colors.grey[500],
+                          ),
                         ),
                       ],
                     ),
@@ -342,7 +373,10 @@ class _NotifikasiUKMPageState extends State<NotifikasiUKMPage> {
                     const SizedBox(height: 4),
                     Text(
                       notif['pesan'] ?? '-',
-                      style: GoogleFonts.inter(fontSize: isMobile ? 12 : 14, color: Colors.grey[700]),
+                      style: GoogleFonts.inter(
+                        fontSize: isMobile ? 12 : 14,
+                        color: Colors.grey[700],
+                      ),
                       maxLines: isMobile ? 2 : 3,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -362,11 +396,19 @@ class _NotifikasiUKMPageState extends State<NotifikasiUKMPage> {
         padding: const EdgeInsets.all(48),
         child: Column(
           children: [
-            Icon(Icons.notifications_none_rounded, size: 80, color: Colors.grey[300]),
+            Icon(
+              Icons.notifications_none_rounded,
+              size: 80,
+              color: Colors.grey[300],
+            ),
             const SizedBox(height: 16),
             Text(
               'Belum ada notifikasi',
-              style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.grey[600]),
+              style: GoogleFonts.inter(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[600],
+              ),
             ),
           ],
         ),
@@ -376,7 +418,7 @@ class _NotifikasiUKMPageState extends State<NotifikasiUKMPage> {
 
   String _getTimeAgo(dynamic createAt) {
     if (createAt == null) return 'Baru saja';
-    
+
     try {
       final dateTime = DateTime.parse(createAt.toString());
       final now = DateTime.now();

@@ -193,7 +193,7 @@ class AttendanceService {
         if (errorType == 'EXPIRED') {
           final expiredSeconds = validation['expired_seconds_ago'] ?? 0;
           message =
-              'QR Code sudah kadaluarsa ${expiredSeconds} detik yang lalu.\n\nSilakan scan QR Code yang baru.';
+              'QR Code sudah kadaluarsa $expiredSeconds detik yang lalu.\n\nSilakan scan QR Code yang baru.';
         } else if (errorType == 'INVALID_SIGNATURE') {
           message =
               'QR Code tidak valid atau telah dimodifikasi.\n\nPastikan Anda menscan QR Code yang benar.';
