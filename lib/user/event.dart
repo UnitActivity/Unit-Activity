@@ -80,7 +80,7 @@ class _UserEventPageState extends State<UserEventPage>
           'id': eventId,
           'id_ukm': ukmId,
           'title': event['nama_event'] ?? 'Event',
-          'image': event['gambar'],
+          'image': null,
           'date': _formatDate(event['tanggal_mulai']),
           'time':
               '${event['jam_mulai'] ?? ''} - ${event['jam_akhir'] ?? ''} WIB',
@@ -97,7 +97,6 @@ class _UserEventPageState extends State<UserEventPage>
           'jam_akhir': event['jam_akhir'],
           'id_events': eventId,
           'nama_event': event['nama_event'],
-          'gambar': event['gambar'],
           'lokasi': event['lokasi'],
         };
       }).toList();
@@ -462,17 +461,23 @@ class _UserEventPageState extends State<UserEventPage>
                   } else if (menu == 'ukm') {
                     Navigator.pushReplacement(
                       context,
-                      MaterialPageRoute(builder: (context) => const UserUKMPage()),
+                      MaterialPageRoute(
+                        builder: (context) => const UserUKMPage(),
+                      ),
                     );
                   } else if (menu == 'histori') {
                     Navigator.pushReplacement(
                       context,
-                      MaterialPageRoute(builder: (context) => const HistoryPage()),
+                      MaterialPageRoute(
+                        builder: (context) => const HistoryPage(),
+                      ),
                     );
                   } else if (menu == 'profile') {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const ProfilePage()),
+                      MaterialPageRoute(
+                        builder: (context) => const ProfilePage(),
+                      ),
                     );
                   }
                 },
@@ -572,17 +577,23 @@ class _UserEventPageState extends State<UserEventPage>
                   } else if (menu == 'ukm') {
                     Navigator.pushReplacement(
                       context,
-                      MaterialPageRoute(builder: (context) => const UserUKMPage()),
+                      MaterialPageRoute(
+                        builder: (context) => const UserUKMPage(),
+                      ),
                     );
                   } else if (menu == 'histori') {
                     Navigator.pushReplacement(
                       context,
-                      MaterialPageRoute(builder: (context) => const HistoryPage()),
+                      MaterialPageRoute(
+                        builder: (context) => const HistoryPage(),
+                      ),
                     );
                   } else if (menu == 'profile') {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const ProfilePage()),
+                      MaterialPageRoute(
+                        builder: (context) => const ProfilePage(),
+                      ),
                     );
                   }
                 },

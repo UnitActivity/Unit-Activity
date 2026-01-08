@@ -20,19 +20,47 @@ class HistoryPage extends StatefulWidget {
   State<HistoryPage> createState() => _HistoryPageState();
 }
 
-class _HistoryPageState extends State<HistoryPage> with QRScannerMixin {
+class _HistoryPageState extends State<HistoryPage>
+    with QRScannerMixin, TickerProviderStateMixin {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   String _selectedMenu = 'history';
   final UserDashboardService _dashboardService = UserDashboardService();
   final AttendanceService _attendanceService = AttendanceService();
 
   bool _isLoading = true;
+  bool _isLoadingPertemuan = true;
   Map<String, List<Map<String, dynamic>>> _historyData = {};
+  List<Map<String, dynamic>> _pertemuanData = [];
+  late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
     _loadHistoryData();
+    _loadPertemuanData();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadPertemuanData() async {
+    setState(() => _isLoadingPertemuan = true);
+
+    try {
+      final pertemuanList = await _dashboardService.getUserPertemuan();
+
+      setState(() {
+        _pertemuanData = pertemuanList;
+        _isLoadingPertemuan = false;
+      });
+    } catch (e) {
+      print('Error loading pertemuan: $e');
+      setState(() => _isLoadingPertemuan = false);
+    }
   }
 
   Future<void> _loadHistoryData() async {
@@ -130,62 +158,55 @@ class _HistoryPageState extends State<HistoryPage> with QRScannerMixin {
       backgroundColor: Colors.grey[50],
       body: Stack(
         children: [
-          _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : RefreshIndicator(
-                  onRefresh: _loadHistoryData,
-                  child: SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.only(
-                      top: 90,
-                      left: 12,
-                      right: 12,
-                      bottom: 80,
+          Column(
+            children: [
+              const SizedBox(height: 70), // Space for floating header
+              // Tab Bar
+              Container(
+                margin: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Colors.blue[50],
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Icon(
-                                Icons.history,
-                                color: Colors.blue[700],
-                                size: 20,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Text(
-                              'Histori Aktivitas',
-                              style: GoogleFonts.poppins(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Riwayat event yang pernah kamu ikuti',
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        if (_historyData.isEmpty)
-                          _buildEmptyState()
-                        else
-                          ..._buildHistoryList(),
-                      ],
-                    ),
-                  ),
+                  ],
                 ),
+                child: TabBar(
+                  controller: _tabController,
+                  labelColor: Colors.blue[700],
+                  unselectedLabelColor: Colors.grey[600],
+                  indicatorColor: Colors.blue[700],
+                  indicatorWeight: 3,
+                  labelStyle: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  unselectedLabelStyle: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  tabs: const [
+                    Tab(text: 'Event'),
+                    Tab(text: 'Pertemuan'),
+                  ],
+                ),
+              ),
+              // Tab Content
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildEventHistoryTab(isMobile: true),
+                    _buildPertemuanTab(isMobile: true),
+                  ],
+                ),
+              ),
+            ],
+          ),
           Positioned(
             top: 0,
             left: 0,
@@ -252,65 +273,49 @@ class _HistoryPageState extends State<HistoryPage> with QRScannerMixin {
                 child: Column(
                   children: [
                     const SizedBox(height: 70),
+                    // Tab Bar
+                    Container(
+                      margin: const EdgeInsets.fromLTRB(24, 0, 24, 0),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: TabBar(
+                        controller: _tabController,
+                        labelColor: Colors.blue[700],
+                        unselectedLabelColor: Colors.grey[600],
+                        indicatorColor: Colors.blue[700],
+                        indicatorWeight: 3,
+                        labelStyle: GoogleFonts.poppins(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        unselectedLabelStyle: GoogleFonts.poppins(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        tabs: const [
+                          Tab(text: 'Event'),
+                          Tab(text: 'Pertemuan'),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                     Expanded(
-                      child: _isLoading
-                          ? const Center(child: CircularProgressIndicator())
-                          : RefreshIndicator(
-                              onRefresh: _loadHistoryData,
-                              child: SingleChildScrollView(
-                                physics: const AlwaysScrollableScrollPhysics(),
-                                padding: const EdgeInsets.all(24),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.all(12),
-                                          decoration: BoxDecoration(
-                                            color: Colors.blue[50],
-                                            borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
-                                          ),
-                                          child: Icon(
-                                            Icons.history,
-                                            color: Colors.blue[700],
-                                            size: 28,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 16),
-                                        Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              'Histori Aktivitas',
-                                              style: GoogleFonts.poppins(
-                                                fontSize: 24,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                            Text(
-                                              'Riwayat event yang pernah kamu ikuti',
-                                              style: GoogleFonts.poppins(
-                                                fontSize: 14,
-                                                color: Colors.grey[600],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 24),
-                                    if (_historyData.isEmpty)
-                                      _buildEmptyState()
-                                    else
-                                      ..._buildHistoryList(),
-                                  ],
-                                ),
-                              ),
-                            ),
+                      child: TabBarView(
+                        controller: _tabController,
+                        children: [
+                          _buildEventHistoryTab(isMobile: false),
+                          _buildPertemuanTab(isMobile: false),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -952,6 +957,340 @@ class _HistoryPageState extends State<HistoryPage> with QRScannerMixin {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // ==================== EVENT HISTORY TAB ====================
+  Widget _buildEventHistoryTab({required bool isMobile}) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    return RefreshIndicator(
+      onRefresh: () async {
+        await _loadHistoryData();
+        await _loadPertemuanData();
+      },
+      child: _historyData.isEmpty
+          ? _buildEmptyState()
+          : SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: EdgeInsets.all(isMobile ? 12 : 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.blue[50],
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          Icons.history,
+                          color: Colors.blue[700],
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Histori Event',
+                        style: GoogleFonts.poppins(
+                          fontSize: isMobile ? 18 : 22,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Riwayat event yang pernah kamu ikuti',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  ..._buildHistoryList(),
+                ],
+              ),
+            ),
+    );
+  }
+
+  // ==================== PERTEMUAN TAB ====================
+  Widget _buildPertemuanTab({required bool isMobile}) {
+    if (_isLoadingPertemuan) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    return RefreshIndicator(
+      onRefresh: () async {
+        await _loadHistoryData();
+        await _loadPertemuanData();
+      },
+      child: _pertemuanData.isEmpty
+          ? _buildEmptyPertemuanState()
+          : SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: EdgeInsets.all(isMobile ? 12 : 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.purple[50],
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          Icons.groups,
+                          color: Colors.purple[700],
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Pertemuan UKM',
+                        style: GoogleFonts.poppins(
+                          fontSize: isMobile ? 18 : 22,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Pertemuan dari UKM yang kamu ikuti',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  ..._buildPertemuanList(isMobile),
+                ],
+              ),
+            ),
+    );
+  }
+
+  List<Widget> _buildPertemuanList(bool isMobile) {
+    return _pertemuanData.map((pertemuan) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () {
+            // Could navigate to pertemuan detail if needed
+          },
+          child: Padding(
+            padding: EdgeInsets.all(isMobile ? 12 : 16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Icon section
+                Container(
+                  width: isMobile ? 60 : 80,
+                  height: isMobile ? 60 : 80,
+                  decoration: BoxDecoration(
+                    color: Colors.purple[50],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.groups,
+                    size: isMobile ? 30 : 40,
+                    color: Colors.purple[700],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // Content
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              pertemuan['judul'] ?? 'Pertemuan',
+                              style: GoogleFonts.poppins(
+                                fontSize: isMobile ? 14 : 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[800],
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (pertemuan['user_status_hadir'] != null)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: pertemuan['user_status_hadir'] == 'hadir'
+                                    ? Colors.green[50]
+                                    : Colors.orange[50],
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                pertemuan['user_status_hadir'] == 'hadir'
+                                    ? 'Hadir'
+                                    : 'Tidak Hadir',
+                                style: GoogleFonts.inter(
+                                  fontSize: isMobile ? 10 : 11,
+                                  fontWeight: FontWeight.w600,
+                                  color:
+                                      pertemuan['user_status_hadir'] == 'hadir'
+                                      ? Colors.green[700]
+                                      : Colors.orange[700],
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      // UKM Badge
+                      if (pertemuan['ukm_name'] != null)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.blue[50],
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            pertemuan['ukm_name'],
+                            style: GoogleFonts.inter(
+                              fontSize: isMobile ? 10 : 11,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.blue[700],
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.calendar_today,
+                            size: isMobile ? 12 : 14,
+                            color: Colors.grey[600],
+                          ),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              _formatDate(pertemuan['tanggal']),
+                              style: GoogleFonts.inter(
+                                fontSize: isMobile ? 11 : 12,
+                                color: Colors.grey[700],
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.access_time,
+                            size: isMobile ? 12 : 14,
+                            color: Colors.grey[600],
+                          ),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              '${pertemuan['waktu_mulai'] ?? '-'} - ${pertemuan['waktu_selesai'] ?? '-'}',
+                              style: GoogleFonts.inter(
+                                fontSize: isMobile ? 11 : 12,
+                                color: Colors.grey[700],
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (pertemuan['lokasi'] != null) ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.location_on,
+                              size: isMobile ? 12 : 14,
+                              color: Colors.grey[600],
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                pertemuan['lokasi'],
+                                style: GoogleFonts.inter(
+                                  fontSize: isMobile ? 11 : 12,
+                                  color: Colors.grey[700],
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }).toList();
+  }
+
+  Widget _buildEmptyPertemuanState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.groups_outlined, size: 64, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              'Belum ada pertemuan',
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[700],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Pertemuan dari UKM yang kamu ikuti\nakan muncul di sini',
+              style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[600]),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -579,7 +579,7 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
         final eventsResponse = await _supabase
             .from('events')
             .select(
-              'id_events, nama_event, deskripsi, gambar, tanggal_mulai, status, id_ukm, tipevent, ukm(nama_ukm)',
+              'id_events, nama_event, deskripsi, tanggal_mulai, status, id_ukm, tipevent, ukm(nama_ukm)',
             )
             .eq('status', true)
             .gte(
@@ -598,26 +598,10 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
           print('Sample event record:');
           print('  - ID: ${eventsResponse[0]['id_events']}');
           print('  - Nama: ${eventsResponse[0]['nama_event']}');
-          print('  - Gambar: ${eventsResponse[0]['gambar']}');
           print('  - status: ${eventsResponse[0]['status']}');
         }
 
         for (var item in eventsResponse) {
-          String? imageUrl;
-          if (item['gambar'] != null && item['gambar'].toString().isNotEmpty) {
-            try {
-              final gambarPath = item['gambar'].toString();
-              imageUrl = _supabase.storage
-                  .from('event-images')
-                  .getPublicUrl(gambarPath);
-              print('✅ Event image URL for "${item['nama_event']}": $imageUrl');
-            } catch (e) {
-              print('❌ Error getting event image URL: $e');
-            }
-          } else {
-            print('⚠️ No image for event "${item['nama_event']}"');
-          }
-
           final eventData = {
             'id': item['id_events'],
             'title': item['nama_event'] ?? 'Event',
@@ -626,7 +610,7 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
             'source': 'event',
             'date': _formatDate(item['tanggal_mulai']),
             'rawDate': item['tanggal_mulai'] ?? '',
-            'imageUrl': imageUrl,
+            'imageUrl': null,
             'image': null,
           };
 
