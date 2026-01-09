@@ -51,6 +51,11 @@ class _NotificationBellWidgetState extends State<NotificationBellWidget> {
     }
   }
 
+  void _openNotificationPage() {
+    // Langsung buka halaman notifikasi
+    widget.onViewAll?.call();
+  }
+
   void _showNotificationPopup() {
     final RenderBox button = context.findRenderObject() as RenderBox;
     final RenderBox overlay =
@@ -186,45 +191,98 @@ class _NotificationBellWidgetState extends State<NotificationBellWidget> {
                                 return _NotificationItem(
                                   notification: notification,
                                   onTap: () {
+                                    // Mark as read
                                     _notificationService.markAsRead(
                                       notification.id,
                                     );
+                                    // Close dropdown
                                     Navigator.pop(context);
-                                    // Navigate to detail if needed
+                                    // Navigate to notification page
+                                    widget.onViewAll?.call();
                                   },
                                 );
                               },
                             ),
                     ),
                     const Divider(height: 1),
-                    // View all button
-                    InkWell(
-                      onTap: () {
-                        Navigator.pop(context);
-                        widget.onViewAll?.call();
-                      },
-                      borderRadius: const BorderRadius.only(
-                        bottomLeft: Radius.circular(12),
-                        bottomRight: Radius.circular(12),
+                    // View all button + Mark All as Read
+                    Container(
+                      decoration: const BoxDecoration(
+                        borderRadius: BorderRadius.only(
+                          bottomLeft: Radius.circular(12),
+                          bottomRight: Radius.circular(12),
+                        ),
                       ),
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        decoration: const BoxDecoration(
-                          borderRadius: BorderRadius.only(
-                            bottomLeft: Radius.circular(12),
-                            bottomRight: Radius.circular(12),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Mark All as Read button
+                          if (_notificationService.unreadCount > 0)
+                            InkWell(
+                              onTap: () {
+                                _notificationService.markAllAsRead();
+                              },
+                              child: Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 10,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade50,
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.done_all,
+                                      size: 16,
+                                      color: Colors.green[600],
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Tandai Semua Dibaca',
+                                      textAlign: TextAlign.center,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
+                                        color: Colors.green[600],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          // View All button
+                          InkWell(
+                            onTap: () {
+                              Navigator.pop(context);
+                              widget.onViewAll?.call();
+                            },
+                            borderRadius: const BorderRadius.only(
+                              bottomLeft: Radius.circular(12),
+                              bottomRight: Radius.circular(12),
+                            ),
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              decoration: const BoxDecoration(
+                                borderRadius: BorderRadius.only(
+                                  bottomLeft: Radius.circular(12),
+                                  bottomRight: Radius.circular(12),
+                                ),
+                              ),
+                              child: Text(
+                                'Lihat Semua Pemberitahuan',
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF4169E1),
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
-                        child: Text(
-                          'Lihat semua pemberitahuan',
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF4169E1),
-                          ),
-                        ),
+                        ],
                       ),
                     ),
                   ],
@@ -244,7 +302,8 @@ class _NotificationBellWidgetState extends State<NotificationBellWidget> {
     return Stack(
       children: [
         IconButton(
-          onPressed: _showNotificationPopup,
+          onPressed:
+              _showNotificationPopup, // Changed from _openNotificationPage to show dropdown
           icon: Icon(
             Icons.notifications_outlined,
             color: widget.iconColor,

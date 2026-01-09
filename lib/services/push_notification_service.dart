@@ -2,17 +2,32 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:io' show Platform;
+
+/// Check if current platform supports Firebase Messaging (mobile only)
+bool get _isMobilePlatform {
+  if (kIsWeb) return false;
+  try {
+    return Platform.isAndroid || Platform.isIOS;
+  } catch (e) {
+    return false;
+  }
+}
 
 /// Service untuk handle push notifications menggunakan Firebase Cloud Messaging
 /// Notifikasi akan tetap berfungsi meskipun user logout
+/// NOTE: Push notifications only work on mobile platforms (Android/iOS)
 class PushNotificationService {
   static final PushNotificationService _instance =
       PushNotificationService._internal();
   factory PushNotificationService() => _instance;
   PushNotificationService._internal();
 
-  final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
+  // Only initialize Firebase Messaging on supported platforms
+  FirebaseMessaging? get _firebaseMessaging =>
+      _isMobilePlatform ? FirebaseMessaging.instance : null;
+
   final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
   final SupabaseClient _supabase = Supabase.instance.client;
@@ -24,6 +39,14 @@ class PushNotificationService {
 
   /// Initialize push notification service
   Future<void> initialize() async {
+    // Skip initialization on non-mobile platforms (Windows, macOS, Linux, Web)
+    if (!_isMobilePlatform) {
+      print(
+        '⚠️ Push notifications not supported on this platform, skipping...',
+      );
+      return;
+    }
+
     if (_isInitialized) return;
 
     try {
@@ -56,7 +79,9 @@ class PushNotificationService {
 
   /// Request notification permission (iOS)
   Future<void> _requestPermission() async {
-    final settings = await _firebaseMessaging.requestPermission(
+    if (_firebaseMessaging == null) return;
+
+    final settings = await _firebaseMessaging!.requestPermission(
       alert: true,
       announcement: false,
       badge: true,
@@ -109,12 +134,14 @@ class PushNotificationService {
 
   /// Get FCM token
   Future<void> _getFCMToken() async {
+    if (_firebaseMessaging == null) return;
+
     try {
-      _fcmToken = await _firebaseMessaging.getToken();
+      _fcmToken = await _firebaseMessaging!.getToken();
       print('FCM Token: $_fcmToken');
 
       // Listen for token refresh
-      _firebaseMessaging.onTokenRefresh.listen((newToken) {
+      _firebaseMessaging!.onTokenRefresh.listen((newToken) {
         _fcmToken = newToken;
         print('FCM Token refreshed: $newToken');
         _saveTokenToLocalStorage();
@@ -166,6 +193,8 @@ class PushNotificationService {
 
   /// Setup message handlers
   void _setupMessageHandlers() {
+    if (_firebaseMessaging == null) return;
+
     // Handle foreground messages
     FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
 
@@ -173,7 +202,7 @@ class PushNotificationService {
     FirebaseMessaging.onMessageOpenedApp.listen(_handleBackgroundMessage);
 
     // Handle messages when app is opened from terminated state
-    _firebaseMessaging.getInitialMessage().then((message) {
+    _firebaseMessaging!.getInitialMessage().then((message) {
       if (message != null) {
         _handleBackgroundMessage(message);
       }
@@ -292,8 +321,10 @@ class PushNotificationService {
 
   /// Subscribe to topic (for broadcast notifications)
   Future<void> subscribeToTopic(String topic) async {
+    if (_firebaseMessaging == null) return;
+
     try {
-      await _firebaseMessaging.subscribeToTopic(topic);
+      await _firebaseMessaging!.subscribeToTopic(topic);
       print('Subscribed to topic: $topic');
     } catch (e) {
       print('Error subscribing to topic: $e');
@@ -302,8 +333,10 @@ class PushNotificationService {
 
   /// Unsubscribe from topic
   Future<void> unsubscribeFromTopic(String topic) async {
+    if (_firebaseMessaging == null) return;
+
     try {
-      await _firebaseMessaging.unsubscribeFromTopic(topic);
+      await _firebaseMessaging!.unsubscribeFromTopic(topic);
       print('Unsubscribed from topic: $topic');
     } catch (e) {
       print('Error unsubscribing from topic: $e');

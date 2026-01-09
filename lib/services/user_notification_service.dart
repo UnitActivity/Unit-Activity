@@ -457,10 +457,13 @@ class UserNotificationService extends ChangeNotifier {
   }
 
   /// Mark notification as read
+  /// Updates both local state and Supabase database
   Future<void> markAsRead(String notificationId) async {
     try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) return;
+      final userId = currentUserId;
+      if (userId == null || userId.isEmpty) return;
+
+      print('DEBUG markAsRead: notificationId=$notificationId, userId=$userId');
 
       // Update local state first for instant feedback
       final index = _notifications.indexWhere((n) => n.id == notificationId);
@@ -469,46 +472,91 @@ class UserNotificationService extends ChangeNotifier {
         notifyListeners();
       }
 
-      // Try to update in database - try multiple tables
+      // Try to update in database - notification_preference table
       try {
-        // Try notification_preference table (user-specific notifications)
+        // Use id_notification_pref as the primary key column
         await _supabase
             .from('notification_preference')
             .update({'is_read': true})
-            .eq('id_notifikasi', notificationId)
-            .eq('id_user', user.id);
+            .eq('id_notification_pref', notificationId);
+        print('✅ Marked notification as read in notification_preference');
       } catch (e) {
-        print('Not in notification_preference table: $e');
+        print(
+          'Error updating notification_preference by id_notification_pref: $e',
+        );
+        // Fallback: try with id_user filter
+        try {
+          await _supabase
+              .from('notification_preference')
+              .update({'is_read': true})
+              .eq('id_user', userId)
+              .eq('id_notification_pref', notificationId);
+        } catch (e2) {
+          print('Fallback also failed: $e2');
+        }
       }
-
-      // Note: Broadcast and UKM member notifications don't track read status per user
-      // They are marked as read only in local state
     } catch (e) {
       print('Error marking notification as read: $e');
     }
   }
 
   /// Mark all notifications as read
+  /// Updates both local state and Supabase database
   Future<void> markAllAsRead() async {
     try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) return;
+      final userId = currentUserId;
+      if (userId == null || userId.isEmpty) {
+        // Still update local state even without userId
+        _notifications = _notifications
+            .map((notif) => notif.copyWith(isRead: true))
+            .toList();
+        notifyListeners();
+        return;
+      }
 
-      // Try to update in database
-      await _supabase
-          .from('notification_preference')
-          .update({'is_read': true})
-          .eq('id_user', user.id)
-          .eq('is_read', false);
+      print('========== MARK ALL AS READ ==========');
+      print('User ID: $userId');
+      print('Total notifications: ${_notifications.length}');
+      print('Unread count: $unreadCount');
 
-      // Update local state
+      // Get list of unread notification IDs for database update
+      final unreadNotifIds = _notifications
+          .where((n) => !n.isRead)
+          .map((n) => n.id)
+          .where((id) => id.isNotEmpty)
+          .toList();
+
+      print('Unread notification IDs to update: $unreadNotifIds');
+
+      // 1. Update notifications in notification_preference table (direct notifications)
+      if (unreadNotifIds.isNotEmpty) {
+        try {
+          await _supabase
+              .from('notification_preference')
+              .update({'is_read': true})
+              .eq('id_user', userId)
+              .eq('is_read', false);
+          print('✅ Updated notification_preference table for user');
+        } catch (e) {
+          print('❌ Error updating notification_preference: $e');
+        }
+      }
+
+      // 2. Update ALL notifications in local state immediately
       _notifications = _notifications
           .map((notif) => notif.copyWith(isRead: true))
           .toList();
+
+      print(
+        '✅ Updated all ${_notifications.length} notifications in local state',
+      );
+      print('New unread count: $unreadCount');
+      print('=========================================');
+
       notifyListeners();
     } catch (e) {
-      print('Error marking all notifications as read: $e');
-      // Update local state anyway
+      print('❌ Error marking all notifications as read: $e');
+      // Update local state anyway to maintain UI consistency
       _notifications = _notifications
           .map((notif) => notif.copyWith(isRead: true))
           .toList();

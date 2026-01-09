@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:unit_activity/services/user_dashboard_service.dart';
+import 'package:unit_activity/services/custom_auth_service.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -19,10 +20,13 @@ class _UserEventDetailPageState extends State<UserEventDetailPage>
     with SingleTickerProviderStateMixin {
   final UserDashboardService _dashboardService = UserDashboardService();
   final SupabaseClient _supabase = Supabase.instance.client;
+  final CustomAuthService _authService = CustomAuthService();
 
   late TabController _tabController;
   Map<String, dynamic>? _event;
-  List<Map<String, dynamic>> _participants = [];
+  List<Map<String, dynamic>> _participants = []; // Attendees (already attended)
+  List<Map<String, dynamic>> _registeredParticipants =
+      []; // Registered (not yet attended)
   bool _isLoading = true;
   bool _isRegistered = false;
   bool _isRegistering = false;
@@ -51,12 +55,16 @@ class _UserEventDetailPageState extends State<UserEventDetailPage>
         _event = await _dashboardService.getEventDetail(widget.eventId);
       }
 
-      // Load participants
+      // Load attendees (those who already attended via QR scan)
       _participants = await _dashboardService.getEventParticipants(
         widget.eventId,
       );
 
-      // Check if user is registered
+      // Load registered participants (those who registered but may not have attended yet)
+      _registeredParticipants = await _dashboardService
+          .getEventRegisteredParticipants(widget.eventId);
+
+      // Check if user is registered using peserta_event table
       _isRegistered = await _dashboardService.isUserRegistered(widget.eventId);
     } catch (e) {
       print('Error loading event details: $e');
@@ -74,22 +82,52 @@ class _UserEventDetailPageState extends State<UserEventDetailPage>
   }
 
   Future<void> _registerEvent() async {
-    if (_isRegistering) return;
+    if (_isRegistering || _isRegistered) return;
 
     setState(() => _isRegistering = true);
 
     try {
-      final userId = _supabase.auth.currentUser?.id;
-      if (userId == null) {
+      final userId = _authService.currentUserId;
+      print(
+        'DEBUG _registerEvent: userId = $userId, eventId = ${widget.eventId}',
+      );
+
+      if (userId == null || userId.isEmpty) {
         throw Exception('User tidak terautentikasi');
       }
 
-      await _supabase.from('absen_event').insert({
+      // Check if already registered in peserta_event table
+      final existing = await _supabase
+          .from('peserta_event')
+          .select('*')
+          .eq('id_event', widget.eventId)
+          .eq('id_user', userId)
+          .maybeSingle();
+
+      if (existing != null) {
+        print('DEBUG _registerEvent: Already registered in peserta_event');
+        if (mounted) {
+          setState(() => _isRegistered = true);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Anda sudah terdaftar di event ini'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Register to event using peserta_event table (for registration)
+      // absen_event is only for attendance on event day via QR scan
+      await _supabase.from('peserta_event').insert({
         'id_event': widget.eventId,
         'id_user': userId,
         'status': 'terdaftar',
-        'created_at': DateTime.now().toIso8601String(),
+        'registered_at': DateTime.now().toIso8601String(),
       });
+
+      print('DEBUG _registerEvent: Successfully registered to peserta_event');
 
       if (mounted) {
         setState(() => _isRegistered = true);
@@ -111,6 +149,7 @@ class _UserEventDetailPageState extends State<UserEventDetailPage>
         _loadEventDetails(); // Reload to update participant list
       }
     } catch (e) {
+      print('ERROR _registerEvent: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -336,13 +375,13 @@ class _UserEventDetailPageState extends State<UserEventDetailPage>
                 ),
               ),
               const Spacer(),
-              // Participant count
+              // Participant count - show registered participants count
               Row(
                 children: [
                   Icon(Icons.people, size: 18, color: Colors.grey[600]),
                   const SizedBox(width: 4),
                   Text(
-                    '${_participants.length} Peserta',
+                    '${_registeredParticipants.length} Terdaftar',
                     style: GoogleFonts.inter(
                       fontSize: 13,
                       color: Colors.grey[600],
@@ -438,7 +477,9 @@ class _UserEventDetailPageState extends State<UserEventDetailPage>
                           color: Colors.white,
                         ),
                       )
-                    : Icon(_isRegistered ? Icons.check : Icons.person_add),
+                    : Icon(
+                        _isRegistered ? Icons.check_circle : Icons.person_add,
+                      ),
                 label: Text(
                   _isRegistering
                       ? 'Mendaftar...'
@@ -452,14 +493,16 @@ class _UserEventDetailPageState extends State<UserEventDetailPage>
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _isRegistered
-                      ? Colors.grey[400]
+                      ? Colors.green[600]
                       : const Color(0xFF4169E1),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  elevation: 0,
+                  elevation: _isRegistered ? 0 : 2,
+                  disabledBackgroundColor: Colors.green[600],
+                  disabledForegroundColor: Colors.white,
                 ),
               ),
             ),
@@ -716,6 +759,17 @@ class _UserEventDetailPageState extends State<UserEventDetailPage>
   }
 
   Widget _buildParticipantsTab(bool isDesktop) {
+    // Combine registered and attended participants
+    // _registeredParticipants = from peserta_event (registered)
+    // _participants = from absen_event (attended)
+
+    // Create a map of attended user IDs for quick lookup
+    final attendedUserIds = <String>{};
+    for (var p in _participants) {
+      final userId = p['users']?['id_user']?.toString() ?? '';
+      if (userId.isNotEmpty) attendedUserIds.add(userId);
+    }
+
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -725,36 +779,59 @@ class _UserEventDetailPageState extends State<UserEventDetailPage>
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Daftar Peserta',
+                'Daftar Peserta Terdaftar',
                 style: GoogleFonts.inter(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                   color: Colors.grey[800],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF4169E1).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  '${_participants.length} Peserta',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF4169E1),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF4169E1).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '${_registeredParticipants.length} Terdaftar',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF4169E1),
+                      ),
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '${_participants.length} Hadir',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.green[700],
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
           const SizedBox(height: 16),
 
-          if (_participants.isEmpty)
+          if (_registeredParticipants.isEmpty)
             Expanded(
               child: Center(
                 child: Column(
@@ -767,7 +844,7 @@ class _UserEventDetailPageState extends State<UserEventDetailPage>
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'Belum ada peserta',
+                      'Belum ada peserta yang terdaftar',
                       style: GoogleFonts.inter(
                         fontSize: 16,
                         color: Colors.grey[600],
@@ -780,19 +857,28 @@ class _UserEventDetailPageState extends State<UserEventDetailPage>
           else
             Expanded(
               child: ListView.separated(
-                itemCount: _participants.length,
+                itemCount: _registeredParticipants.length,
                 separatorBuilder: (context, index) =>
                     Divider(height: 1, color: Colors.grey[200]),
                 itemBuilder: (context, index) {
-                  final participant = _participants[index];
+                  final participant = _registeredParticipants[index];
                   final user = participant['users'];
+                  final participantUserId = user?['id_user']?.toString() ?? '';
+                  final hasAttended = attendedUserIds.contains(
+                    participantUserId,
+                  );
+
                   return ListTile(
                     leading: CircleAvatar(
-                      backgroundColor: const Color(0xFF4169E1).withOpacity(0.1),
+                      backgroundColor: hasAttended
+                          ? Colors.green.withOpacity(0.1)
+                          : const Color(0xFF4169E1).withOpacity(0.1),
                       child: Text(
                         (user?['username'] ?? 'U')[0].toUpperCase(),
                         style: GoogleFonts.inter(
-                          color: const Color(0xFF4169E1),
+                          color: hasAttended
+                              ? Colors.green[700]
+                              : const Color(0xFF4169E1),
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -805,7 +891,7 @@ class _UserEventDetailPageState extends State<UserEventDetailPage>
                       ),
                     ),
                     subtitle: Text(
-                      user?['nim'] ?? user?['email'] ?? '-',
+                      user?['nim']?.toString() ?? user?['email'] ?? '-',
                       style: GoogleFonts.inter(
                         fontSize: 12,
                         color: Colors.grey[600],
@@ -817,19 +903,15 @@ class _UserEventDetailPageState extends State<UserEventDetailPage>
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: participant['status'] == 'hadir'
-                            ? Colors.green[50]
-                            : Colors.blue[50],
+                        color: hasAttended ? Colors.green[50] : Colors.blue[50],
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
-                        participant['status'] == 'hadir'
-                            ? 'Hadir'
-                            : 'Terdaftar',
+                        hasAttended ? 'Hadir' : 'Terdaftar',
                         style: GoogleFonts.inter(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
-                          color: participant['status'] == 'hadir'
+                          color: hasAttended
                               ? Colors.green[700]
                               : Colors.blue[700],
                         ),

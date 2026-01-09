@@ -8,6 +8,7 @@ class AttendanceService {
   String? get currentUserId => _supabase.auth.currentUser?.id;
 
   /// Record attendance for event via QR scan
+  /// User must be registered in peserta_event before attendance can be recorded
   Future<Map<String, dynamic>> recordEventAttendance({
     required String eventId,
     required String qrCode,
@@ -39,6 +40,22 @@ class AttendanceService {
 
       if (eventResponse['status'] == false) {
         return {'success': false, 'message': 'Event sudah tidak aktif.'};
+      }
+
+      // CRITICAL: Check if user is registered in peserta_event table first
+      final registration = await _supabase
+          .from('peserta_event')
+          .select('id_peserta, status')
+          .eq('id_event', eventId)
+          .eq('id_user', userId)
+          .maybeSingle();
+
+      if (registration == null) {
+        return {
+          'success': false,
+          'message':
+              'Anda belum terdaftar di event "${eventResponse['nama_event']}".\n\nSilakan daftar terlebih dahulu melalui halaman Event.',
+        };
       }
 
       // Check if already attended
@@ -265,18 +282,21 @@ class AttendanceService {
     };
   }
 
-  /// Check if user is member of UKM
+  /// Check if user is member of UKM (active status only)
   Future<bool> _isUserMemberOfUkm(String userId, String ukmId) async {
     try {
+      // Check for both 'aktif' and 'active' status values
       final response = await _supabase
           .from('user_halaman_ukm')
           .select('id_user')
           .eq('id_user', userId)
           .eq('id_ukm', ukmId)
+          .or('status.eq.aktif,status.eq.active')
           .maybeSingle();
 
       return response != null;
     } catch (e) {
+      print('Error checking UKM membership: $e');
       return false;
     }
   }

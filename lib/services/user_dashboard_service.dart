@@ -387,7 +387,9 @@ class UserDashboardService {
   /// Get all events for user
   Future<List<Map<String, dynamic>>> getAllEvents({String? filter}) async {
     try {
-      var query = _supabase.from('events').select('''
+      var query = _supabase
+          .from('events')
+          .select('''
             id_events,
             id_ukm,
             nama_event,
@@ -399,11 +401,10 @@ class UserDashboardService {
             jam_akhir,
             tipevent,
             max_participant,
-            gambar,
             status,
             ukm(id_ukm, nama_ukm, logo)
-          ''');
-      // Removed .eq('status', true) to show all events
+          ''')
+          .eq('status', true);
 
       final now = DateTime.now();
 
@@ -438,7 +439,6 @@ class UserDashboardService {
             jam_akhir,
             tipevent,
             max_participant,
-            gambar,
             logbook,
             status,
             ukm(id_ukm, nama_ukm, logo, description)
@@ -453,7 +453,7 @@ class UserDashboardService {
     }
   }
 
-  /// Get event participants/attendees
+  /// Get event participants/attendees (from absen_event - those who attended)
   Future<List<Map<String, dynamic>>> getEventParticipants(
     String eventId,
   ) async {
@@ -477,6 +477,45 @@ class UserDashboardService {
     }
   }
 
+  /// Get event registered participants (from peserta_event - those who registered)
+  Future<List<Map<String, dynamic>>> getEventRegisteredParticipants(
+    String eventId,
+  ) async {
+    try {
+      final response = await _supabase
+          .from('peserta_event')
+          .select('''
+            id_peserta,
+            status,
+            registered_at,
+            created_at,
+            users:id_user(id_user, username, nim, email)
+          ''')
+          .eq('id_event', eventId)
+          .order('registered_at', ascending: false);
+
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      print('Error loading registered participants: $e');
+      return [];
+    }
+  }
+
+  /// Get count of registered participants for an event
+  Future<int> getEventRegisteredCount(String eventId) async {
+    try {
+      final response = await _supabase
+          .from('peserta_event')
+          .select('id_peserta')
+          .eq('id_event', eventId);
+
+      return (response as List).length;
+    } catch (e) {
+      print('Error getting registered count: $e');
+      return 0;
+    }
+  }
+
   /// Get event logbook
   Future<Map<String, dynamic>?> getEventLogbook(String eventId) async {
     try {
@@ -494,18 +533,25 @@ class UserDashboardService {
   }
 
   /// Check if user is registered for an event
+  /// Uses peserta_event table for registration status
   Future<bool> isUserRegistered(String eventId) async {
     try {
       final userId = currentUserId;
       if (userId == null) return false;
 
+      print(
+        'DEBUG isUserRegistered: Checking eventId=$eventId, userId=$userId',
+      );
+
+      // Check peserta_event table (registration table)
       final response = await _supabase
-          .from('absen_event')
-          .select('id_absen')
+          .from('peserta_event')
+          .select('id_peserta, status')
           .eq('id_event', eventId)
           .eq('id_user', userId)
           .maybeSingle();
 
+      print('DEBUG isUserRegistered: peserta_event Response = $response');
       return response != null;
     } catch (e) {
       print('Error checking registration: $e');
@@ -513,19 +559,27 @@ class UserDashboardService {
     }
   }
 
-  /// Get user's registered events
+  /// Get user's registered events from peserta_event table
+  /// peserta_event = registration, absen_event = attendance on event day
   Future<List<Map<String, dynamic>>> getUserRegisteredEvents() async {
     try {
       final userId = currentUserId;
-      if (userId == null) return [];
+      if (userId == null) {
+        print('DEBUG getUserRegisteredEvents: No user ID');
+        return [];
+      }
 
+      print('DEBUG getUserRegisteredEvents: Fetching for userId=$userId');
+
+      // Query peserta_event table for registrations
       final response = await _supabase
-          .from('absen_event')
+          .from('peserta_event')
           .select('''
-            id_absen,
-            jam,
+            id_peserta,
+            status,
+            registered_at,
             created_at,
-            events(
+            events:id_event(
               id_events,
               nama_event,
               deskripsi,
@@ -537,8 +591,11 @@ class UserDashboardService {
             )
           ''')
           .eq('id_user', userId)
-          .order('created_at', ascending: false);
+          .order('registered_at', ascending: false);
 
+      print(
+        'DEBUG getUserRegisteredEvents: Found ${(response as List).length} registered events from peserta_event',
+      );
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
       print('Error loading registered events: $e');
@@ -550,37 +607,76 @@ class UserDashboardService {
   Future<Map<String, List<Map<String, dynamic>>>> getUserHistory() async {
     try {
       final userId = currentUserId;
-      if (userId == null) return {};
+      print('========== GET USER HISTORY ==========');
+      print('User ID: $userId');
 
-      // Get user's attendance history
-      final attendanceResponse = await _supabase
-          .from('absen_event')
-          .select('''
-            id_absen,
-            jam,
-            created_at,
-            events(
-              id_events,
-              nama_event,
-              deskripsi,
-              lokasi,
-              tanggal_mulai,
-              tanggal_akhir,
-              logbook,
-              gambar,
-              ukm(nama_ukm)
-            )
-          ''')
+      if (userId == null) {
+        print('❌ No user logged in');
+        return {};
+      }
+
+      // Get user's joined UKMs
+      print('Fetching user joined UKMs...');
+      final userUkms = await _supabase
+          .from('user_halaman_ukm')
+          .select('id_ukm, ukm(id_ukm, nama_ukm)')
           .eq('id_user', userId)
-          .order('created_at', ascending: false);
+          .or('status.eq.aktif,status.eq.active');
+
+      print('✅ User joined UKMs: ${(userUkms as List).length}');
+
+      if (userUkms.isEmpty) {
+        print('⚠️ User has not joined any UKM');
+        return {};
+      }
+
+      final ukmIds = userUkms.map((e) => e['id_ukm']).toList();
+      print('UKM IDs to filter: $ukmIds');
+
+      // Get all events from user's joined UKMs that have ended
+      final todayStr = DateTime.now().toIso8601String().split('T')[0];
+      final eventsResponse = await _supabase
+          .from('events')
+          .select('''
+            id_events,
+            nama_event,
+            deskripsi,
+            lokasi,
+            tanggal_mulai,
+            tanggal_akhir,
+            logbook,
+            gambar,
+            ukm(id_ukm, nama_ukm)
+          ''')
+          .inFilter('id_ukm', ukmIds)
+          .lt('tanggal_akhir', todayStr)
+          .order('tanggal_akhir', ascending: false);
+
+      print('✅ Found ${(eventsResponse as List).length} past events');
+
+      // Get user's attendance records
+      final eventIds = eventsResponse.map((e) => e['id_events']).toList();
+      Map<String, Map<String, dynamic>> attendanceMap = {};
+
+      if (eventIds.isNotEmpty) {
+        final attendanceData = await _supabase
+            .from('absen_event')
+            .select('id_event, jam, created_at')
+            .eq('id_user', userId)
+            .inFilter('id_event', eventIds);
+
+        for (var item in attendanceData) {
+          attendanceMap[item['id_event']] = {
+            'attendance_time': item['jam'],
+            'attendance_date': item['created_at'],
+          };
+        }
+      }
 
       // Group by periode
       Map<String, List<Map<String, dynamic>>> groupedHistory = {};
 
-      for (var attendance in attendanceResponse) {
-        final event = attendance['events'];
-        if (event == null) continue;
-
+      for (var event in eventsResponse) {
         // Determine periode based on date
         final dateStr = event['tanggal_mulai'] ?? event['tanggal_akhir'];
         if (dateStr == null) continue;
@@ -594,6 +690,7 @@ class UserDashboardService {
           groupedHistory[periodeKey] = [];
         }
 
+        final attendance = attendanceMap[event['id_events']];
         groupedHistory[periodeKey]!.add({
           'id': event['id_events'],
           'title': event['nama_event'],
@@ -604,8 +701,9 @@ class UserDashboardService {
           'logbook': event['logbook'],
           'image': event['gambar'],
           'ukm_name': event['ukm']?['nama_ukm'],
-          'attendance_time': attendance['jam'],
-          'attendance_date': attendance['created_at'],
+          'attendance_time': attendance?['attendance_time'],
+          'attendance_date': attendance?['attendance_date'],
+          'is_attended': attendance != null,
           'illustration': _getIllustration(event['nama_event']),
         });
       }
@@ -619,9 +717,11 @@ class UserDashboardService {
         sortedHistory[key] = groupedHistory[key]!;
       }
 
+      print('📊 Total periods: ${sortedHistory.length}');
+      print('=========================================');
       return sortedHistory;
     } catch (e) {
-      print('Error loading history: $e');
+      print('❌ Error loading history: $e');
       return {};
     }
   }
@@ -644,89 +744,113 @@ class UserDashboardService {
     }
   }
 
-  /// Get user's pertemuan (meetings) attendance history
-  Future<List<Map<String, dynamic>>> getUserPertemuan() async {
+  /// Get all pertemuan (meetings) from UKMs that user has joined
+  Future<List<Map<String, dynamic>>> getUserPertemuan({
+    bool upcomingOnly = false,
+  }) async {
     try {
       final userId = currentUserId;
+      print('========== GET USER PERTEMUAN ==========');
+      print('User ID: $userId');
+      print('Upcoming only: $upcomingOnly');
+
       if (userId == null) {
-        print('No user logged in');
+        print('❌ No user logged in');
         return [];
       }
 
-      print('========== GET USER PERTEMUAN ==========');
-      print('User ID: $userId');
-
       // Get user's joined UKMs
+      print('Fetching user joined UKMs...');
       final userUkms = await _supabase
           .from('user_halaman_ukm')
-          .select('id_ukm, ukm(nama_ukm)')
+          .select('id_ukm, ukm(id_ukm, nama_ukm, logo)')
           .eq('id_user', userId)
           .or('status.eq.aktif,status.eq.active');
 
+      print('✅ User joined UKMs: ${(userUkms as List).length}');
+
       if (userUkms.isEmpty) {
-        print('User has not joined any UKM');
+        print('⚠️ User has not joined any UKM');
         return [];
       }
 
-      final ukmIds = (userUkms as List).map((e) => e['id_ukm']).toList();
-      print('User UKM IDs: $ukmIds');
+      final ukmIds = userUkms.map((e) => e['id_ukm']).toList();
+      print('UKM IDs to filter: $ukmIds');
 
-      // Get all pertemuan for user's UKMs
-      final pertemuanResponse = await _supabase
+      // Build query for pertemuan
+      var query = _supabase
           .from('pertemuan')
           .select('''
             id_pertemuan,
             topik,
+            deskripsi,
             tanggal,
             jam_mulai,
             jam_akhir,
             lokasi,
+            status,
+            created_at,
             ukm(id_ukm, nama_ukm, logo)
           ''')
-          .inFilter('id_ukm', ukmIds)
-          .order('tanggal', ascending: false);
+          .inFilter('id_ukm', ukmIds);
 
-      print('Found ${(pertemuanResponse as List).length} pertemuan');
+      // Filter by date if upcomingOnly
+      if (upcomingOnly) {
+        final todayStr = DateTime.now().toIso8601String().split('T')[0];
+        query = query.gte('tanggal', todayStr);
+      }
+
+      final pertemuanResponse = await query.order('tanggal', ascending: false);
+
+      print('✅ Found ${(pertemuanResponse as List).length} pertemuan');
 
       // Get user's attendance records for these pertemuan
-      final pertemuanIds = (pertemuanResponse as List)
+      final pertemuanIds = pertemuanResponse
           .map((p) => p['id_pertemuan'])
           .toList();
 
-      Map<String, bool> attendanceMap = {};
+      Map<String, Map<String, dynamic>> attendanceMap = {};
       if (pertemuanIds.isNotEmpty) {
-        final attendanceResponse = await _supabase
-            .from('user_pertemuan')
-            .select('id_pertemuan, id_user')
+        // Note: absen_pertemuan uses 'status' and 'jam' columns per SQL schema
+        final attendanceData = await _supabase
+            .from('absen_pertemuan')
+            .select('id_pertemuan, status, jam, created_at')
             .eq('id_user', userId)
             .inFilter('id_pertemuan', pertemuanIds);
 
-        for (var attendance in attendanceResponse) {
-          attendanceMap[attendance['id_pertemuan']] = true;
+        for (var item in attendanceData) {
+          attendanceMap[item['id_pertemuan']] = {
+            'status_hadir':
+                item['status'], // Map 'status' to 'status_hadir' for UI
+            'waktu_absen': item['jam'] ?? item['created_at'],
+          };
         }
       }
 
-      // Build result list
+      // Transform data
       List<Map<String, dynamic>> pertemuanList = [];
       for (var pertemuan in pertemuanResponse) {
-        final pertemuanId = pertemuan['id_pertemuan'];
-        final isAttended = attendanceMap[pertemuanId] ?? false;
-
+        final attendance = attendanceMap[pertemuan['id_pertemuan']];
         pertemuanList.add({
-          'id': pertemuanId,
-          'topik': pertemuan['topik'] ?? 'Pertemuan',
+          'id_pertemuan': pertemuan['id_pertemuan'],
+          'judul': pertemuan['topik'] ?? 'Pertemuan',
+          'topik': pertemuan['topik'],
+          'deskripsi': pertemuan['deskripsi'],
           'tanggal': pertemuan['tanggal'],
-          'jam_mulai': pertemuan['jam_mulai'],
-          'jam_akhir': pertemuan['jam_akhir'],
+          'waktu_mulai': pertemuan['jam_mulai'],
+          'waktu_selesai': pertemuan['jam_akhir'],
           'lokasi': pertemuan['lokasi'],
+          'status': pertemuan['status'],
           'ukm_name': pertemuan['ukm']?['nama_ukm'] ?? '',
           'ukm_logo': pertemuan['ukm']?['logo'],
-          'is_attended': isAttended,
-          'status': isAttended ? 'Hadir' : 'Tidak Hadir',
+          'id_ukm': pertemuan['ukm']?['id_ukm'],
+          'user_status_hadir': attendance?['status_hadir'],
+          'user_waktu_absen': attendance?['waktu_absen'],
+          'is_attended': attendance != null,
         });
       }
 
-      print('Processed ${pertemuanList.length} pertemuan with attendance');
+      print('=========================================');
       return pertemuanList;
     } catch (e) {
       print('Error loading user pertemuan: $e');

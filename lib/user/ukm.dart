@@ -225,67 +225,98 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
 
   /// Load pertemuan (meetings) for the selected UKM
   Future<void> _loadUKMPertemuan(String ukmId) async {
+    print('========================================');
+    print('DEBUG _loadUKMPertemuan: START');
+    print('UKM ID: $ukmId');
+
     setState(() => _isLoadingPertemuan = true);
 
     try {
       final userId = _authService.currentUserId;
+      print('User ID: $userId');
 
-      // Get all pertemuan for this UKM with user's attendance status
+      // Get all pertemuan for this UKM
+      print('Querying pertemuan table...');
       final pertemuanData = await _supabase
           .from('pertemuan')
           .select('''
             id_pertemuan,
             topik,
-            deskripsi,
             tanggal,
             jam_mulai,
             jam_akhir,
             lokasi,
-            status
+            status,
+            id_periode,
+            id_ukm
           ''')
           .eq('id_ukm', ukmId)
-          .order('tanggal', ascending: false)
-          .limit(10);
+          .order('tanggal', ascending: false);
+
+      print('Found ${pertemuanData.length} pertemuan records');
+      print('Pertemuan data: $pertemuanData');
 
       if (userId != null) {
         // Get user's attendance records
+        // Note: absen_pertemuan uses 'status' column, not 'status_hadir'
+        print('Fetching attendance data for user...');
         final attendanceData = await _supabase
             .from('absen_pertemuan')
-            .select('id_pertemuan, status_hadir, waktu_absen')
+            .select('id_pertemuan, status, jam, created_at')
             .eq('id_user', userId);
+
+        print('Found ${attendanceData.length} attendance records');
 
         final attendanceMap = <String, Map<String, dynamic>>{};
         for (var item in attendanceData) {
           attendanceMap[item['id_pertemuan']] = {
-            'status_hadir': item['status_hadir'],
-            'waktu_absen': item['waktu_absen'],
+            'status_hadir':
+                item['status'], // Map 'status' to 'status_hadir' for UI
+            'waktu_absen': item['jam'] ?? item['created_at'],
           };
         }
 
         // Merge attendance info with pertemuan data
-        final mergedData = pertemuanData.map((pertemuan) {
-          final attendance = attendanceMap[pertemuan['id_pertemuan']];
-          return {
-            ...pertemuan,
-            'user_status_hadir': attendance?['status_hadir'],
-            'user_waktu_absen': attendance?['waktu_absen'],
-          };
-        }).toList();
+        final mergedData = pertemuanData
+            .map((pertemuan) {
+              final attendance = attendanceMap[pertemuan['id_pertemuan']];
+              return {
+                ...pertemuan,
+                'user_status_hadir': attendance?['status_hadir'],
+                'user_waktu_absen': attendance?['waktu_absen'],
+              };
+            })
+            .toList()
+            .cast<Map<String, dynamic>>();
+
+        print('Merged data count: ${mergedData.length}');
 
         setState(() {
           _ukmPertemuanList = mergedData;
           _isLoadingPertemuan = false;
         });
+
+        print('✅ Successfully loaded ${mergedData.length} pertemuan');
       } else {
+        print('No user ID, loading pertemuan without attendance data');
         setState(() {
-          _ukmPertemuanList = pertemuanData;
+          _ukmPertemuanList = pertemuanData.cast<Map<String, dynamic>>();
           _isLoadingPertemuan = false;
         });
+
+        print('✅ Successfully loaded ${pertemuanData.length} pertemuan');
       }
-    } catch (e) {
-      print('Error loading pertemuan: $e');
-      setState(() => _isLoadingPertemuan = false);
+    } catch (e, stackTrace) {
+      print('❌ Error loading pertemuan: $e');
+      print('Stack trace: $stackTrace');
+      setState(() {
+        _ukmPertemuanList = [];
+        _isLoadingPertemuan = false;
+      });
     }
+
+    print('DEBUG _loadUKMPertemuan: END');
+    print('========================================');
   }
 
   /// Load events for the selected UKM

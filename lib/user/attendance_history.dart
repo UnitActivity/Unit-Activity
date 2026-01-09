@@ -6,6 +6,10 @@ import 'package:unit_activity/widgets/notification_bell_widget.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:unit_activity/services/attendance_service.dart';
+import 'package:unit_activity/user/dashboard_user.dart';
+import 'package:unit_activity/user/event.dart';
+import 'package:unit_activity/user/ukm.dart';
+import 'package:unit_activity/user/profile.dart';
 
 /// Halaman History Absensi User
 /// Menampilkan riwayat absensi event dan pertemuan UKM
@@ -194,7 +198,38 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: Colors.grey.shade100,
-      drawer: const UserSidebar(currentPage: 'attendance_history'),
+      drawer: UserSidebar(
+        selectedMenu: 'histori',
+        onMenuSelected: (menu) {
+          Navigator.pop(context); // Close drawer
+          if (menu == 'dashboard') {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const DashboardUser()),
+            );
+          } else if (menu == 'event') {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const UserEventPage()),
+            );
+          } else if (menu == 'ukm') {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const UserUKMPage()),
+            );
+          } else if (menu == 'profile') {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const ProfilePage()),
+            );
+          }
+        },
+        onLogout: () => Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/login',
+          (route) => false,
+        ),
+      ),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -216,7 +251,11 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
             icon: Icons.qr_code_scanner,
             tooltip: 'Scan QR Absensi',
           ),
-          const NotificationBellWidget(),
+          NotificationBellWidget(
+            onViewAll: () {
+              Navigator.pushNamed(context, '/user/notifikasi');
+            },
+          ),
           const SizedBox(width: 8),
         ],
         bottom: PreferredSize(

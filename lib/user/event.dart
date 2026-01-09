@@ -52,6 +52,82 @@ class _UserEventPageState extends State<UserEventPage>
     super.dispose();
   }
 
+  // Reload data when page becomes visible again
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (mounted) {
+      // Only reload if not first time (initState already loads)
+      if (_allEvents.isNotEmpty ||
+          _followedEvents.isNotEmpty ||
+          _myUKMEvents.isNotEmpty) {
+        // Silent reload without showing loading indicator
+        _loadEventsQuietly();
+      }
+    }
+  }
+
+  Future<void> _loadEventsQuietly() async {
+    try {
+      await _loadUserUKMs();
+      final events = await _dashboardService.getAllEvents();
+      final registeredEvents = await _dashboardService
+          .getUserRegisteredEvents();
+
+      _registeredEventIds = registeredEvents
+          .map((e) {
+            // Try to get from nested events object first (new structure)
+            final eventsData = e['events'];
+            if (eventsData != null && eventsData is Map) {
+              return eventsData['id_events']?.toString() ?? '';
+            }
+            // Fallback to direct id_event field
+            return e['id_event']?.toString() ?? '';
+          })
+          .where((id) => id.isNotEmpty)
+          .toSet();
+
+      if (mounted) {
+        setState(() {
+          _allEvents = events.map((event) {
+            final eventId = event['id_events']?.toString() ?? '';
+            final ukmId = event['id_ukm']?.toString() ?? '';
+            return {
+              'id': eventId,
+              'id_ukm': ukmId,
+              'title': event['nama_event'] ?? 'Event',
+              'image': null,
+              'date': _formatDate(event['tanggal_mulai']),
+              'time':
+                  '${event['jam_mulai'] ?? ''} - ${event['jam_akhir'] ?? ''} WIB',
+              'location': event['lokasi'] ?? '',
+              'description': event['deskripsi'] ?? '',
+              'isRegistered': _registeredEventIds.contains(eventId),
+              'isMyUKM': _userUKMIds.contains(ukmId),
+              'ukm_name': event['ukm']?['nama_ukm'] ?? '',
+              'ukm_logo': event['ukm']?['logo'],
+              'max_participant': event['max_participant'],
+              'tanggal_mulai': event['tanggal_mulai'],
+              'tanggal_akhir': event['tanggal_akhir'],
+              'jam_mulai': event['jam_mulai'],
+              'jam_akhir': event['jam_akhir'],
+              'id_events': eventId,
+              'nama_event': event['nama_event'],
+              'lokasi': event['lokasi'],
+            };
+          }).toList();
+
+          _followedEvents = _allEvents
+              .where((e) => e['isRegistered'] == true)
+              .toList();
+          _myUKMEvents = _allEvents.where((e) => e['isMyUKM'] == true).toList();
+        });
+      }
+    } catch (e) {
+      print('Error quietly reloading events: $e');
+    }
+  }
+
   Future<void> _loadEvents() async {
     setState(() => _isLoading = true);
 
@@ -66,11 +142,28 @@ class _UserEventPageState extends State<UserEventPage>
       final registeredEvents = await _dashboardService
           .getUserRegisteredEvents();
 
-      // Get set of registered event IDs
+      print('========================================');
+      print('DEBUG _loadEvents: Registered Events');
+      print('Raw registered events count: ${registeredEvents.length}');
+      print('Registered events data: $registeredEvents');
+
+      // Get set of registered event IDs from peserta_event table
+      // The 'events' key comes from the join with events table (id_event -> events)
       _registeredEventIds = registeredEvents
-          .map((e) => e['events']?['id_events']?.toString() ?? '')
+          .map((e) {
+            // Try to get from nested events object first (new structure)
+            final eventsData = e['events'];
+            if (eventsData != null && eventsData is Map) {
+              return eventsData['id_events']?.toString() ?? '';
+            }
+            // Fallback to direct id_event field
+            return e['id_event']?.toString() ?? '';
+          })
           .where((id) => id.isNotEmpty)
           .toSet();
+
+      print('Registered event IDs: $_registeredEventIds');
+      print('Total registered event IDs: ${_registeredEventIds.length}');
 
       // Map events to UI format
       _allEvents = events.map((event) {
@@ -106,8 +199,15 @@ class _UserEventPageState extends State<UserEventPage>
           .where((e) => e['isRegistered'] == true)
           .toList();
 
+      print('Total all events: ${_allEvents.length}');
+      print('Total followed events: ${_followedEvents.length}');
+      print('Followed events: $_followedEvents');
+
       // Filter events from user's UKMs
       _myUKMEvents = _allEvents.where((e) => e['isMyUKM'] == true).toList();
+
+      print('Total my UKM events: ${_myUKMEvents.length}');
+      print('========================================');
 
       setState(() => _isLoading = false);
     } catch (e) {
