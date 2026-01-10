@@ -111,14 +111,12 @@ class EventService {
         'id_periode': periodeId,
       };
 
-      // Note: gambar column needs to be added to database first
-      // if (gambar != null) {
-      //   eventData['gambar'] = gambar;
-      // }
-      // Note: tipe_akses column needs to be added to database first
-      // if (tipeAkses != null) {
-      //   eventData['tipe_akses'] = tipeAkses;
-      // }
+      if (gambar != null) {
+        eventData['gambar'] = gambar;
+      }
+      if (tipeAkses != null) {
+        eventData['tipe_akses'] = tipeAkses;
+      }
 
       final response = await _supabase
           .from('events')
@@ -165,10 +163,8 @@ class EventService {
       if (maxParticipant != null) updates['max_participant'] = maxParticipant;
       if (tipevent != null) updates['tipevent'] = tipevent;
       if (status != null) updates['status'] = status;
-      // Note: gambar column needs to be added to database first
-      // if (gambar != null) updates['gambar'] = gambar;
-      // Note: tipe_akses column needs to be added to database first
-      // if (tipeAkses != null) updates['tipe_akses'] = tipeAkses;
+      if (gambar != null) updates['gambar'] = gambar;
+      if (tipeAkses != null) updates['tipe_akses'] = tipeAkses;
 
       final response = await _supabase
           .from('events')
