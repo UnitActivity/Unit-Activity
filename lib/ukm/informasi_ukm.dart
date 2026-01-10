@@ -417,65 +417,68 @@ class _InformasiUKMPageState extends State<InformasiUKMPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Image placeholder
-          Container(
-            height: 140,
-            decoration: BoxDecoration(
-              color: const Color(0xFF4169E1).withOpacity(0.1),
-              borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16)),
-            ),
-            child: Stack(
-              children: [
-                if (info.gambar != null && info.gambar!.isNotEmpty)
-                  ClipRRect(
-                    borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16)),
-                    child: Image.network(
-                      info.gambar!,
-                      width: double.infinity,
-                      height: 140,
-                      fit: BoxFit.cover,
-                      loadingBuilder: (context, child, loadingProgress) {
-                        if (loadingProgress == null) return child;
-                        return Center(
-                          child: CircularProgressIndicator(
-                            value: loadingProgress.expectedTotalBytes != null
-                                ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                                : null,
-                            strokeWidth: 2,
-                            color: const Color(0xFF4169E1),
+      child: InkWell(
+        onTap: () => _navigateToDetailInformasi(info),
+        borderRadius: BorderRadius.circular(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Image placeholder
+            Container(
+              height: 140,
+              decoration: BoxDecoration(
+                color: const Color(0xFF4169E1).withOpacity(0.1),
+                borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16)),
+              ),
+              child: Stack(
+                children: [
+                  if (info.gambar != null && info.gambar!.isNotEmpty)
+                    ClipRRect(
+                      borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16)),
+                      child: Image.network(
+                        info.gambar!,
+                        width: double.infinity,
+                        height: 140,
+                        fit: BoxFit.cover,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Center(
+                            child: CircularProgressIndicator(
+                              value: loadingProgress.expectedTotalBytes != null
+                                  ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                                  : null,
+                              strokeWidth: 2,
+                              color: const Color(0xFF4169E1),
+                            ),
+                          );
+                        },
+                        errorBuilder: (c, e, s) => Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.broken_image, size: 48, color: Colors.grey[400]),
+                              const SizedBox(height: 4),
+                              Text('Gagal memuat gambar', style: GoogleFonts.inter(fontSize: 10, color: Colors.grey[500])),
+                            ],
                           ),
-                        );
-                      },
-                      errorBuilder: (c, e, s) => Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.broken_image, size: 48, color: Colors.grey[400]),
-                            const SizedBox(height: 4),
-                            Text('Gagal memuat gambar', style: GoogleFonts.inter(fontSize: 10, color: Colors.grey[500])),
-                          ],
                         ),
                       ),
+                    )
+                  else
+                    Center(child: Icon(Icons.article, size: 48, color: const Color(0xFF4169E1).withOpacity(0.5))),
+                  // Status Badge
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(color: statusColor, borderRadius: BorderRadius.circular(12)),
+                      child: Text(info.status ?? '-', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white)),
                     ),
-                  )
-                else
-                  Center(child: Icon(Icons.article, size: 48, color: const Color(0xFF4169E1).withOpacity(0.5))),
-                // Status Badge
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(color: statusColor, borderRadius: BorderRadius.circular(12)),
-                    child: Text(info.status ?? '-', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white)),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
           // Content
           Padding(
             padding: const EdgeInsets.all(12),
@@ -500,10 +503,46 @@ class _InformasiUKMPageState extends State<InformasiUKMPage> {
                     Text(tanggalStr, style: GoogleFonts.inter(fontSize: 11, color: Colors.grey[500])),
                   ],
                 ),
+                const SizedBox(height: 12),
+                // Action buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          _showEditDialog(info);
+                        },
+                        icon: const Icon(Icons.edit, size: 14),
+                        label: const Text('Edit'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF4169E1),
+                          side: const BorderSide(color: Color(0xFF4169E1)),
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          _showDeleteDialog(info);
+                        },
+                        icon: const Icon(Icons.delete, size: 14),
+                        label: const Text('Hapus'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.red,
+                          side: const BorderSide(color: Colors.red),
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -641,6 +680,13 @@ class _InformasiUKMPageState extends State<InformasiUKMPage> {
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _navigateToDetailInformasi(InformasiModel info) async {
+    // TODO: Navigate to detail informasi page when implemented
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Detail ${info.judul}'), backgroundColor: const Color(0xFF4169E1)),
     );
   }
 

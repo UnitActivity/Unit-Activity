@@ -28,7 +28,9 @@ class EventService {
             status_proposal,
             status_lpj,
             id_ukm,
-            id_periode
+            id_periode,
+            gambar,
+            tipe_akses
           ''')
           .eq('id_ukm', ukmId);
 
@@ -64,7 +66,9 @@ class EventService {
             status_proposal,
             status_lpj,
             id_ukm,
-            id_periode
+            id_periode,
+            gambar,
+            tipe_akses
           ''')
           .eq('id_events', eventId)
           .maybeSingle();

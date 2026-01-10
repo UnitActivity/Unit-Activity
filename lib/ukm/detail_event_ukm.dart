@@ -85,11 +85,8 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
     setState(() => _isLoading = true);
 
     try {
-      if (widget.eventData != null) {
-        _event = widget.eventData;
-      } else {
-        _event = await _eventService.getEventById(widget.eventId);
-      }
+      // Always fetch fresh data from database, especially after updates
+      _event = await _eventService.getEventById(widget.eventId);
 
       // Load dokumen proposal dari event_documents
       final proposalData = await _supabase
@@ -765,99 +762,51 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
         withData: true,
       );
 
-      if (result != null && result.files.isNotEmpty) {
+      if (result != null && result.files.isNotEmpty && mounted) {
         final file = result.files.first;
         
-        // Show confirmation dialog
-        final confirm = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Text('Upload Gambar', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('Apakah Anda yakin ingin mengupload gambar ini?', style: GoogleFonts.inter()),
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[100],
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.image, color: Color(0xFF4169E1)),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          file.name,
-                          style: GoogleFonts.inter(fontSize: 14),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: Text('Batal', style: GoogleFonts.inter()),
+        setState(() => _isUploadingFile = true);
+
+        try {
+          // Upload image
+          final imageUrl = await _fileUploadService.uploadImageFromBytes(
+            fileBytes: file.bytes!,
+            fileName: file.name,
+            folder: 'events',
+          );
+
+          // Update event with new image
+          await _eventService.updateEvent(
+            eventId: widget.eventId,
+            gambar: imageUrl,
+          );
+
+          // Force reload event details from database to get fresh data
+          final freshEvent = await _eventService.getEventById(widget.eventId);
+          
+          // Update state with fresh data
+          if (mounted) {
+            setState(() {
+              _event = freshEvent;
+              _isUploadingFile = false;
+            });
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Gambar berhasil diupload!', style: GoogleFonts.inter()),
+                backgroundColor: Colors.green,
               ),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context, true),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF4169E1),
-                ),
-                child: Text('Upload', style: GoogleFonts.inter()),
+            );
+          }
+        } catch (e) {
+          if (mounted) {
+            setState(() => _isUploadingFile = false);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Gagal upload gambar: $e', style: GoogleFonts.inter()),
+                backgroundColor: Colors.red,
               ),
-            ],
-          ),
-        );
-
-        if (confirm == true && mounted) {
-          setState(() => _isUploadingFile = true);
-
-          try {
-            // Upload image
-            final imageUrl = await _fileUploadService.uploadImageFromBytes(
-              fileBytes: file.bytes!,
-              fileName: file.name,
-              folder: 'events',
             );
-
-            // Update event with new image
-            await _eventService.updateEvent(
-              eventId: widget.eventId,
-              gambar: imageUrl,
-            );
-
-            // Reload event details
-            await _loadEventDetails();
-
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Gambar berhasil diupload!', style: GoogleFonts.inter()),
-                  backgroundColor: Colors.green,
-                ),
-              );
-            }
-          } catch (e) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Gagal upload gambar: $e', style: GoogleFonts.inter()),
-                  backgroundColor: Colors.red,
-                ),
-              );
-            }
-          } finally {
-            if (mounted) {
-              setState(() => _isUploadingFile = false);
-            }
           }
         }
       }
