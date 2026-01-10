@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:unit_activity/services/event_service_new.dart';
 import 'package:unit_activity/services/custom_auth_service.dart';
+import 'package:unit_activity/services/file_upload_service.dart';
 import 'package:unit_activity/ukm/detail_document_ukm_page.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -22,6 +23,7 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
     with SingleTickerProviderStateMixin {
   final EventService _eventService = EventService();
   final SupabaseClient _supabase = Supabase.instance.client;
+  final FileUploadService _fileUploadService = FileUploadService();
 
   // Use getter to always access the singleton instance
   CustomAuthService get _authService => CustomAuthService();
@@ -753,6 +755,121 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
       return DateFormat('HH:mm').format(date);
     } catch (e) {
       return '-';
+    }
+  }
+
+  Future<void> _showEditImageDialog() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        withData: true,
+      );
+
+      if (result != null && result.files.isNotEmpty) {
+        final file = result.files.first;
+        
+        // Show confirmation dialog
+        final confirm = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text('Upload Gambar', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Apakah Anda yakin ingin mengupload gambar ini?', style: GoogleFonts.inter()),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.image, color: Color(0xFF4169E1)),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          file.name,
+                          style: GoogleFonts.inter(fontSize: 14),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text('Batal', style: GoogleFonts.inter()),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF4169E1),
+                ),
+                child: Text('Upload', style: GoogleFonts.inter()),
+              ),
+            ],
+          ),
+        );
+
+        if (confirm == true && mounted) {
+          setState(() => _isUploadingFile = true);
+
+          try {
+            // Upload image
+            final imageUrl = await _fileUploadService.uploadImageFromBytes(
+              fileBytes: file.bytes!,
+              fileName: file.name,
+              folder: 'events',
+            );
+
+            // Update event with new image
+            await _eventService.updateEvent(
+              eventId: widget.eventId,
+              gambar: imageUrl,
+            );
+
+            // Reload event details
+            await _loadEventDetails();
+
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Gambar berhasil diupload!', style: GoogleFonts.inter()),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            }
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Gagal upload gambar: $e', style: GoogleFonts.inter()),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          } finally {
+            if (mounted) {
+              setState(() => _isUploadingFile = false);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e', style: GoogleFonts.inter()),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -1503,6 +1620,128 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
               ),
             ],
           ),
+          const SizedBox(height: 20),
+
+          // Gambar Event Section
+          Text(
+            'Gambar Event',
+            style: GoogleFonts.inter(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (_event!['gambar'] != null && _event!['gambar'].toString().isNotEmpty) ...[
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.network(
+                    _event!['gambar'],
+                    width: double.infinity,
+                    height: 250,
+                    fit: BoxFit.cover,
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return Container(
+                        height: 250,
+                        color: Colors.grey[100],
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            value: loadingProgress.expectedTotalBytes != null
+                                ? loadingProgress.cumulativeBytesLoaded /
+                                    loadingProgress.expectedTotalBytes!
+                                : null,
+                          ),
+                        ),
+                      );
+                    },
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        height: 250,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[100],
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.broken_image, size: 48, color: Colors.grey[400]),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Gagal memuat gambar',
+                                style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[500]),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: OutlinedButton.icon(
+                    onPressed: _isUploadingFile ? null : _showEditImageDialog,
+                    icon: Icon(
+                      _isUploadingFile ? Icons.hourglass_empty : Icons.edit,
+                      size: 16,
+                    ),
+                    label: Text(_isUploadingFile ? 'Uploading...' : 'Ubah'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      backgroundColor: Colors.black.withOpacity(0.6),
+                      side: const BorderSide(color: Colors.white),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ] else ...[
+            Container(
+              height: 250,
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey[300]!),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.image_not_supported, size: 64, color: Colors.grey[400]),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Belum ada gambar',
+                    style: GoogleFonts.inter(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[500],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  OutlinedButton.icon(
+                    onPressed: _isUploadingFile ? null : _showEditImageDialog,
+                    icon: Icon(
+                      _isUploadingFile ? Icons.hourglass_empty : Icons.add_photo_alternate,
+                      size: 20,
+                    ),
+                    label: Text(_isUploadingFile ? 'Uploading...' : 'Tambah Gambar'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF4169E1),
+                      side: const BorderSide(color: Color(0xFF4169E1)),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 24),
+          Divider(height: 1, color: Colors.grey[200]),
           const SizedBox(height: 20),
 
           // Info Grid

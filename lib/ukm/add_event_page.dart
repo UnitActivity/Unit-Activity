@@ -26,10 +26,14 @@ class _AddEventPageState extends State<AddEventPage> {
 
   // Form values
   String? _selectedTipeEvent;
+  String? _selectedTipeAkses = 'anggota'; // 'umum' or 'anggota'
   DateTime? _tanggalMulai;
   DateTime? _tanggalAkhir;
   bool _sendNotification = true; // Auto-send notification checkbox
 
+  // Image file
+  Map<String, dynamic>? _gambarFile; // {bytes: Uint8List, name: String}
+  
   // Multiple proposal files support
   final List<Map<String, dynamic>> _proposalFiles = [];
   // Each item: {bytes: Uint8List, name: String, isSubmitted: bool}
@@ -85,6 +89,47 @@ class _AddEventPageState extends State<AddEventPage> {
     _lokasiController.dispose();
     _maxParticipantController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickGambarFile() async {
+    try {
+      setState(() => _isUploadingFile = true);
+
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        withData: true,
+      );
+
+      if (result != null && result.files.isNotEmpty) {
+        final file = result.files.first;
+        setState(() {
+          _gambarFile = {
+            'bytes': file.bytes,
+            'name': file.name,
+          };
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Gambar "${file.name}" berhasil dipilih'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error memilih gambar: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      setState(() => _isUploadingFile = false);
+    }
   }
 
   Future<void> _pickProposalFile() async {
@@ -217,6 +262,21 @@ class _AddEventPageState extends State<AddEventPage> {
       }
       final periodeId = periode['id_periode'] as String;
 
+      // Upload gambar if selected
+      String? gambarUrl;
+      if (_gambarFile != null) {
+        try {
+          gambarUrl = await _fileUploadService.uploadImageFromBytes(
+            fileBytes: _gambarFile!['bytes'],
+            fileName: _gambarFile!['name'],
+            folder: 'events',
+          );
+        } catch (e) {
+          print('Error uploading image: $e');
+          // Continue without image if upload fails
+        }
+      }
+
       // Create event
       final event = await _eventService.createEvent(
         namaEvent: _namaEventController.text,
@@ -228,6 +288,8 @@ class _AddEventPageState extends State<AddEventPage> {
         tipevent: _selectedTipeEvent!,
         ukmId: ukmId,
         periodeId: periodeId,
+        gambar: gambarUrl,
+        tipeAkses: _selectedTipeAkses,
       );
 
       final eventId = event['id_events'] as String;
@@ -473,6 +535,14 @@ class _AddEventPageState extends State<AddEventPage> {
 
                   // Tipe Event
                   _buildDropdown(),
+                  const SizedBox(height: 20),
+
+                  // Tipe Akses
+                  _buildTipeAksesDropdown(),
+                  const SizedBox(height: 20),
+
+                  // Gambar Event
+                  _buildImageUpload(),
                   const SizedBox(height: 20),
 
                   // Tanggal
@@ -778,6 +848,189 @@ class _AddEventPageState extends State<AddEventPage> {
             return null;
           },
         ),
+      ],
+    );
+  }
+
+  Widget _buildTipeAksesDropdown() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Tipe Akses Event',
+          style: GoogleFonts.inter(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey[800],
+          ),
+        ),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          value: _selectedTipeAkses,
+          decoration: InputDecoration(
+            hintText: 'Pilih tipe akses',
+            hintStyle: GoogleFonts.inter(fontSize: 14, color: Colors.grey[400]),
+            prefixIcon: Icon(Icons.public, size: 20, color: Colors.grey[600]),
+            filled: true,
+            fillColor: Colors.white,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: Colors.grey[300]!),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: Colors.grey[300]!),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: Color(0xFF4169E1), width: 2),
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
+          ),
+          items: [
+            DropdownMenuItem(
+              value: 'anggota',
+              child: Text('Khusus Anggota UKM', style: GoogleFonts.inter(fontSize: 14)),
+            ),
+            DropdownMenuItem(
+              value: 'umum',
+              child: Text('Terbuka untuk Umum', style: GoogleFonts.inter(fontSize: 14)),
+            ),
+          ],
+          onChanged: (String? newValue) {
+            setState(() {
+              _selectedTipeAkses = newValue;
+            });
+          },
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Icon(
+              Icons.info_outline,
+              size: 16,
+              color: Colors.grey[600],
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                _selectedTipeAkses == 'umum'
+                    ? 'Event dapat dilihat dan diikuti oleh semua user'
+                    : 'Hanya anggota UKM yang dapat melihat dan mengikuti event ini',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildImageUpload() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Gambar Event (Opsional)',
+          style: GoogleFonts.inter(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey[800],
+          ),
+        ),
+        const SizedBox(height: 8),
+        if (_gambarFile != null)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.green[50],
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.green[200]!),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.image, color: Colors.green[700]),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _gambarFile!['name'],
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[800],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        'Gambar siap diupload',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.close, color: Colors.grey[600]),
+                  onPressed: () {
+                    setState(() {
+                      _gambarFile = null;
+                    });
+                  },
+                ),
+              ],
+            ),
+          )
+        else
+          InkWell(
+            onTap: _isUploadingFile ? null : _pickGambarFile,
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey[300]!, width: 2),
+              ),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.cloud_upload,
+                    size: 48,
+                    color: Colors.grey[400],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Klik untuk upload gambar',
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[700],
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Format: JPG, PNG (Maks. 5MB)',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: Colors.grey[500],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
       ],
     );
   }

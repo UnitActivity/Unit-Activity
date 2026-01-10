@@ -113,6 +113,24 @@ class FileUploadService {
     );
   }
 
+  /// Upload image from bytes (for events, informasi, etc)
+  Future<String> uploadImageFromBytes({
+    required Uint8List fileBytes,
+    required String fileName,
+    required String folder, // 'events', 'informasi', etc
+  }) async {
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final fileExtension = path.extension(fileName);
+    final filePath = '$folder/${timestamp}_${fileName.replaceAll(' ', '_')}';
+
+    return await uploadFileFromBytes(
+      fileBytes: fileBytes,
+      fileName: fileName,
+      bucket: 'event-proposals', // Use existing bucket
+      filePath: filePath,
+    );
+  }
+
   /// Validate file type for proposals (PDF, DOC, DOCX) by file name
   bool isValidProposalFileName(String fileName) {
     final mimeType = lookupMimeType(fileName);

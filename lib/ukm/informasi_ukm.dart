@@ -431,8 +431,34 @@ class _InformasiUKMPageState extends State<InformasiUKMPage> {
                 if (info.gambar != null && info.gambar!.isNotEmpty)
                   ClipRRect(
                     borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16)),
-                    child: Image.network(info.gambar!, width: double.infinity, height: 140, fit: BoxFit.cover,
-                      errorBuilder: (c, e, s) => Center(child: Icon(Icons.image, size: 48, color: Colors.grey[400]))),
+                    child: Image.network(
+                      info.gambar!,
+                      width: double.infinity,
+                      height: 140,
+                      fit: BoxFit.cover,
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return Center(
+                          child: CircularProgressIndicator(
+                            value: loadingProgress.expectedTotalBytes != null
+                                ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                                : null,
+                            strokeWidth: 2,
+                            color: const Color(0xFF4169E1),
+                          ),
+                        );
+                      },
+                      errorBuilder: (c, e, s) => Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.broken_image, size: 48, color: Colors.grey[400]),
+                            const SizedBox(height: 4),
+                            Text('Gagal memuat gambar', style: GoogleFonts.inter(fontSize: 10, color: Colors.grey[500])),
+                          ],
+                        ),
+                      ),
+                    ),
                   )
                 else
                   Center(child: Icon(Icons.article, size: 48, color: const Color(0xFF4169E1).withOpacity(0.5))),
@@ -520,7 +546,23 @@ class _InformasiUKMPageState extends State<InformasiUKMPage> {
                 child: info.gambar != null && info.gambar!.isNotEmpty
                     ? ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: Image.network(info.gambar!, fit: BoxFit.cover, errorBuilder: (c, e, s) => Icon(Icons.article, color: Colors.grey[400])),
+                        child: Image.network(
+                          info.gambar!,
+                          fit: BoxFit.cover,
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return Center(
+                              child: CircularProgressIndicator(
+                                value: loadingProgress.expectedTotalBytes != null
+                                    ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                                    : null,
+                                strokeWidth: 2,
+                                color: const Color(0xFF4169E1),
+                              ),
+                            );
+                          },
+                          errorBuilder: (c, e, s) => Icon(Icons.broken_image, color: Colors.grey[400], size: isMobile ? 24 : 32),
+                        ),
                       )
                     : Icon(Icons.article, size: isMobile ? 24 : 32, color: const Color(0xFF4169E1).withOpacity(0.5)),
               ),

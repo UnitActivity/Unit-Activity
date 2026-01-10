@@ -303,11 +303,6 @@ class _SendNotifikasiUKMPageState extends State<SendNotifikasiUKMPage> {
                                 Icons.warning_amber_outlined,
                               ),
                               _buildTypeChip(
-                                'success',
-                                'Sukses',
-                                Icons.check_circle_outline,
-                              ),
-                              _buildTypeChip(
                                 'event',
                                 'Event',
                                 Icons.event_outlined,
@@ -617,9 +612,6 @@ class _SendNotifikasiUKMPageState extends State<SendNotifikasiUKMPage> {
     switch (type) {
       case 'warning':
         chipColor = Colors.orange;
-        break;
-      case 'success':
-        chipColor = Colors.green;
         break;
       case 'event':
         chipColor = Colors.purple;

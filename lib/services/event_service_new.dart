@@ -88,6 +88,7 @@ class EventService {
     required String ukmId,
     required String periodeId,
     String? gambar,
+    String? tipeAkses,
   }) async {
     try {
       print('========== CREATE EVENT ==========');
@@ -110,9 +111,14 @@ class EventService {
         'id_periode': periodeId,
       };
 
-      if (gambar != null) {
-        eventData['gambar'] = gambar;
-      }
+      // Note: gambar column needs to be added to database first
+      // if (gambar != null) {
+      //   eventData['gambar'] = gambar;
+      // }
+      // Note: tipe_akses column needs to be added to database first
+      // if (tipeAkses != null) {
+      //   eventData['tipe_akses'] = tipeAkses;
+      // }
 
       final response = await _supabase
           .from('events')
@@ -139,6 +145,8 @@ class EventService {
     int? maxParticipant,
     String? tipevent,
     bool? status,
+    String? gambar,
+    String? tipeAkses,
   }) async {
     try {
       print('========== UPDATE EVENT ==========');
@@ -157,6 +165,10 @@ class EventService {
       if (maxParticipant != null) updates['max_participant'] = maxParticipant;
       if (tipevent != null) updates['tipevent'] = tipevent;
       if (status != null) updates['status'] = status;
+      // Note: gambar column needs to be added to database first
+      // if (gambar != null) updates['gambar'] = gambar;
+      // Note: tipe_akses column needs to be added to database first
+      // if (tipeAkses != null) updates['tipe_akses'] = tipeAkses;
 
       final response = await _supabase
           .from('events')

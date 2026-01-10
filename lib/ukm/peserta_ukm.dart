@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:unit_activity/services/peserta_service.dart';
 import 'package:unit_activity/services/ukm_dashboard_service.dart';
+import 'package:unit_activity/ukm/detail_peserta_ukm_page.dart';
 import 'package:fl_chart/fl_chart.dart';
 
 class PesertaUKMPage extends StatefulWidget {
@@ -1188,125 +1189,17 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
   }
 
   void _showDetailPesertaDialog(Map<String, dynamic> peserta) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: const Color(0xFF4169E1).withOpacity(0.1),
-              child: Text(
-                (peserta['nama'] ?? 'U')[0].toUpperCase(),
-                style: GoogleFonts.inter(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: const Color(0xFF4169E1),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                peserta['nama'] ?? '-',
-                style: GoogleFonts.inter(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
+    // Navigate to detail page instead of showing dialog
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => DetailPesertaUKMPage(
+          peserta: peserta,
+          ukmId: _ukmId!,
+          periodeId: _periodeId!,
         ),
-        content: SizedBox(
-          width: 350,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildDetailRow(Icons.badge, 'NIM', peserta['nim'] ?? '-'),
-              const SizedBox(height: 12),
-              _buildDetailRow(Icons.email, 'Email', peserta['email'] ?? '-'),
-              const SizedBox(height: 12),
-              _buildDetailRow(
-                Icons.calendar_today,
-                'Tanggal Bergabung',
-                _formatDate(peserta['tanggal']),
-              ),
-              const SizedBox(height: 12),
-              _buildDetailRow(
-                Icons.check_circle,
-                'Status',
-                peserta['status'] ?? '-',
-              ),
-              if (peserta['deskripsi'] != null) ...[
-                const SizedBox(height: 12),
-                _buildDetailRow(
-                  Icons.description,
-                  'Deskripsi',
-                  peserta['deskripsi'],
-                ),
-              ],
-              const SizedBox(height: 12),
-              _buildDetailRow(
-                Icons.event_available,
-                'Kehadiran',
-                '${peserta['kehadiran_count'] ?? 0}/${peserta['total_pertemuan'] ?? 0} pertemuan',
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Tutup', style: GoogleFonts.inter()),
-          ),
-        ],
       ),
     );
-  }
-
-  Widget _buildDetailRow(IconData icon, String label, String value) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 20, color: Colors.grey[600]),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  color: Colors.grey[500],
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                value,
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  color: Colors.grey[800],
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  String _formatDate(dynamic date) {
-    if (date == null) return '-';
-    try {
-      final DateTime parsedDate = DateTime.parse(date.toString());
-      return '${parsedDate.day}/${parsedDate.month}/${parsedDate.year}';
-    } catch (e) {
-      return date.toString();
-    }
   }
 
   void _showDeleteConfirmDialog(Map<String, dynamic> peserta) {

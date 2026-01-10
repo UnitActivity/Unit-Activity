@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:unit_activity/services/ukm_dashboard_service.dart';
+import 'package:unit_activity/services/file_upload_service.dart';
 
 class AddInformasiUKMPage extends StatefulWidget {
   const AddInformasiUKMPage({super.key});
@@ -14,14 +16,17 @@ class _AddInformasiUKMPageState extends State<AddInformasiUKMPage> {
   final _formKey = GlobalKey<FormState>();
   final _supabase = Supabase.instance.client;
   final UkmDashboardService _dashboardService = UkmDashboardService();
+  final FileUploadService _fileUploadService = FileUploadService();
 
   final _judulController = TextEditingController();
   final _deskripsiController = TextEditingController();
 
   String _selectedStatus = 'Aktif';
   bool _isSubmitting = false;
+  bool _isUploadingFile = false;
   String? _currentUserId;
   String? _currentUsername;
+  Map<String, dynamic>? _gambarFile;
 
   @override
   void initState() {
@@ -57,6 +62,47 @@ class _AddInformasiUKMPageState extends State<AddInformasiUKMPage> {
     super.dispose();
   }
 
+  Future<void> _pickGambarFile() async {
+    try {
+      setState(() => _isUploadingFile = true);
+
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        withData: true,
+      );
+
+      if (result != null && result.files.isNotEmpty) {
+        final file = result.files.first;
+        setState(() {
+          _gambarFile = {
+            'bytes': file.bytes,
+            'name': file.name,
+          };
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Gambar "${file.name}" berhasil dipilih'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error memilih gambar: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      setState(() => _isUploadingFile = false);
+    }
+  }
+
   Future<void> _submitForm() async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -76,6 +122,21 @@ class _AddInformasiUKMPageState extends State<AddInformasiUKMPage> {
       final periode = await _dashboardService.getCurrentPeriode(ukmId);
       final periodeId = periode?['id_periode'];
 
+      // Upload gambar if selected
+      String? gambarUrl;
+      if (_gambarFile != null) {
+        try {
+          gambarUrl = await _fileUploadService.uploadImageFromBytes(
+            fileBytes: _gambarFile!['bytes'],
+            fileName: _gambarFile!['name'],
+            folder: 'informasi',
+          );
+        } catch (e) {
+          print('Error uploading image: $e');
+          // Continue without image if upload fails
+        }
+      }
+
       await _supabase.from('informasi').insert({
         'judul': _judulController.text,
         'deskripsi': _deskripsiController.text,
@@ -86,6 +147,7 @@ class _AddInformasiUKMPageState extends State<AddInformasiUKMPage> {
         'id_user': _currentUserId,
         'create_by': _currentUsername ?? 'Unknown',
         'create_at': DateTime.now().toIso8601String(),
+        'gambar': gambarUrl,
       });
 
       if (!mounted) return;
@@ -188,6 +250,11 @@ class _AddInformasiUKMPageState extends State<AddInformasiUKMPage> {
                       },
                     ),
                     SizedBox(height: isMobile ? 16 : 20),
+                    
+                    // Image Upload Section
+                    _buildImageUpload(isMobile),
+                    SizedBox(height: isMobile ? 16 : 20),
+                    
                     _buildDropdownField(
                       label: 'Status',
                       value: _selectedStatus,
@@ -331,6 +398,116 @@ class _AddInformasiUKMPageState extends State<AddInformasiUKMPage> {
           ),
           style: GoogleFonts.inter(fontSize: isMobile ? 13 : 14),
         ),
+      ],
+    );
+  }
+
+  Widget _buildImageUpload(bool isMobile) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Gambar (Opsional)',
+          style: GoogleFonts.inter(
+            fontSize: isMobile ? 12 : 13,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey[700],
+          ),
+        ),
+        const SizedBox(height: 8),
+        if (_gambarFile != null)
+          Container(
+            padding: EdgeInsets.all(isMobile ? 12 : 16),
+            decoration: BoxDecoration(
+              color: Colors.green[50],
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.green[200]!),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.image, color: Colors.green[700], size: isMobile ? 20 : 24),
+                SizedBox(width: isMobile ? 10 : 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _gambarFile!['name'],
+                        style: GoogleFonts.inter(
+                          fontSize: isMobile ? 12 : 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[800],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        'Gambar siap diupload',
+                        style: GoogleFonts.inter(
+                          fontSize: isMobile ? 10 : 11,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.close, color: Colors.grey[600], size: isMobile ? 18 : 20),
+                  onPressed: () {
+                    setState(() {
+                      _gambarFile = null;
+                    });
+                  },
+                ),
+              ],
+            ),
+          )
+        else
+          InkWell(
+            onTap: _isUploadingFile ? null : _pickGambarFile,
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              padding: EdgeInsets.all(isMobile ? 14 : 18),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey[300]!, width: 1.5, style: BorderStyle.solid),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.cloud_upload,
+                    size: isMobile ? 36 : 42,
+                    color: Colors.grey[400],
+                  ),
+                  SizedBox(width: isMobile ? 12 : 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Upload Gambar',
+                          style: GoogleFonts.inter(
+                            fontSize: isMobile ? 13 : 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'JPG, PNG (Maks. 5MB)',
+                          style: GoogleFonts.inter(
+                            fontSize: isMobile ? 11 : 12,
+                            color: Colors.grey[500],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
       ],
     );
   }

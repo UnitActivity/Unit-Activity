@@ -23,6 +23,8 @@ class EventModel {
   final String? idUser;
   final String? statusProposal;
   final String? statusLpj;
+  final String? gambar;
+  final String? tipeAkses; // 'umum' or 'anggota'
 
   EventModel({
     this.idEvents,
@@ -49,6 +51,8 @@ class EventModel {
     this.idUser,
     this.statusProposal,
     this.statusLpj,
+    this.gambar,
+    this.tipeAkses,
   });
 
   factory EventModel.fromJson(Map<String, dynamic> json) {
@@ -87,6 +91,8 @@ class EventModel {
       idUser: json['id_user'],
       statusProposal: json['status_proposal'],
       statusLpj: json['status_lpj'],
+      gambar: json['gambar'],
+      tipeAkses: json['tipe_akses'],
     );
   }
 
@@ -115,6 +121,8 @@ class EventModel {
     if (idUser != null) json['id_user'] = idUser;
     if (statusProposal != null) json['status_proposal'] = statusProposal;
     if (statusLpj != null) json['status_lpj'] = statusLpj;
+    if (gambar != null) json['gambar'] = gambar;
+    if (tipeAkses != null) json['tipe_akses'] = tipeAkses;
     
     return json;
   }

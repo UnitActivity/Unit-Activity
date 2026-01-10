@@ -470,21 +470,12 @@ class _EventUKMPageState extends State<EventUKMPage> {
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
-      padding: EdgeInsets.all(isMobile ? 12 : 16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Colors.white, const Color(0xFF4169E1).withOpacity(0.03)],
-        ),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: const Color(0xFF4169E1).withOpacity(0.2),
-          width: 1.5,
-        ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF4169E1).withOpacity(0.08),
+            color: Colors.black.withOpacity(0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -506,155 +497,232 @@ class _EventUKMPageState extends State<EventUKMPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Event Icon
-                Container(
-                  padding: EdgeInsets.all(isMobile ? 10 : 14),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF4169E1), Color(0xFF5B7FE8)],
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF4169E1).withOpacity(0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Icon(
-                    Icons.event_rounded,
-                    color: Colors.white,
-                    size: isMobile ? 20 : 28,
-                  ),
+            // Image section
+            Container(
+              height: 180,
+              decoration: BoxDecoration(
+                color: const Color(0xFF4169E1).withOpacity(0.1),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
                 ),
-                SizedBox(width: isMobile ? 10 : 16),
-
-                // Event Info
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        event['nama_event'] ?? 'Unnamed Event',
-                        style: GoogleFonts.inter(
-                          fontSize: isMobile ? 14 : 16,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.black87,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+              ),
+              child: Stack(
+                children: [
+                  if (event['gambar'] != null && event['gambar'].toString().isNotEmpty)
+                    ClipRRect(
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(16),
+                        topRight: Radius.circular(16),
                       ),
-                      const SizedBox(height: 8),
-                      // Location badge
-                      Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: isMobile ? 8 : 10,
-                          vertical: isMobile ? 4 : 6,
-                        ),
+                      child: Image.network(
+                        event['gambar'],
+                        width: double.infinity,
+                        height: 180,
+                        fit: BoxFit.cover,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Center(
+                            child: CircularProgressIndicator(
+                              value: loadingProgress.expectedTotalBytes != null
+                                  ? loadingProgress.cumulativeBytesLoaded /
+                                      loadingProgress.expectedTotalBytes!
+                                  : null,
+                              strokeWidth: 2,
+                              color: const Color(0xFF4169E1),
+                            ),
+                          );
+                        },
+                        errorBuilder: (context, error, stackTrace) {
+                          return Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.broken_image, size: 48, color: Colors.grey[400]),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Gagal memuat gambar',
+                                  style: GoogleFonts.inter(fontSize: 10, color: Colors.grey[500]),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    )
+                  else
+                    Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.image_not_supported,
+                            size: 48,
+                            color: Colors.grey[400],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Belum ada gambar',
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  // Document status badge
+                  if (_hasIncompleteDocuments(event))
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF4169E1).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(6),
+                          color: Colors.amber,
+                          borderRadius: BorderRadius.circular(8),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(
-                              Icons.location_on_rounded,
-                              size: isMobile ? 12 : 14,
-                              color: const Color(0xFF4169E1),
-                            ),
+                            const Icon(Icons.warning_amber, size: 14, color: Colors.white),
                             const SizedBox(width: 4),
-                            Flexible(
-                              child: Text(
-                                event['lokasi'] ?? '-',
-                                style: GoogleFonts.inter(
-                                  fontSize: isMobile ? 10 : 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: const Color(0xFF4169E1),
-                                ),
-                                overflow: TextOverflow.ellipsis,
+                            Text(
+                              'Dokumen Belum Lengkap',
+                              style: GoogleFonts.inter(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
                               ),
                             ),
                           ],
                         ),
                       ),
+                    ),
+                  // Tipe akses badge
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: event['tipe_akses'] == 'umum' ? Colors.green : Colors.blue,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            event['tipe_akses'] == 'umum' ? Icons.public : Icons.group,
+                            size: 12,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            event['tipe_akses'] == 'umum' ? 'Umum' : 'Anggota',
+                            style: GoogleFonts.inter(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Content section
+            Padding(
+              padding: EdgeInsets.all(isMobile ? 12 : 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Category badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF4169E1).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      'EVENT',
+                      style: GoogleFonts.inter(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF4169E1),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  // Event title
+                  Text(
+                    event['nama_event'] ?? 'Unnamed Event',
+                    style: GoogleFonts.inter(
+                      fontSize: isMobile ? 15 : 16,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black87,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 12),
+                  // Location
+                  Row(
+                    children: [
+                      Icon(Icons.location_on_rounded, size: 16, color: Colors.grey[600]),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          event['lokasi'] ?? '-',
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            color: Colors.grey[700],
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                     ],
                   ),
-                ),
-
-                // Eye Icon for Detail
-                Container(
-                  padding: EdgeInsets.all(isMobile ? 8 : 10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF4169E1).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(
-                    Icons.visibility_rounded,
-                    color: const Color(0xFF4169E1),
-                    size: isMobile ? 18 : 24,
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: isMobile ? 10 : 12),
-            // Date & Time row
-            Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              children: [
-                Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isMobile ? 8 : 10,
-                    vertical: isMobile ? 4 : 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[100],
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                  const SizedBox(height: 8),
+                  // Date and time
+                  Row(
                     children: [
-                      Icon(Icons.calendar_today_rounded, size: isMobile ? 10 : 12, color: Colors.grey[700]),
-                      const SizedBox(width: 4),
+                      Icon(Icons.calendar_today_rounded, size: 14, color: Colors.grey[600]),
+                      const SizedBox(width: 6),
                       Text(
                         tanggalStr,
-                        style: GoogleFonts.inter(fontSize: isMobile ? 10 : 11, fontWeight: FontWeight.w600, color: Colors.grey[700]),
+                        style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[700]),
                       ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isMobile ? 8 : 10,
-                    vertical: isMobile ? 4 : 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[100],
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.access_time_rounded, size: isMobile ? 10 : 12, color: Colors.grey[700]),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: 16),
+                      Icon(Icons.access_time_rounded, size: 14, color: Colors.grey[600]),
+                      const SizedBox(width: 6),
                       Text(
                         jamStr,
-                        style: GoogleFonts.inter(fontSize: isMobile ? 10 : 11, fontWeight: FontWeight.w600, color: Colors.grey[700]),
+                        style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[700]),
                       ),
                     ],
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  bool _hasIncompleteDocuments(Map<String, dynamic> event) {
+    final statusProposal = event['status_proposal']?.toString() ?? 'belum_ajukan';
+    final statusLpj = event['status_lpj']?.toString() ?? 'belum_ajukan';
+    final logbook = event['logbook']?.toString();
+
+    return statusProposal == 'belum_ajukan' ||
+           statusLpj == 'belum_ajukan' ||
+           logbook == null ||
+           logbook.isEmpty;
   }
 
   Widget _buildStatusChip(String label, String status) {
