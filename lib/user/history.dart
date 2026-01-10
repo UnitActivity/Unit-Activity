@@ -161,9 +161,23 @@ class _HistoryPageState extends State<HistoryPage>
           Column(
             children: [
               const SizedBox(height: 70), // Space for floating header
+              
+              // Header Title
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                child: Text(
+                  'Riwayat Aktivitas',
+                  style: GoogleFonts.poppins(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey[800],
+                  ),
+                ),
+              ),
+
               // Tab Bar
               Container(
-                margin: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                margin: const EdgeInsets.fromLTRB(12, 16, 12, 8),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
@@ -273,9 +287,24 @@ class _HistoryPageState extends State<HistoryPage>
                 child: Column(
                   children: [
                     const SizedBox(height: 70),
+                    // Header Title
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Riwayat Aktivitas',
+                          style: GoogleFonts.poppins(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey[800],
+                          ),
+                        ),
+                      ),
+                    ),
                     // Tab Bar
                     Container(
-                      margin: const EdgeInsets.fromLTRB(24, 0, 24, 0),
+                      margin: const EdgeInsets.fromLTRB(24, 8, 24, 0),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(12),

@@ -10,6 +10,8 @@ import 'package:unit_activity/user/dashboard_user.dart';
 import 'package:unit_activity/user/event.dart';
 import 'package:unit_activity/user/history.dart';
 import 'package:unit_activity/services/custom_auth_service.dart';
+import 'package:unit_activity/services/pertemuan_service.dart';
+import 'package:unit_activity/services/attendance_service.dart';
 
 class UserUKMPage extends StatefulWidget {
   const UserUKMPage({super.key});
@@ -21,6 +23,7 @@ class UserUKMPage extends StatefulWidget {
 class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
   final SupabaseClient _supabase = Supabase.instance.client;
   final CustomAuthService _authService = CustomAuthService();
+  final AttendanceService _attendanceService = AttendanceService();
 
   String _selectedMenu = 'UKM';
   Map<String, dynamic>? _selectedUKM;
@@ -74,6 +77,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
     try {
       // Load current periode
       _currentPeriode = await _getCurrentPeriode();
+      final currentPeriodeId = _currentPeriode?['id_periode'];
 
       // Get UKMs from database
       final response = await _supabase
@@ -83,12 +87,34 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
       // Load user's registered UKMs
       final registeredUKMIds = <String>{};
       final Map<String, int> attendanceMap = {};
+      final Map<String, int> totalMeetingsMap = {};
 
+      // 1. Get Total Meetings for each UKM in current period
+      if (currentPeriodeId != null) {
+        try {
+          // Fetch distinct meeting counts per UKM for current period
+          final meetingsResponse = await _supabase
+              .from('pertemuan')
+              .select('id_ukm, id_pertemuan')
+              .eq('id_periode', currentPeriodeId);
+          
+          final meetingsList = meetingsResponse as List;
+          for (var meeting in meetingsList) {
+            final ukmId = meeting['id_ukm'].toString();
+            totalMeetingsMap[ukmId] = (totalMeetingsMap[ukmId] ?? 0) + 1;
+          }
+        } catch (e) {
+          debugPrint('Error loading total meetings: $e');
+        }
+      }
+
+      // 2. Get User Registration & Attendance
       try {
         final userId = _authService.currentUserId;
         print('DEBUG _loadUKMs: userId from authService = $userId');
+        
         if (userId != null && userId.isNotEmpty) {
-          // Get all registered UKMs from database for current user (accept both status values)
+          // Get all registered UKMs - Independent of period
           final userUKMResponse = await _supabase
               .from('user_halaman_ukm')
               .select('id_ukm')
@@ -96,17 +122,28 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
               .or('status.eq.aktif,status.eq.active')
               .order('created_at', ascending: false);
 
-          print(
-            'DEBUG _loadUKMs: Found ${userUKMResponse.length} registered UKMs',
-          );
-
           for (var item in userUKMResponse) {
             registeredUKMIds.add(item['id_ukm']?.toString() ?? '');
-            attendanceMap[item['id_ukm']?.toString() ?? ''] = 0;
+          }
+          
+          // Get user's attendance - Dependent on period
+          if (currentPeriodeId != null) {
+            final attendanceResponse = await _supabase
+                .from('absen_pertemuan')
+                .select('id_pertemuan, pertemuan!inner(id_ukm, id_periode)')
+                .eq('id_user', userId)
+                .eq('status', 'Hadir')
+                .eq('pertemuan.id_periode', currentPeriodeId);
+                
+            final attendanceList = attendanceResponse as List;
+            for (var record in attendanceList) {
+              final ukmId = record['pertemuan']['id_ukm'].toString();
+              attendanceMap[ukmId] = (attendanceMap[ukmId] ?? 0) + 1;
+            }
           }
         }
       } catch (e) {
-        debugPrint('Error loading user UKMs: $e');
+        debugPrint('Error loading user UKMs/attendance: $e');
       }
 
       final List<dynamic> data = response as List;
@@ -115,9 +152,11 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
 
       setState(() {
         _allUKMs = data.map((ukm) {
-          final isReg = registeredUKMIds.contains(ukm['id_ukm']?.toString());
+          final ukmId = ukm['id_ukm']?.toString() ?? '';
+          final isReg = registeredUKMIds.contains(ukmId);
+          
           return {
-            'id': ukm['id_ukm'],
+            'id': ukm['id_ukm']?.toString() ?? '',
             'name': ukm['nama_ukm'] ?? 'UKM',
             'logo': ukm['logo'],
             'email': ukm['email'] ?? '',
@@ -130,7 +169,8 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
             ],
             'isRegistered': isReg,
             'status': isReg ? 'Sudah Terdaftar' : 'Belum Terdaftar',
-            'attendance': attendanceMap[ukm['id_ukm']?.toString()] ?? 0,
+            'attendance': attendanceMap[ukmId] ?? 0,
+            'totalMeetings': totalMeetingsMap[ukmId] ?? 0,
           };
         }).toList();
         _isLoading = false;
@@ -209,8 +249,8 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
       _ukmEventsList = [];
     });
     // Load pertemuan and events for this UKM
-    _loadUKMPertemuan(ukm['id']);
-    _loadUKMEvents(ukm['id']);
+    _loadUKMPertemuan(ukm['id'].toString());
+    _loadUKMEvents(ukm['id'].toString());
   }
 
   void _backToList() {
@@ -235,34 +275,44 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
       final userId = _authService.currentUserId;
       print('User ID: $userId');
 
-      // Get all pertemuan for this UKM
-      print('Querying pertemuan table...');
-      final pertemuanData = await _supabase
+      // Use PertemuanService to get pertemuan for this UKM specifically
+      // Note: Idealnya service punya method getPertemuanByUkm(ukmId)
+      // Tapi untuk saat ini kita filter manual dari getAllPertemuan atau filter query langsung
+      
+      final response = await _supabase
           .from('pertemuan')
-          .select('''
-            id_pertemuan,
-            topik,
-            tanggal,
-            jam_mulai,
-            jam_akhir,
-            lokasi,
-            status,
-            id_periode,
-            id_ukm
-          ''')
-          .eq('id_ukm', ukmId)
+          .select()
+          .or('id_ukm.eq.$ukmId,id_ukm.is.null')
           .order('tanggal', ascending: false);
 
-      print('Found ${pertemuanData.length} pertemuan records');
-      print('Pertemuan data: $pertemuanData');
+      final List<dynamic> pertemuanData = response as List<dynamic>;
+      print('Found ${pertemuanData.length} pertemuan records for this UKM');
+      
+      // Convert to List<Map>
+      // Kita pakai model manual karena PertemuanService return object yang beda strukturnya
+      // atau pakai data raw dari supabase langsung
+      
+      final List<Map<String, dynamic>> pertemuanForThisUKM = [];
+      
+      for(var p in pertemuanData) {
+        pertemuanForThisUKM.add({
+             'id_pertemuan': p['id_pertemuan'],
+             'topik': p['topik'],
+             'tanggal': p['tanggal'],
+             'jam_mulai': p['jam_mulai'],
+             'jam_akhir': p['jam_akhir'],
+             'lokasi': p['lokasi'],
+             'id_periode': p['id_periode'],
+             'id_ukm': p['id_ukm'],
+        });
+      }
 
-      if (userId != null) {
+      if (userId != null && pertemuanForThisUKM.isNotEmpty) {
         // Get user's attendance records
-        // Note: absen_pertemuan uses 'status' column, not 'status_hadir'
         print('Fetching attendance data for user...');
         final attendanceData = await _supabase
             .from('absen_pertemuan')
-            .select('id_pertemuan, status, jam, created_at')
+            .select('id_pertemuan, status, jam')
             .eq('id_user', userId);
 
         print('Found ${attendanceData.length} attendance records');
@@ -270,42 +320,37 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
         final attendanceMap = <String, Map<String, dynamic>>{};
         for (var item in attendanceData) {
           attendanceMap[item['id_pertemuan']] = {
-            'status_hadir':
-                item['status'], // Map 'status' to 'status_hadir' for UI
-            'waktu_absen': item['jam'] ?? item['created_at'],
+            'status_hadir': item['status'],
+            'waktu_absen': item['jam'],
           };
         }
 
-        // Merge attendance info with pertemuan data
-        final mergedData = pertemuanData
-            .map((pertemuan) {
-              final attendance = attendanceMap[pertemuan['id_pertemuan']];
-              return {
-                ...pertemuan,
-                'user_status_hadir': attendance?['status_hadir'],
-                'user_waktu_absen': attendance?['waktu_absen'],
-              };
-            })
-            .toList()
-            .cast<Map<String, dynamic>>();
-
-        print('Merged data count: ${mergedData.length}');
+        // Merge with attendance
+        final mergedData = pertemuanForThisUKM.map((pertemuan) {
+          final idPertemuan = pertemuan['id_pertemuan'];
+          final attendance = attendanceMap[idPertemuan];
+          
+          return {
+            ...pertemuan,
+            'user_status_hadir': attendance?['status_hadir'],
+            'user_waktu_absen': attendance?['waktu_absen'],
+            'has_invalid_ukm_id': false,
+          };
+        }).toList();
 
         setState(() {
           _ukmPertemuanList = mergedData;
           _isLoadingPertemuan = false;
         });
-
-        print('✅ Successfully loaded ${mergedData.length} pertemuan');
       } else {
-        print('No user ID, loading pertemuan without attendance data');
         setState(() {
-          _ukmPertemuanList = pertemuanData.cast<Map<String, dynamic>>();
+          _ukmPertemuanList = pertemuanForThisUKM;
           _isLoadingPertemuan = false;
         });
-
-        print('✅ Successfully loaded ${pertemuanData.length} pertemuan');
       }
+      
+      print('✅ Successfully loaded ${_ukmPertemuanList.length} pertemuan');
+
     } catch (e, stackTrace) {
       print('❌ Error loading pertemuan: $e');
       print('Stack trace: $stackTrace');
@@ -360,7 +405,8 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
             tanggal_awal, tanggal_akhir, status,
             is_registration_open, registration_start_date, registration_end_date
           ''')
-          .eq('status', 'Aktif')
+          // Removing strict status check to ensure we find the latest period
+          // The logic in _showRegisterDialog will determine if it's open based on dates
           .order('create_at', ascending: false)
           .limit(1)
           .maybeSingle();
@@ -383,46 +429,31 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
       // Get current periode first
       final currentPeriode = await _getCurrentPeriode();
       if (currentPeriode == null) {
-        print('No active periode found');
         return {'has_cooldown': false};
       }
 
-      // Try to get last unjoin record from history table if it exists
+      // Check user_halaman_ukm for 'keluar' status in current period
       try {
         final lastUnjoin = await _supabase
-            .from('ukm_user_history')
-            .select('id_periode, unjoined_at, periode(nama_periode)')
+            .from('user_halaman_ukm')
+            .select('id_periode, status')
             .eq('id_ukm', ukmId)
             .eq('id_user', userId)
-            .eq('action', 'unjoin')
-            .order('unjoined_at', ascending: false)
-            .limit(1)
+            .eq('status', 'keluar') // Status updated when unjoining
             .maybeSingle();
 
-        if (lastUnjoin == null) {
-          print('No unjoin history found for this UKM');
-          return {'has_cooldown': false};
+        if (lastUnjoin != null) {
+          // Check if unjoin was in current periode
+          if (lastUnjoin['id_periode'] == currentPeriode['id_periode']) {
+            print('User is in cooldown period (left in this period)');
+            return {
+              'has_cooldown': true,
+              'current_periode': currentPeriode['nama_periode'],
+            };
+          }
         }
-
-        print('Last unjoin periode: ${lastUnjoin['id_periode']}');
-        print('Current periode: ${currentPeriode['id_periode']}');
-
-        // Check if unjoin was in current periode
-        if (lastUnjoin['id_periode'] == currentPeriode['id_periode']) {
-          print('User is still in cooldown period');
-          return {
-            'has_cooldown': true,
-            'current_periode': currentPeriode['nama_periode'],
-            'last_unjoin_periode':
-                lastUnjoin['periode']?['nama_periode'] ??
-                currentPeriode['nama_periode'],
-          };
-        }
-
-        print('Cooldown period has passed');
-      } catch (historyError) {
-        print('History table not found or error: $historyError');
-        // Table doesn't exist, no cooldown
+      } catch (e) {
+        print('Error checking cooldown record: $e');
       }
 
       return {'has_cooldown': false};
@@ -478,28 +509,15 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
         return;
       }
 
-      final currentPeriode = await _getCurrentPeriode();
-
-      // Delete from user_halaman_ukm
-      await _supabase.from('user_halaman_ukm').delete().match({
+      // Update status to 'keluar' instead of deleting
+      await _supabase.from('user_halaman_ukm').update({
+        'status': 'keluar',
+        // We keep id_periode as the period they were in when they left
+        // or effectively the period they are now "cooldown" for if logic checks it
+      }).match({
         'id_ukm': ukm['id'],
         'id_user': userId,
       });
-
-      // Try to insert to history (optional if table exists)
-      try {
-        await _supabase.from('ukm_user_history').insert({
-          'id_ukm': ukm['id'],
-          'id_user': userId,
-          'id_periode': currentPeriode?['id_periode'],
-          'action': 'unjoin',
-          'unjoined_at': DateTime.now().toIso8601String(),
-        });
-        print('Successfully recorded unjoin history');
-      } catch (historyError) {
-        print('Could not save to history (table may not exist): $historyError');
-        // Continue anyway, history is optional
-      }
 
       // Update local state immediately
       setState(() {
@@ -523,9 +541,6 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
           duration: const Duration(seconds: 2),
         ),
       );
-
-      // Don't reload to prevent UI flickering
-      // The local state is already updated correctly
     } catch (e) {
       print('Error unjoining UKM: $e');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -696,10 +711,29 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
     }
 
     // Check if registration is open
-    final isRegistrationOpen = currentPeriode['is_registration_open'] ?? false;
+    bool isRegistrationOpen = currentPeriode['is_registration_open'] ?? false;
+    final regStartDate = currentPeriode['registration_start_date'];
+    final regEndDate = currentPeriode['registration_end_date'];
+
+    // Override isRegistrationOpen if we are strictly within the date range
+    // This ensures logic follows the actual dates set by admin
+    if (regStartDate != null && regEndDate != null) {
+      try {
+        final startDate = DateTime.parse(regStartDate);
+        final endDate = DateTime.parse(regEndDate);
+        final now = DateTime.now();
+        
+        if (now.isAfter(startDate) && now.isBefore(endDate)) {
+          isRegistrationOpen = true; // Force open if within dates
+        } else {
+          isRegistrationOpen = false; // Force closed if outside dates
+        }
+      } catch (e) {
+        print('Error checking registration dates: $e');
+      }
+    }
+
     if (!isRegistrationOpen) {
-      final regStartDate = currentPeriode['registration_start_date'];
-      final regEndDate = currentPeriode['registration_end_date'];
 
       String message = 'Periode pendaftaran belum dibuka atau sudah ditutup.';
       if (regStartDate != null && regEndDate != null) {
@@ -866,44 +900,88 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                               return;
                             }
 
-                            // Check if user is already registered in this period
+                            // Check if user is already registered in ANY status
+                            // We need to check for 'keluar' status too for cooldown or re-joining
                             final existingReg = await _supabase
                                 .from('user_halaman_ukm')
-                                .select('id_user_ukm')
+                                .select('id_ukm, status, id_periode')
                                 .eq('id_user', userId)
                                 .eq('id_ukm', ukm['id'])
-                                .eq('id_periode', currentPeriode['id_periode'])
-                                .or('status.eq.aktif,status.eq.active')
                                 .maybeSingle();
 
                             if (existingReg != null) {
-                              if (!mounted) return;
-                              Navigator.pop(context);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    'Anda sudah terdaftar di ${ukm['name']} pada periode ${currentPeriode['nama_periode']}',
-                                    style: const TextStyle(color: Colors.white),
-                                  ),
-                                  backgroundColor: Colors.orange[600],
-                                  duration: const Duration(seconds: 3),
-                                ),
-                              );
-                              // Reload to update UI
-                              await _loadUKMs();
-                              return;
+                              final status = existingReg['status'];
+                              
+                              if (status == 'aktif' || status == 'active') {
+                                if (existingReg['id_periode'] == currentPeriode['id_periode']) {
+                                  if (!mounted) return;
+                                  Navigator.pop(context);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Anda sudah terdaftar di ${ukm['name']}',
+                                        style: const TextStyle(color: Colors.white),
+                                      ),
+                                      backgroundColor: Colors.orange[600],
+                                    ),
+                                  );
+                                  await _loadUKMs();
+                                  return;
+                                }
+                                // If active in old period, usually we just update period? 
+                                // But normally periods roll over. We'll proceed to update/upsert.
+                              } else if (status == 'keluar') {
+                                // Check cooldown
+                                if (existingReg['id_periode'] == currentPeriode['id_periode']) {
+                                   if (!mounted) return;
+                                   Navigator.pop(context);
+                                   // Logic handled by _checkCooldownPeriod usually, but explicit check here too
+                                   ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: const Text(
+                                        'Anda baru saja keluar di periode ini. Tunggu periode berikutnya.',
+                                        style: TextStyle(color: Colors.white),
+                                      ),
+                                      backgroundColor: Colors.red[600],
+                                    ),
+                                  );
+                                  return;
+                                }
+                                // If status is keluar but DIFFERENT period, we allow re-join (Update)
+                              }
                             }
 
                             print(
                               'Current periode: ${currentPeriode['id_periode']}',
                             );
 
-                            await _supabase.from('user_halaman_ukm').insert({
-                              'id_ukm': ukm['id'],
-                              'id_user': userId,
-                              'id_periode': currentPeriode['id_periode'],
-                              'status': 'aktif',
-                            });
+                            // Upsert logic:
+                            // If record exists (status=keluar or old period), we update it.
+                            // If no record, we insert.
+                            // Using upsert with match on id_user + id_ukm implies those are unique key
+                            // But since we can't be sure of unique constraints, explicit update/insert is safer given we already queried existingReg
+                            
+                            if (existingReg != null) {
+                               // Update existing record
+                               await _supabase.from('user_halaman_ukm').update({
+                                  'id_periode': currentPeriode['id_periode'],
+                                  'status': 'aktif',
+                                  // 'create_at': DateTime.now().toIso8601String(), // Optional: refresh timestamp
+                               }).match({
+                                  'id_ukm': ukm['id'],
+                                  'id_user': userId,
+                               });
+                               print('DAFTAR: Updated existing record to aktif');
+                            } else {
+                               // Insert new record
+                               await _supabase.from('user_halaman_ukm').insert({
+                                  'id_ukm': ukm['id'],
+                                  'id_user': userId,
+                                  'id_periode': currentPeriode['id_periode'],
+                                  'status': 'aktif',
+                               });
+                               print('DAFTAR: Inserted new record');
+                            }
 
                             print(
                               'DEBUG: Berhasil insert user_halaman_ukm untuk ${ukm['name']}',
@@ -1470,10 +1548,132 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
   }
 
   // ==================== QR SCANNER ====================
-  void _handleQRCodeScanned(String code) {
-    // Implementasi logika untuk menangani kode QR yang di-scan
-    // Bisa digunakan untuk check-in, verifikasi, dll
-    print('DEBUG: QR Code scanned: $code');
+  void _handleQRCodeScanned(String code) async {
+    print('========== QR CODE SCANNED (UKM PAGE) ==========');
+    print('Code: $code');
+
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        content: Row(
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(width: 20),
+            Text('Memproses absensi...', style: GoogleFonts.inter()),
+          ],
+        ),
+      ),
+    );
+
+    // Process attendance
+    final result = await _attendanceService.processQRCodeAttendance(code);
+
+    // Close loading dialog
+    if (mounted) Navigator.of(context).pop();
+
+    // Show result
+    if (mounted) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: result['success']
+                      ? Colors.green.withOpacity(0.1)
+                      : Colors.red.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  result['success'] ? Icons.check_circle : Icons.error,
+                  color: result['success'] ? Colors.green : Colors.red,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  result['success'] ? 'Berhasil!' : 'Gagal',
+                  style: GoogleFonts.inter(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                result['message'] ?? 'Terjadi kesalahan',
+                style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[700]),
+              ),
+              if (result['success']) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue[100]!),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.access_time_filled,
+                        color: Colors.blue[700],
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Waktu: ${result['time'] ?? '-'}',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.blue[800],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                if (result['success']) {
+                  // Reload data to update progress bar and attendance status
+                  _loadUKMs();
+                  if (_selectedUKM != null) {
+                    _loadUKMPertemuan(_selectedUKM!['id']);
+                  }
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor:
+                    result['success'] ? Colors.blue[600] : Colors.grey[600],
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   void _showLogoutDialog() {
@@ -1885,6 +2085,12 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
   Widget _buildUKMCard(Map<String, dynamic> ukm, {required bool isMobile}) {
     final isRegistered = ukm['isRegistered'] as bool;
     final attendance = ukm['attendance'] as int? ?? 0;
+    final totalMeetings = ukm['totalMeetings'] as int? ?? 0;
+    
+    // Calculate progress (avoid division by zero)
+    final double progress = totalMeetings > 0 
+        ? attendance / totalMeetings 
+        : 0.0;
 
     return InkWell(
       onTap: () => _viewUKMDetail(ukm),
@@ -2040,7 +2246,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                               ),
                               const SizedBox(width: 6),
                               Text(
-                                '$attendance/3 Pertemuan',
+                                '$attendance/$totalMeetings Pertemuan',
                                 style: GoogleFonts.poppins(
                                   fontSize: isMobile ? 11 : 12,
                                   fontWeight: FontWeight.w600,
@@ -2060,16 +2266,16 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                                 ),
                               ),
                               FractionallySizedBox(
-                                widthFactor: attendance / 3,
+                                widthFactor: progress > 1.0 ? 1.0 : progress,
                                 child: Container(
                                   height: 6,
                                   decoration: BoxDecoration(
                                     gradient: LinearGradient(
                                       colors: [
-                                        attendance >= 3
+                                        progress >= 1.0
                                             ? Colors.green[400]!
                                             : Colors.blue[400]!,
-                                        attendance >= 3
+                                        progress >= 1.0
                                             ? Colors.green[600]!
                                             : Colors.blue[600]!,
                                       ],
@@ -2108,7 +2314,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                               ),
                               const SizedBox(width: 6),
                               Text(
-                                '0/3 Pertemuan',
+                                '0/$totalMeetings Pertemuan',
                                 style: GoogleFonts.poppins(
                                   fontSize: isMobile ? 11 : 12,
                                   fontWeight: FontWeight.w600,
@@ -2756,8 +2962,45 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
+                              // Warning badge for invalid UKM ID
+                              if (pertemuan['has_invalid_ukm_id'] == true)
+                                Container(
+                                  margin: const EdgeInsets.only(left: 4),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 3,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.orange[50],
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: Colors.orange[300]!,
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.warning_amber_rounded,
+                                        size: 12,
+                                        color: Colors.orange[700],
+                                      ),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        'Data',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.orange[700],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               if (pertemuan['user_status_hadir'] != null)
                                 Container(
+                                  margin: const EdgeInsets.only(left: 4),
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 8,
                                     vertical: 4,

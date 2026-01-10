@@ -121,14 +121,25 @@ class FileUploadService {
   }) async {
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     final fileExtension = path.extension(fileName);
-    final filePath = '$folder/${timestamp}_${fileName.replaceAll(' ', '_')}';
+    final cleanFileName = fileName.replaceAll(' ', '_');
+    
+    // For informasi, use informasi-images bucket with simple filename
+    // For events, use event-proposals bucket
+    final bucket = folder == 'informasi' ? 'informasi-images' : 'event-proposals';
+    final filePath = '${timestamp}_$cleanFileName';
 
-    return await uploadFileFromBytes(
+    final fullUrl = await uploadFileFromBytes(
       fileBytes: fileBytes,
       fileName: fileName,
-      bucket: 'event-proposals', // Use existing bucket
+      bucket: bucket,
       filePath: filePath,
     );
+    
+    // Return only the path (filename) for informasi, full URL for others
+    if (folder == 'informasi') {
+      return filePath; // Just the filename for consistency with admin
+    }
+    return fullUrl;
   }
 
   /// Validate file type for proposals (PDF, DOC, DOCX) by file name

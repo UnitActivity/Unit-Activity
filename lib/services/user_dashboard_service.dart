@@ -461,42 +461,72 @@ class UserDashboardService {
       final response = await _supabase
           .from('absen_event')
           .select('''
-            id_absen,
+            id_absen_e,
             jam,
             status,
-            created_at,
-            users(id_user, username, nim, email)
+            id_user
           ''')
           .eq('id_event', eventId)
-          .order('created_at', ascending: false);
+          .order('jam', ascending: false);
 
-      return List<Map<String, dynamic>>.from(response);
+      // Fetch user details separately to avoid join issues
+      final participants = List<Map<String, dynamic>>.from(response);
+      for (var participant in participants) {
+        final userId = participant['id_user'];
+        if (userId != null) {
+          final userResponse = await _supabase
+              .from('users')
+              .select('id_user, nama, nim, email')
+              .eq('id_user', userId)
+              .maybeSingle();
+          if (userResponse != null) {
+            participant['users'] = userResponse;
+          }
+        }
+      }
+      return participants;
     } catch (e) {
       print('Error loading participants: $e');
       return [];
     }
   }
 
-  /// Get event registered participants (from peserta_event - those who registered)
+  /// Get event registered participants (from absen_event - those who registered)
   Future<List<Map<String, dynamic>>> getEventRegisteredParticipants(
     String eventId,
   ) async {
     try {
       final response = await _supabase
-          .from('peserta_event')
+          .from('absen_event')
           .select('''
-            id_peserta,
+            id_absen_e,
             status,
-            registered_at,
-            created_at,
-            users:id_user(id_user, username, nim, email)
+            jam,
+            id_user
           ''')
           .eq('id_event', eventId)
-          .order('registered_at', ascending: false);
+          .order('jam', ascending: false);
 
-      return List<Map<String, dynamic>>.from(response);
+      // Fetch user details separately to avoid join issues
+      final participants = List<Map<String, dynamic>>.from(response);
+      print('DEBUG getEventRegisteredParticipants: Found ${participants.length} participants');
+      
+      for (var participant in participants) {
+        final userId = participant['id_user'];
+        if (userId != null) {
+          final userResponse = await _supabase
+              .from('users')
+              .select('id_user, nama, nim, email')
+              .eq('id_user', userId)
+              .maybeSingle();
+          if (userResponse != null) {
+            participant['users'] = userResponse;
+          }
+        }
+      }
+      return participants;
     } catch (e) {
-      print('Error loading registered participants: $e');
+      print('Error getting registered participants: $e');
       return [];
     }
   }
@@ -505,8 +535,8 @@ class UserDashboardService {
   Future<int> getEventRegisteredCount(String eventId) async {
     try {
       final response = await _supabase
-          .from('peserta_event')
-          .select('id_peserta')
+          .from('absen_event')
+          .select('id_absen_e')
           .eq('id_event', eventId);
 
       return (response as List).length;
@@ -533,28 +563,28 @@ class UserDashboardService {
   }
 
   /// Check if user is registered for an event
-  /// Uses peserta_event table for registration status
+  /// Uses absen_event table for registration status
   Future<bool> isUserRegistered(String eventId) async {
     try {
       final userId = currentUserId;
       if (userId == null) return false;
 
-      print(
-        'DEBUG isUserRegistered: Checking eventId=$eventId, userId=$userId',
-      );
+      print('DEBUG isUserRegistered: eventId = $eventId, userId = $userId');
 
-      // Check peserta_event table (registration table)
+      // Check absen_event table (registration table)
       final response = await _supabase
-          .from('peserta_event')
-          .select('id_peserta, status')
+          .from('absen_event')
+          .select('id_absen_e')
           .eq('id_event', eventId)
           .eq('id_user', userId)
+          .limit(1)
           .maybeSingle();
 
-      print('DEBUG isUserRegistered: peserta_event Response = $response');
+      print('DEBUG isUserRegistered: absen_event Response = $response');
+
       return response != null;
     } catch (e) {
-      print('Error checking registration: $e');
+      print('ERROR isUserRegistered: $e');
       return false;
     }
   }
@@ -571,32 +601,57 @@ class UserDashboardService {
 
       print('DEBUG getUserRegisteredEvents: Fetching for userId=$userId');
 
-      // Query peserta_event table for registrations
+      // Query absen_event table for registrations - fetch only basic fields
       final response = await _supabase
-          .from('peserta_event')
+          .from('absen_event')
           .select('''
-            id_peserta,
+            id_absen_e,
             status,
-            registered_at,
-            created_at,
-            events:id_event(
-              id_events,
-              nama_event,
-              deskripsi,
-              lokasi,
-              tanggal_mulai,
-              tanggal_akhir,
-              gambar,
-              ukm(nama_ukm)
-            )
+            jam,
+            id_event
           ''')
           .eq('id_user', userId)
-          .order('registered_at', ascending: false);
+          .order('jam', ascending: false);
 
-      print(
-        'DEBUG getUserRegisteredEvents: Found ${(response as List).length} registered events from peserta_event',
-      );
-      return List<Map<String, dynamic>>.from(response);
+      final registrations = List<Map<String, dynamic>>.from(response);
+      print('DEBUG getUserRegisteredEvents: Found ${registrations.length} registrations');
+
+      // Fetch event details separately for each registration
+      for (var registration in registrations) {
+        final eventId = registration['id_event'];
+        if (eventId != null) {
+          try {
+            // Fetch event details
+            final eventResponse = await _supabase
+                .from('events')
+                .select('id_events, nama_event, deskripsi, lokasi, tanggal_mulai, tanggal_akhir, gambar, id_ukm')
+                .eq('id_events', eventId)
+                .maybeSingle();
+
+            if (eventResponse != null) {
+              // Fetch UKM details if event has id_ukm
+              if (eventResponse['id_ukm'] != null) {
+                final ukmResponse = await _supabase
+                    .from('ukm')
+                    .select('nama_ukm')
+                    .eq('id_ukm', eventResponse['id_ukm'])
+                    .maybeSingle();
+                
+                if (ukmResponse != null) {
+                  eventResponse['ukm'] = ukmResponse;
+                }
+              }
+              
+              registration['events'] = eventResponse;
+            }
+          } catch (e) {
+            print('Error fetching event details for $eventId: $e');
+          }
+        }
+      }
+
+      print('DEBUG getUserRegisteredEvents: Returning ${registrations.length} events with details');
+      return registrations;
     } catch (e) {
       print('Error loading registered events: $e');
       return [];
@@ -788,7 +843,6 @@ class UserDashboardService {
             jam_mulai,
             jam_akhir,
             lokasi,
-            status,
             created_at,
             ukm(id_ukm, nama_ukm, logo)
           ''')

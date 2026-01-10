@@ -34,7 +34,7 @@ class _UserEventDetailPageState extends State<UserEventDetailPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this); // Logbook, Peserta
+    _tabController = TabController(length: 2, vsync: this); // Peserta, Logbook
     _loadEventDetails();
   }
 
@@ -96,16 +96,104 @@ class _UserEventDetailPageState extends State<UserEventDetailPage>
         throw Exception('User tidak terautentikasi');
       }
 
-      // Check if already registered in peserta_event table
+      // Validate event status and quota
+      if (_event != null) {
+        // Check if event has ended
+        if (_event!['tanggal_akhir'] != null) {
+          final endDate = DateTime.parse(_event!['tanggal_akhir']);
+          final now = DateTime.now();
+          if (now.isAfter(endDate)) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Row(
+                    children: [
+                      const Icon(Icons.event_busy, color: Colors.white),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text('Event sudah selesai. Pendaftaran ditutup.'),
+                      ),
+                    ],
+                  ),
+                  backgroundColor: Colors.orange[700],
+                ),
+              );
+            }
+            return;
+          }
+        }
+        
+        // Check if event is active (status)
+        if (_event!['status'] != true) {
+           if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Row(
+                    children: [
+                      const Icon(Icons.block, color: Colors.white),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text('Event tidak aktif. Pendaftaran ditutup.'),
+                      ),
+                    ],
+                  ),
+                  backgroundColor: Colors.red[700],
+                ),
+              );
+            }
+            return;
+        }
+
+        // Check participant quota
+
+        // Check participant quota
+        if (_event!['max_participant'] != null) {
+          final maxParticipant = _event!['max_participant'] as int;
+          
+          // Count current registrations using Supabase count
+          final response = await _supabase
+              .from('absen_event')
+              .select('id_absen_e')
+              .eq('id_event', widget.eventId)
+              .count(CountOption.exact);
+
+          final currentCount = response.count;
+
+          if (currentCount >= maxParticipant) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Row(
+                    children: [
+                      const Icon(Icons.people, color: Colors.white),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Kuota peserta penuh ($currentCount/$maxParticipant)',
+                        ),
+                      ),
+                    ],
+                  ),
+                  backgroundColor: Colors.orange[700],
+                ),
+              );
+            }
+            return;
+          }
+        }
+      }
+
+      // Check if already registered in absen_event table
       final existing = await _supabase
-          .from('peserta_event')
-          .select('*')
+          .from('absen_event')
+          .select('id_absen_e')
           .eq('id_event', widget.eventId)
           .eq('id_user', userId)
+          .limit(1)
           .maybeSingle();
 
       if (existing != null) {
-        print('DEBUG _registerEvent: Already registered in peserta_event');
+        print('DEBUG _registerEvent: Already registered in absen_event');
         if (mounted) {
           setState(() => _isRegistered = true);
           ScaffoldMessenger.of(context).showSnackBar(
@@ -118,16 +206,17 @@ class _UserEventDetailPageState extends State<UserEventDetailPage>
         return;
       }
 
-      // Register to event using peserta_event table (for registration)
-      // absen_event is only for attendance on event day via QR scan
-      await _supabase.from('peserta_event').insert({
+      // Register to event using absen_event table
+      final now = DateTime.now();
+      await _supabase.from('absen_event').insert({
         'id_event': widget.eventId,
         'id_user': userId,
         'status': 'terdaftar',
-        'registered_at': DateTime.now().toIso8601String(),
+        'jam':
+            '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
       });
 
-      print('DEBUG _registerEvent: Successfully registered to peserta_event');
+      print('DEBUG _registerEvent: Successfully registered to absen_event');
 
       if (mounted) {
         setState(() => _isRegistered = true);
@@ -583,8 +672,8 @@ class _UserEventDetailPageState extends State<UserEventDetailPage>
                 fontSize: 14,
               ),
               tabs: const [
-                Tab(text: 'Logbook', icon: Icon(Icons.book, size: 20)),
                 Tab(text: 'Peserta', icon: Icon(Icons.people, size: 20)),
+                Tab(text: 'Logbook', icon: Icon(Icons.book, size: 20)),
               ],
             ),
           ),
@@ -595,8 +684,8 @@ class _UserEventDetailPageState extends State<UserEventDetailPage>
             child: TabBarView(
               controller: _tabController,
               children: [
-                _buildLogbookTab(isDesktop),
                 _buildParticipantsTab(isDesktop),
+                _buildLogbookTab(isDesktop),
               ],
             ),
           ),
@@ -610,24 +699,27 @@ class _UserEventDetailPageState extends State<UserEventDetailPage>
     final hasLogbook =
         _event?['logbook'] != null && _event!['logbook'].isNotEmpty;
 
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Logbook Event',
-            style: GoogleFonts.inter(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey[800],
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Text(
+              'Logbook Event',
+              style: GoogleFonts.inter(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[800],
+              ),
+              textAlign: TextAlign.center,
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Dokumentasi dan catatan kegiatan event',
-            style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
-          ),
+            const SizedBox(height: 8),
+            Text(
+              'Dokumentasi dan catatan kegiatan event',
+              style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
+              textAlign: TextAlign.center,
+            ),
           const SizedBox(height: 24),
 
           if (status == 'completed' && hasLogbook)
@@ -753,7 +845,8 @@ class _UserEventDetailPageState extends State<UserEventDetailPage>
                 ],
               ),
             ),
-        ],
+          ],
+        ),
       ),
     );
   }

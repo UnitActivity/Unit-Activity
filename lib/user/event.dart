@@ -165,13 +165,21 @@ class _UserEventPageState extends State<UserEventPage>
       print('Registered event IDs: $_registeredEventIds');
       print('Total registered event IDs: ${_registeredEventIds.length}');
 
-      // Map events to UI format
+      // Map events to UI format with access control
       _allEvents = events.map((event) {
         final eventId = event['id_events']?.toString() ?? '';
         final ukmId = event['id_ukm']?.toString() ?? '';
+        final tipeAkses = event['tipe_akses']?.toString().toLowerCase() ?? 'anggota';
+        final isMyUKM = _userUKMIds.contains(ukmId);
+        
+        // Access control: umum events visible to all, anggota events only to UKM members
+        final canView = tipeAkses == 'umum' || isMyUKM;
+        
         return {
           'id': eventId,
           'id_ukm': ukmId,
+          'tipe_akses': tipeAkses,
+          'canView': canView,
           'title': event['nama_event'] ?? 'Event',
           'image': null,
           'date': _formatDate(event['tanggal_mulai']),
@@ -180,7 +188,7 @@ class _UserEventPageState extends State<UserEventPage>
           'location': event['lokasi'] ?? '',
           'description': event['deskripsi'] ?? '',
           'isRegistered': _registeredEventIds.contains(eventId),
-          'isMyUKM': _userUKMIds.contains(ukmId),
+          'isMyUKM': isMyUKM,
           'ukm_name': event['ukm']?['nama_ukm'] ?? '',
           'ukm_logo': event['ukm']?['logo'],
           'max_participant': event['max_participant'],
@@ -193,6 +201,9 @@ class _UserEventPageState extends State<UserEventPage>
           'lokasi': event['lokasi'],
         };
       }).toList();
+
+      // Filter events based on access control
+      _allEvents = _allEvents.where((e) => e['canView'] == true).toList();
 
       // Filter followed events
       _followedEvents = _allEvents
@@ -289,6 +300,178 @@ class _UserEventPageState extends State<UserEventPage>
       // Refresh data when returning
       _loadEvents();
     });
+  }
+
+  /// Register user for an event
+  Future<void> _registerForEvent(String eventId, String eventName) async {
+    try {
+      final userId = _authService.currentUserId;
+      if (userId == null || userId.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('User tidak terautentikasi'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Get event details for validation
+      final eventData = await Supabase.instance.client
+          .from('events')
+          .select('tanggal_mulai, tanggal_akhir, max_participant, nama_event')
+          .eq('id_events', eventId)
+          .single();
+
+      print('========================================');
+      print('DEBUG _registerForEvent: Event Validation');
+      print('Event: ${eventData['nama_event']}');
+      print('Tanggal Mulai: ${eventData['tanggal_mulai']}');
+      print('Tanggal Akhir: ${eventData['tanggal_akhir']}');
+      print('Current DateTime: ${DateTime.now()}');
+
+      // Check if event has ended - compare DATE only, not time
+      if (eventData['tanggal_akhir'] != null) {
+        final endDate = DateTime.parse(eventData['tanggal_akhir']);
+        final now = DateTime.now();
+        
+        // Compare dates only (ignore time component)
+        final endDateOnly = DateTime(endDate.year, endDate.month, endDate.day);
+        final nowDateOnly = DateTime(now.year, now.month, now.day);
+        
+        print('End Date (date only): $endDateOnly');
+        print('Now (date only): $nowDateOnly');
+        print('Is event ended? ${nowDateOnly.isAfter(endDateOnly)}');
+        
+        // Event is considered ended only if current DATE is AFTER end DATE
+        if (nowDateOnly.isAfter(endDateOnly)) {
+          print('❌ Event has ended - registration closed');
+          print('========================================');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(Icons.event_busy, color: Colors.white),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text('Event sudah selesai. Pendaftaran ditutup.'),
+                    ),
+                  ],
+                ),
+                backgroundColor: Colors.orange[700],
+              ),
+            );
+          }
+          return;
+        }
+        print('✅ Event is still active - registration allowed');
+      }
+      print('========================================');
+
+      // Check participant quota
+      if (eventData['max_participant'] != null) {
+        final maxParticipant = eventData['max_participant'] as int;
+        
+        // Count current registrations using Supabase count
+        final response = await Supabase.instance.client
+            .from('absen_event')
+            .select('id_absen_e')
+            .eq('id_event', eventId)
+            .count(CountOption.exact);
+
+        final currentCount = response.count;
+
+        if (currentCount >= maxParticipant) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(Icons.people, color: Colors.white),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Kuota peserta penuh ($currentCount/$maxParticipant)',
+                      ),
+                    ),
+                  ],
+                ),
+                backgroundColor: Colors.orange[700],
+              ),
+            );
+          }
+          return;
+        }
+      }
+
+      // Check if already registered
+      final existing = await Supabase.instance.client
+          .from('absen_event')
+          .select('id_absen_e')
+          .eq('id_event', eventId)
+          .eq('id_user', userId)
+          .limit(1)
+          .maybeSingle();
+
+      if (existing != null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Anda sudah terdaftar di event ini'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Register to event
+      final now = DateTime.now();
+      await Supabase.instance.client.from('absen_event').insert({
+        'id_event': eventId,
+        'id_user': userId,
+        'status': 'terdaftar',
+        'jam':
+            '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
+      });
+
+      if (mounted) {
+        setState(() {
+          _registeredEventIds.add(eventId);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Berhasil mendaftar event: $eventName',
+                    style: GoogleFonts.inter(fontWeight: FontWeight.w500),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      print('ERROR _registerForEvent: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal mendaftar: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   /// Handle QR Code scanned for attendance
@@ -1351,68 +1534,61 @@ class _UserEventPageState extends State<UserEventPage>
     final String ukmName = event['ukm_name'] ?? '';
     // ukm_logo available in event['ukm_logo'] if needed
 
-    return InkWell(
-      key: ValueKey(eventId),
-      onTap: () => _viewEventDetail(event),
-      child: Card(
-        elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Image Section
-            Expanded(
-              flex: 3,
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Image Section - Fixed height instead of flex
+          SizedBox(
+            height: 140,
+            child: InkWell(
+              onTap: () => _viewEventDetail(event),
               child: Stack(
                 children: [
                   Container(
                     width: double.infinity,
+                    height: double.infinity,
                     decoration: BoxDecoration(
                       color: Colors.grey[200],
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(12),
-                      ),
                     ),
                     child: imageUrl != null && imageUrl.isNotEmpty
-                        ? ClipRRect(
-                            borderRadius: const BorderRadius.vertical(
-                              top: Radius.circular(12),
-                            ),
-                            child: Image.network(
-                              imageUrl,
-                              fit: BoxFit.cover,
-                              width: double.infinity,
-                              height: double.infinity,
-                              cacheWidth: 400, // Optimize memory
-                              cacheHeight: 300,
-                              loadingBuilder:
-                                  (context, child, loadingProgress) {
-                                    if (loadingProgress == null) return child;
-                                    return Center(
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        value:
-                                            loadingProgress
-                                                    .expectedTotalBytes !=
-                                                null
-                                            ? loadingProgress
-                                                      .cumulativeBytesLoaded /
-                                                  loadingProgress
-                                                      .expectedTotalBytes!
-                                            : null,
-                                      ),
-                                    );
-                                  },
-                              errorBuilder: (context, error, stackTrace) {
-                                return Center(
-                                  child: Icon(
-                                    Icons.event,
-                                    size: 40,
-                                    color: Colors.grey[400],
-                                  ),
-                                );
-                              },
-                            ),
+                        ? Image.network(
+                            imageUrl,
+                            fit: BoxFit.cover,
+                            width: double.infinity,
+                            height: double.infinity,
+                            cacheWidth: 400, // Optimize memory
+                            cacheHeight: 300,
+                            loadingBuilder:
+                                (context, child, loadingProgress) {
+                                  if (loadingProgress == null) return child;
+                                  return Center(
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      value:
+                                          loadingProgress
+                                                  .expectedTotalBytes !=
+                                              null
+                                          ? loadingProgress
+                                                    .cumulativeBytesLoaded /
+                                                loadingProgress
+                                                    .expectedTotalBytes!
+                                          : null,
+                                    ),
+                                  );
+                                },
+                            errorBuilder: (context, error, stackTrace) {
+                              return Center(
+                                child: Icon(
+                                  Icons.event,
+                                  size: 40,
+                                  color: Colors.grey[400],
+                                ),
+                              );
+                            },
                           )
                         : Center(
                             child: Icon(
@@ -1454,129 +1630,202 @@ class _UserEventPageState extends State<UserEventPage>
                               size: 12,
                             ),
                             const SizedBox(width: 4),
-                            Text(
-                              ukmName,
-                              style: GoogleFonts.poppins(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
+                            Flexible(
+                              child: Text(
+                                ukmName,
+                                style: GoogleFonts.poppins(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ],
                         ),
                       ),
                     ),
-                  // Registration badge
-                  if (isRegistered)
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.green,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.check,
+                  // Top-right badge: Access type or Registration status
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isRegistered
+                            ? Colors.green
+                            : (event['tipe_akses'] == 'umum'
+                                ? Colors.green[600]
+                                : Colors.blue[600]),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.2),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            isRegistered
+                                ? Icons.check
+                                : (event['tipe_akses'] == 'umum'
+                                    ? Icons.public
+                                    : Icons.group),
+                            color: Colors.white,
+                            size: 12,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            isRegistered
+                                ? 'Terdaftar'
+                                : (event['tipe_akses'] == 'umum'
+                                    ? 'Umum'
+                                    : 'Anggota'),
+                            style: GoogleFonts.poppins(
                               color: Colors.white,
-                              size: 12,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
                             ),
-                            const SizedBox(width: 4),
-                            Text(
-                              'Terdaftar',
-                              style: GoogleFonts.poppins(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
+                  ),
                 ],
               ),
             ),
-            // Content Section
-            Expanded(
-              flex: 2,
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      title,
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.location_on,
-                          size: 14,
-                          color: Colors.grey[600],
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            location,
+          ),
+          // Content Section - Flexible to fill remaining space
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Event details - takes available space
+                  Expanded(
+                    child: InkWell(
+                      onTap: () => _viewEventDetail(event),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            title,
                             style: GoogleFonts.poppins(
-                              color: Colors.grey[600],
-                              fontSize: 11,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
                             ),
-                            maxLines: 1,
+                            maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
-                        ),
-                      ],
-                    ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.calendar_today,
-                              size: 12,
-                              color: Colors.blue[600],
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              dateStr != null ? _formatDate(dateStr) : '-',
-                              style: GoogleFonts.poppins(
-                                color: Colors.blue[600],
-                                fontSize: 11,
-                                fontWeight: FontWeight.w500,
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.location_on,
+                                size: 14,
+                                color: Colors.grey[600],
                               ),
-                            ),
-                          ],
-                        ),
-                        Icon(
-                          Icons.arrow_forward,
-                          size: 16,
-                          color: Colors.grey[600],
-                        ),
-                      ],
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  location,
+                                  style: GoogleFonts.poppins(
+                                    color: Colors.grey[600],
+                                    fontSize: 11,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.calendar_today,
+                                size: 12,
+                                color: Colors.blue[600],
+                              ),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  dateStr != null ? _formatDate(dateStr) : '-',
+                                  style: GoogleFonts.poppins(
+                                    color: Colors.blue[600],
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 8),
+                  // Registration Button - Always visible at bottom
+                  SizedBox(
+                    width: double.infinity,
+                    height: 32,
+                    child: ElevatedButton(
+                      onPressed: isRegistered
+                          ? () => _viewEventDetail(event)
+                          : () => _registerForEvent(eventId, title),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isRegistered
+                            ? Colors.green[600]
+                            : Colors.blue[600],
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        elevation: isRegistered ? 0 : 2,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            isRegistered ? Icons.check_circle : Icons.person_add,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              isRegistered ? 'Terdaftar' : 'Daftar',
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

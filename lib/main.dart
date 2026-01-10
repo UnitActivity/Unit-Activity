@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:device_preview/device_preview.dart';
 import 'package:unit_activity/auth/login.dart';
@@ -14,17 +13,8 @@ import 'package:unit_activity/ukm/dashboard_ukm.dart';
 import 'package:unit_activity/user/dashboard_user.dart';
 import 'package:unit_activity/config/config.dart';
 import 'package:unit_activity/services/custom_auth_service.dart';
-import 'package:unit_activity/services/push_notification_service.dart';
 
-/// Check if current platform supports Firebase Messaging (mobile only)
-bool get _isMobilePlatform {
-  if (kIsWeb) return false;
-  try {
-    return Platform.isAndroid || Platform.isIOS;
-  } catch (e) {
-    return false;
-  }
-}
+
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -48,11 +38,6 @@ Future<void> main() async {
     anonKey: SupabaseConfig.supabaseAnonKey,
   );
 
-  // Initialize Firebase Messaging background handler (mobile only - not supported on Windows/macOS/Linux)
-  if (_isMobilePlatform) {
-    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-  }
-
   // Initialize CustomAuthService and restore session
   print('========== INITIALIZING AUTH SERVICE ==========');
   final authService = CustomAuthService();
@@ -62,24 +47,6 @@ Future<void> main() async {
     print(
       'Current user: ${authService.currentUserRole} - ${authService.currentUser?['name']}',
     );
-  }
-
-  // Initialize Push Notifications (mobile only - not supported on desktop)
-  if (_isMobilePlatform) {
-    print('========== INITIALIZING PUSH NOTIFICATIONS ==========');
-    final pushNotificationService = PushNotificationService();
-    await pushNotificationService.initialize();
-
-    // Subscribe to admin broadcast notifications
-    await pushNotificationService.subscribeToAdminNotifications();
-    print('Subscribed to admin notifications');
-
-    // If user is logged in, update token association
-    if (authService.isLoggedIn && authService.currentUserId != null) {
-      await pushNotificationService.updateUserAssociation(
-        authService.currentUserId!,
-      );
-    }
   }
 
   // Disable DevicePreview in release mode for better performance
@@ -142,50 +109,4 @@ class MyApp extends StatelessWidget {
   }
 }
 
-/// Background message handler untuk notifikasi saat app tertutup
-/// CRITICAL: Function ini harus top-level function (tidak boleh di dalam class)
-@pragma('vm:entry-point')
-Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // Initialize Supabase for background context
-  await Supabase.initialize(
-    url: SupabaseConfig.supabaseUrl,
-    anonKey: SupabaseConfig.supabaseAnonKey,
-  );
 
-  print('========== BACKGROUND MESSAGE (APP CLOSED) ==========');
-  print('Title: ${message.notification?.title}');
-  print('Body: ${message.notification?.body}');
-  print('Data: ${message.data}');
-
-  // Save notification to database
-  try {
-    final supabase = Supabase.instance.client;
-    final notification = message.notification;
-
-    if (notification != null) {
-      final userId = supabase.auth.currentUser?.id;
-
-      final notificationData = {
-        'judul': notification.title ?? 'Notifikasi',
-        'pesan': notification.body ?? '',
-        'type': message.data['type'] ?? 'info',
-        'is_read': false,
-        'create_at': DateTime.now().toIso8601String(),
-      };
-
-      if (userId != null) {
-        // Save to user-specific notifications
-        await supabase.from('notification_preference').insert({
-          ...notificationData,
-          'id_user': userId,
-        });
-        print('✅ Background notification saved for user: $userId');
-      } else {
-        // Anonymous notifications not supported without proper table
-        print('ℹ️ No user logged in, background notification not saved');
-      }
-    }
-  } catch (e) {
-    print('❌ Error saving background notification: $e');
-  }
-}

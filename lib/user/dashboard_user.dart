@@ -12,6 +12,8 @@ import 'package:unit_activity/user/history.dart';
 import 'package:unit_activity/services/user_dashboard_service.dart';
 import 'package:unit_activity/services/attendance_service.dart';
 import 'dart:async';
+import 'dart:ui';
+
 
 class DashboardUser extends StatefulWidget {
   const DashboardUser({super.key});
@@ -28,6 +30,7 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
   final UserDashboardService _dashboardService = UserDashboardService();
   final AttendanceService _attendanceService = AttendanceService();
   Timer? _autoSlideTimer;
+  RealtimeChannel? _informasiChannel;
 
   bool _isLoadingEvents = true;
   bool _isLoadingSchedule = true;
@@ -64,12 +67,53 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
     _loadStatisticsData();
     _loadScheduleData();
     _startAutoSlide();
+    _setupRealtimeSubscription();
   }
 
   @override
   void dispose() {
     _autoSlideTimer?.cancel();
+    _informasiChannel?.unsubscribe();
     super.dispose();
+  }
+
+  /// Setup realtime subscription for informasi updates
+  void _setupRealtimeSubscription() {
+    print('🔴 Setting up realtime subscription for informasi...');
+    
+    _informasiChannel = _supabase
+        .channel('informasi_changes')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'informasi',
+          callback: (payload) {
+            print('🔴 REALTIME: New informasi detected!');
+            print('   Payload: ${payload.newRecord}');
+            
+            // Reload slider events when new informasi is added
+            if (mounted) {
+              _loadSliderEvents();
+            }
+          },
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'informasi',
+          callback: (payload) {
+            print('🔴 REALTIME: Informasi updated!');
+            print('   Payload: ${payload.newRecord}');
+            
+            // Reload slider events when informasi is updated
+            if (mounted) {
+              _loadSliderEvents();
+            }
+          },
+        )
+        .subscribe();
+    
+    print('✅ Realtime subscription active');
   }
 
   /// Start auto-slide timer for slider
@@ -508,31 +552,44 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
       List<Map<String, dynamic>> allInformasi = [];
 
       // 1. Load ALL active informasi without filter
+      print('========== FETCHING INFORMASI ==========');
       print('Fetching informasi from Supabase...');
-      final allInfoResponse = await _supabase
-          .from('informasi')
-          .select(
-            'id_informasi, judul, deskripsi, gambar, create_at, status_aktif, id_ukm, ukm(nama_ukm)',
-          )
-          .eq('status_aktif', true)
-          .order('create_at', ascending: false)
-          .limit(20);
+      
+      try {
+        final allInfoResponse = await _supabase
+            .from('informasi')
+            .select(
+              'id_informasi, judul, deskripsi, gambar, create_at, status, id_ukm, id_admin, ukm(nama_ukm)',
+            )
+            .order('create_at', ascending: false)
+            .limit(20);
 
-      print(
-        '✅ Supabase returned ${(allInfoResponse as List).length} informasi records',
-      );
+        print('✅ Supabase returned ${(allInfoResponse as List).length} informasi records (ALL)');
 
-      // Debug: Print first record details
-      if (allInfoResponse.isNotEmpty) {
-        print('Sample informasi record:');
-        print('  - ID: ${allInfoResponse[0]['id_informasi']}');
-        print('  - Judul: ${allInfoResponse[0]['judul']}');
-        print('  - Gambar: ${allInfoResponse[0]['gambar']}');
-        print('  - id_ukm: ${allInfoResponse[0]['id_ukm']}');
-        print('  - status_aktif: ${allInfoResponse[0]['status_aktif']}');
-      }
+        // Debug: Print first record details
+        if (allInfoResponse.isNotEmpty) {
+          print('Sample informasi record:');
+          print('  - ID: ${allInfoResponse[0]['id_informasi']}');
+          print('  - Judul: ${allInfoResponse[0]['judul']}');
+          print('  - Gambar: ${allInfoResponse[0]['gambar']}');
+          print('  - Status: ${allInfoResponse[0]['status']}');
+          print('  - id_ukm: ${allInfoResponse[0]['id_ukm']}');
+          print('  - id_admin: ${allInfoResponse[0]['id_admin']}');
+        } else {
+          print('⚠️ NO INFORMASI FOUND IN DATABASE!');
+        }
 
-      for (var item in allInfoResponse) {
+        // Filter by status = 'Aktif' in code (not in query)
+        final activeInfo = allInfoResponse.where((item) {
+          final status = item['status']?.toString() ?? '';
+          print('  Checking informasi "${item['judul']}": status="$status"');
+          return status == 'Aktif';
+        }).toList();
+
+        print('✅ Found ${activeInfo.length} active informasi (status=Aktif)');
+        print('========================================');
+
+        for (var item in activeInfo) {
         final infoUkmId = item['id_ukm']?.toString() ?? '';
         final isFromAdmin = infoUkmId.isEmpty || item['id_ukm'] == null;
 
@@ -540,9 +597,13 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
         if (item['gambar'] != null && item['gambar'].toString().isNotEmpty) {
           try {
             final gambarPath = item['gambar'].toString();
-            imageUrl = _supabase.storage
-                .from('informasi-images')
-                .getPublicUrl(gambarPath);
+            if (gambarPath.startsWith('http://') || gambarPath.startsWith('https://')) {
+              imageUrl = gambarPath;
+            } else {
+              imageUrl = _supabase.storage
+                  .from('informasi-images')
+                  .getPublicUrl(gambarPath);
+            }
             print('✅ Image URL for "${item['judul']}": $imageUrl');
           } catch (e) {
             print('❌ Error getting image URL for "${item['judul']}": $e');
@@ -572,6 +633,12 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
       }
 
       print('📊 Total informasi added: ${allInformasi.length}');
+      
+      } catch (e) {
+        print('❌ ERROR fetching informasi: $e');
+        print('Stack trace: ${StackTrace.current}');
+        // Continue with events even if informasi fails
+      }
 
       // 2. Load upcoming events
       try {
@@ -634,11 +701,11 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
         }
       });
 
-      // Take top 5
-      final topInformasi = allInformasi.take(5).toList();
+      // Take top 10 (increased from 5 to show more informasi)
+      final topInformasi = allInformasi.take(10).toList();
 
       print('');
-      print('📋 FINAL SLIDER DATA (Top 5):');
+      print('📋 FINAL SLIDER DATA (Top 10):');
       for (var i = 0; i < topInformasi.length; i++) {
         print(
           '  ${i + 1}. ${topInformasi[i]['title']} (${topInformasi[i]['source']})',
@@ -1860,29 +1927,54 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
 
   Widget _buildJadwalDesktopList() {
     return SizedBox(
-      height: 180,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        itemCount: _ukmSchedule.length,
-        itemBuilder: (context, index) {
-          return _buildJadwalCard(_ukmSchedule[index], false);
-        },
+      height: 240, // Increased from 180 to fix overflow
+      child: ScrollConfiguration(
+        behavior: ScrollConfiguration.of(context).copyWith(
+          dragDevices: {
+            PointerDeviceKind.touch,
+            PointerDeviceKind.mouse,
+          },
+        ),
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          itemCount: _ukmSchedule.length,
+          itemBuilder: (context, index) {
+            return _buildJadwalCard(_ukmSchedule[index], false);
+          },
+        ),
       ),
     );
   }
 
   Widget _buildJadwalMobileList() {
-    return Column(
-      children: _ukmSchedule.map((item) {
-        return _buildJadwalCard(item, true);
-      }).toList(),
+    return SizedBox(
+      height: 240, // Increased from 200 to fix overflow
+      child: ScrollConfiguration(
+        behavior: ScrollConfiguration.of(context).copyWith(
+          dragDevices: {
+            PointerDeviceKind.touch,
+            PointerDeviceKind.mouse,
+          },
+        ),
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          itemCount: _ukmSchedule.length,
+          itemBuilder: (context, index) {
+            return Container(
+              width: MediaQuery.of(context).size.width * 0.85, // 85% of screen width
+              margin: const EdgeInsets.only(right: 12),
+              child: _buildJadwalCard(_ukmSchedule[index], true),
+            );
+          },
+        ),
+      ),
     );
   }
 
   Widget _buildJadwalCard(Map<String, dynamic> item, bool isMobile) {
     return isMobile
         ? Container(
-            margin: const EdgeInsets.only(bottom: 12),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
