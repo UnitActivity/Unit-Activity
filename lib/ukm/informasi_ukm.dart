@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:unit_activity/services/informasi_service.dart';
 import 'package:unit_activity/models/informasi_model.dart';
 import 'package:unit_activity/ukm/add_informasi_ukm_page.dart';
+import 'package:unit_activity/ukm/edit_informasi_ukm_page.dart';
 import 'package:intl/intl.dart';
 
 class InformasiUKMPage extends StatefulWidget {
@@ -648,8 +649,14 @@ class _InformasiUKMPageState extends State<InformasiUKMPage> {
     if (result == true) _loadInformasi();
   }
 
-  void _showEditDialog(InformasiModel info) {
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Fitur edit akan segera hadir')));
+  Future<void> _showEditDialog(InformasiModel info) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EditInformasiUKMPage(informasi: info),
+      ),
+    );
+    if (result == true) _loadInformasi();
   }
 
   void _showDeleteDialog(InformasiModel info) {
