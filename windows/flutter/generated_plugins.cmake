@@ -5,9 +5,9 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   app_links
   file_selector_windows
+  pdfx
   permission_handler_windows
   share_plus
-  syncfusion_pdfviewer_windows
   url_launcher_windows
 )
 

@@ -1,4 +1,3 @@
-import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -13,8 +12,6 @@ import 'package:unit_activity/ukm/dashboard_ukm.dart';
 import 'package:unit_activity/user/dashboard_user.dart';
 import 'package:unit_activity/config/config.dart';
 import 'package:unit_activity/services/custom_auth_service.dart';
-
-
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -108,5 +105,3 @@ class MyApp extends StatelessWidget {
     );
   }
 }
-
-
