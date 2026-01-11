@@ -30,12 +30,12 @@ class DetailDocumentPage extends StatefulWidget {
 class _DetailDocumentPageState extends State<DetailDocumentPage> {
   final DocumentService _documentService = DocumentService();
   final DocumentStorageService _storageService = DocumentStorageService();
-  final SupabaseClient _supabase = Supabase.instance.client;
   final TextEditingController _commentController = TextEditingController();
 
   bool _isLoading = true;
   bool _isSubmitting = false;
   bool _isDownloading = false;
+  // ignore: unused_field
   double _downloadProgress = 0.0;
   String? _error;
 
@@ -69,42 +69,130 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
   }
 
   Future<void> _loadDocumentData() async {
+    print(
+      '\n🚀 [DETAIL_DOC_PAGE] ========== START LOADING DOCUMENT ==========',
+    );
+    print('📋 [DETAIL_DOC_PAGE] Document ID: ${widget.documentId}');
+    print('📋 [DETAIL_DOC_PAGE] Document Type: ${widget.documentType}');
+
     setState(() {
       _isLoading = true;
       _error = null;
     });
 
     try {
+      print('\n📥 [DETAIL_DOC_PAGE] Step 1: Loading document details...');
+
       if (widget.documentType == 'proposal') {
+        print('📄 [DETAIL_DOC_PAGE] Loading PROPOSAL details...');
         _proposal = await _documentService.getProposalDetails(
           widget.documentId,
         );
+        print('✅ [DETAIL_DOC_PAGE] Proposal loaded successfully');
+        print('📊 [DETAIL_DOC_PAGE] Proposal data: ${_proposal?.toJson()}');
         _selectedStatus = _proposal!.status;
       } else {
+        print('📄 [DETAIL_DOC_PAGE] Loading LPJ details...');
         _lpj = await _documentService.getLPJDetails(widget.documentId);
+        print('✅ [DETAIL_DOC_PAGE] LPJ loaded successfully');
+        print('📊 [DETAIL_DOC_PAGE] LPJ data: ${_lpj?.toJson()}');
         _selectedStatus = _lpj!.status;
       }
 
-      // Load revision history
+      print('\n📥 [DETAIL_DOC_PAGE] Step 2: Loading revision history...');
       _revisions = await _documentService.getRevisionHistory(
         widget.documentId,
         widget.documentType,
       );
+      print('✅ [DETAIL_DOC_PAGE] Loaded ${_revisions.length} revisions');
 
-      // Load all comments
+      print('\n📥 [DETAIL_DOC_PAGE] Step 3: Loading comments...');
       _comments = await _documentService.getDocumentComments(
         widget.documentId,
         widget.documentType,
       );
+      print('✅ [DETAIL_DOC_PAGE] Loaded ${_comments.length} comments');
 
-      setState(() => _isLoading = false);
+      print(
+        '\n✅ [DETAIL_DOC_PAGE] ========== DOCUMENT LOADED SUCCESSFULLY ==========\n',
+      );
+
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     } catch (e, stackTrace) {
-      print('Error loading document: $e');
-      print('Stack trace: $stackTrace');
-      setState(() {
-        _error = 'Gagal memuat dokumen: ${e.toString()}';
-        _isLoading = false;
-      });
+      print(
+        '\n❌ [DETAIL_DOC_PAGE] ========== ERROR LOADING DOCUMENT ==========',
+      );
+      print('❌ [DETAIL_DOC_PAGE] Error: $e');
+      print('❌ [DETAIL_DOC_PAGE] Stack trace: $stackTrace');
+      print('❌ [DETAIL_DOC_PAGE] ========================================\n');
+
+      if (mounted) {
+        setState(() {
+          _error = 'Gagal memuat dokumen: ${e.toString()}';
+          _isLoading = false;
+        });
+
+        // Show error dialog on Windows desktop
+        if (MediaQuery.of(context).size.width >= 768) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: Row(
+                  children: [
+                    Icon(Icons.error_outline, color: Colors.red[700]),
+                    const SizedBox(width: 12),
+                    const Text('Error Memuat Dokumen'),
+                  ],
+                ),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Terjadi kesalahan saat memuat dokumen:'),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.red[50],
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        e.toString(),
+                        style: TextStyle(color: Colors.red[900], fontSize: 12),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Document ID: ${widget.documentId}',
+                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                    ),
+                    Text(
+                      'Type: ${widget.documentType}',
+                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                    ),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Tutup'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _loadDocumentData();
+                    },
+                    child: const Text('Coba Lagi'),
+                  ),
+                ],
+              ),
+            );
+          });
+        }
+      }
     }
   }
 
@@ -405,7 +493,7 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.1),
+                color: Colors.red.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Icon(Icons.delete, color: Colors.red),
@@ -714,7 +802,7 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
                   height: 200,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Colors.white.withOpacity(0.1),
+                    color: Colors.white.withValues(alpha: 0.1),
                   ),
                 ),
               ),
@@ -726,7 +814,7 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
                   height: 150,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Colors.white.withOpacity(0.1),
+                    color: Colors.white.withValues(alpha: 0.1),
                   ),
                 ),
               ),
@@ -741,7 +829,7 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
                       Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
+                          color: Colors.white.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: Icon(
@@ -806,7 +894,7 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -868,10 +956,12 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
                   vertical: 8,
                 ),
                 decoration: BoxDecoration(
-                  color: (statusStyle['color'] as Color).withOpacity(0.1),
+                  color: (statusStyle['color'] as Color).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: (statusStyle['color'] as Color).withOpacity(0.3),
+                    color: (statusStyle['color'] as Color).withValues(
+                      alpha: 0.3,
+                    ),
                   ),
                 ),
                 child: Row(
@@ -995,7 +1085,7 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -1009,8 +1099,8 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  const Color(0xFF4169E1).withOpacity(0.1),
-                  const Color(0xFF5B7FE8).withOpacity(0.05),
+                  const Color(0xFF4169E1).withValues(alpha: 0.1),
+                  const Color(0xFF5B7FE8).withValues(alpha: 0.05),
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -1118,7 +1208,7 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -1319,8 +1409,8 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
         fontWeight: FontWeight.w600,
         color: isSelected ? Colors.white : color,
       ),
-      backgroundColor: color.withOpacity(0.1),
-      side: BorderSide(color: color.withOpacity(0.3)),
+      backgroundColor: color.withValues(alpha: 0.1),
+      side: BorderSide(color: color.withValues(alpha: 0.3)),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
     );
   }
@@ -1332,7 +1422,7 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -1346,8 +1436,8 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  const Color(0xFF10B981).withOpacity(0.1),
-                  const Color(0xFF10B981).withOpacity(0.05),
+                  const Color(0xFF10B981).withValues(alpha: 0.1),
+                  const Color(0xFF10B981).withValues(alpha: 0.05),
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -1482,8 +1572,8 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: comment.isStatusChange
-              ? [Colors.blue[50]!, Colors.blue[100]!.withOpacity(0.3)]
-              : [Colors.grey[50]!, Colors.grey[100]!.withOpacity(0.3)],
+              ? [Colors.blue[50]!, Colors.blue[100]!.withValues(alpha: 0.3)]
+              : [Colors.grey[50]!, Colors.grey[100]!.withValues(alpha: 0.3)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -1533,7 +1623,7 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: avatarColor.withOpacity(0.1),
+                            color: avatarColor.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
@@ -1667,7 +1757,7 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
               : Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.7),
+                    color: Colors.white.withValues(alpha: 0.7),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -1760,10 +1850,10 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: (statusStyle['color'] as Color).withOpacity(0.1),
+        color: (statusStyle['color'] as Color).withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
-          color: (statusStyle['color'] as Color).withOpacity(0.3),
+          color: (statusStyle['color'] as Color).withValues(alpha: 0.3),
         ),
       ),
       child: Row(
@@ -1788,13 +1878,14 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
     );
   }
 
+  // ignore: unused_element
   Widget _buildRevisionItem(DocumentRevision revision, int index) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Colors.grey[50]!, Colors.grey[100]!.withOpacity(0.3)],
+          colors: [Colors.grey[50]!, Colors.grey[100]!.withValues(alpha: 0.3)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -2102,7 +2193,7 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: iconColor.withOpacity(0.1),
+                color: iconColor.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(fileIcon, size: 64, color: iconColor),

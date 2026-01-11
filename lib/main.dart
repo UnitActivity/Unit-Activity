@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:device_preview/device_preview.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:unit_activity/auth/login.dart';
 import 'package:unit_activity/auth/register.dart';
 import 'package:unit_activity/auth/forgot_password.dart';
@@ -35,6 +36,9 @@ Future<void> main() async {
     anonKey: SupabaseConfig.supabaseAnonKey,
   );
 
+  // Initialize date formatting for Indonesian locale
+  await initializeDateFormatting('id_ID', null);
+
   // Initialize CustomAuthService and restore session
   print('========== INITIALIZING AUTH SERVICE ==========');
   final authService = CustomAuthService();
@@ -47,14 +51,9 @@ Future<void> main() async {
   }
 
   // Disable DevicePreview in release mode for better performance
-  final enableDevicePreview = !kReleaseMode;
+  // final enableDevicePreview = !kReleaseMode;
 
-  runApp(
-    DevicePreview(
-      enabled: enableDevicePreview,
-      builder: (context) => const MyApp(),
-    ),
-  );
+  runApp(DevicePreview(enabled: false, builder: (context) => const MyApp()));
 }
 
 class MyApp extends StatelessWidget {

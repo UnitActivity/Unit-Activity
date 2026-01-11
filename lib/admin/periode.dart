@@ -16,7 +16,6 @@ class PeriodePage extends StatefulWidget {
 class _PeriodePageState extends State<PeriodePage> {
   final _supabase = Supabase.instance.client;
 
-  final String _sortBy = 'Urutkan';
   String _searchQuery = '';
   int _currentPage = 1;
   final int _itemsPerPage = 8;
@@ -32,9 +31,12 @@ class _PeriodePageState extends State<PeriodePage> {
   }
 
   Future<void> _loadPeriode() async {
+    print('\n🚀 [PERIODE_PAGE] ========== START LOADING PERIODE ==========');
     setState(() => _isLoading = true);
 
     try {
+      print('📥 [PERIODE_PAGE] Querying periode_ukm table...');
+
       final response = await _supabase
           .from('periode_ukm')
           .select('''
@@ -44,10 +46,30 @@ class _PeriodePageState extends State<PeriodePage> {
           ''')
           .order('create_at', ascending: false);
 
+      print('✅ [PERIODE_PAGE] Query successful');
+      print('📊 [PERIODE_PAGE] Response type: ${response.runtimeType}');
+      print('📊 [PERIODE_PAGE] Response length: ${(response as List).length}');
+
+      if ((response as List).isEmpty) {
+        print('⚠️ [PERIODE_PAGE] No periode data found in database!');
+        print(
+          '💡 [PERIODE_PAGE] Suggestion: Add periode data using "Tambah Periode" button',
+        );
+      }
+
       final allPeriode = List<Map<String, dynamic>>.from(response);
+      print('📦 [PERIODE_PAGE] Loaded ${allPeriode.length} periode records');
 
       // Auto-update is_registration_open based on current time
-      for (var periode in allPeriode) {
+      print(
+        '\n🔄 [PERIODE_PAGE] Checking registration status for each periode...',
+      );
+      for (var i = 0; i < allPeriode.length; i++) {
+        var periode = allPeriode[i];
+        print(
+          '  📅 [PERIODE_PAGE] Periode ${i + 1}: ${periode['nama_periode']}',
+        );
+
         if (periode['registration_start_date'] != null &&
             periode['registration_end_date'] != null) {
           final regStart = DateTime.parse(periode['registration_start_date']);
@@ -58,8 +80,14 @@ class _PeriodePageState extends State<PeriodePage> {
           final shouldBeOpen = now.isAfter(regStart) && now.isBefore(regEnd);
           final currentStatus = periode['is_registration_open'] ?? false;
 
+          print('    📌 Registration: $regStart to $regEnd');
+          print(
+            '    📌 Should be open: $shouldBeOpen, Current: $currentStatus',
+          );
+
           // Update database if status changed
           if (shouldBeOpen != currentStatus) {
+            print('    🔄 Updating registration status to: $shouldBeOpen');
             await _supabase
                 .from('periode_ukm')
                 .update({'is_registration_open': shouldBeOpen})
@@ -67,18 +95,94 @@ class _PeriodePageState extends State<PeriodePage> {
 
             // Update local data
             periode['is_registration_open'] = shouldBeOpen;
+            print('    ✅ Status updated');
           }
+        } else {
+          print('    ⚠️ No registration dates set');
         }
       }
 
-      setState(() {
-        _allPeriode = allPeriode;
-        _totalPeriode = _allPeriode.length;
-        _isLoading = false;
-      });
-    } catch (e) {
-      print('Error loading periode: $e');
-      setState(() => _isLoading = false);
+      print(
+        '\n✅ [PERIODE_PAGE] ========== PERIODE LOADED SUCCESSFULLY ==========',
+      );
+      print('📊 [PERIODE_PAGE] Total periode: ${allPeriode.length}\n');
+
+      if (mounted) {
+        setState(() {
+          _allPeriode = allPeriode;
+          _totalPeriode = _allPeriode.length;
+          _isLoading = false;
+        });
+      }
+    } catch (e, stackTrace) {
+      print('\n❌ [PERIODE_PAGE] ========== ERROR LOADING PERIODE ==========');
+      print('❌ [PERIODE_PAGE] Error: $e');
+      print('❌ [PERIODE_PAGE] Error type: ${e.runtimeType}');
+      print('❌ [PERIODE_PAGE] Stack trace: $stackTrace');
+      print('❌ [PERIODE_PAGE] ========================================\n');
+
+      if (mounted) {
+        setState(() => _isLoading = false);
+
+        // Show error dialog on Windows desktop
+        if (MediaQuery.of(context).size.width >= 768) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: Row(
+                  children: [
+                    Icon(Icons.error_outline, color: Colors.red[700]),
+                    const SizedBox(width: 12),
+                    const Text('Error Memuat Data Periode'),
+                  ],
+                ),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Terjadi kesalahan saat memuat data periode:'),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.red[50],
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        e.toString(),
+                        style: TextStyle(color: Colors.red[900], fontSize: 12),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Periksa koneksi database dan pastikan tabel periode_ukm dapat diakses.',
+                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                    ),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Tutup'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _loadPeriode();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF4169E1),
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Coba Lagi'),
+                  ),
+                ],
+              ),
+            );
+          });
+        }
+      }
     }
   }
 
@@ -122,10 +226,15 @@ class _PeriodePageState extends State<PeriodePage> {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Colors.white, const Color(0xFF4169E1).withOpacity(0.05)],
+              colors: [
+                Colors.white,
+                const Color(0xFF4169E1).withValues(alpha: 0.05),
+              ],
             ),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFF4169E1).withOpacity(0.1)),
+            border: Border.all(
+              color: const Color(0xFF4169E1).withValues(alpha: 0.1),
+            ),
           ),
           child: Row(
             children: [
@@ -174,10 +283,10 @@ class _PeriodePageState extends State<PeriodePage> {
                   vertical: isMobile ? 6 : 8,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF4169E1).withOpacity(0.1),
+                  color: const Color(0xFF4169E1).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: const Color(0xFF4169E1).withOpacity(0.3),
+                    color: const Color(0xFF4169E1).withValues(alpha: 0.3),
                   ),
                 ),
                 child: Row(
@@ -253,7 +362,7 @@ class _PeriodePageState extends State<PeriodePage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -444,19 +553,24 @@ class _PeriodePageState extends State<PeriodePage> {
   }
 
   Widget _buildModernDesktopCards() {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 20,
-        mainAxisSpacing: 20,
-        childAspectRatio: 1.8,
-      ),
-      itemCount: _paginatedPeriode.length,
-      itemBuilder: (context, index) {
-        final periode = _paginatedPeriode[index];
-        return _buildPeriodeCard(periode, true);
+    // Gunakan Wrap untuk layout yang lebih fleksibel
+    // Ini menghindari masalah aspect ratio yang menyebabkan gray screen
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Hitung lebar card berdasarkan lebar layar
+        final cardWidth =
+            (constraints.maxWidth - 20) / 2; // 2 columns dengan gap 20
+
+        return Wrap(
+          spacing: 20,
+          runSpacing: 20,
+          children: _paginatedPeriode.map((periode) {
+            return SizedBox(
+              width: cardWidth,
+              child: _buildPeriodeCard(periode, true),
+            );
+          }).toList(),
+        );
       },
     );
   }
@@ -500,22 +614,22 @@ class _PeriodePageState extends State<PeriodePage> {
     }
 
     return Container(
-      constraints: BoxConstraints(
-        minHeight: isDesktop ? 320 : 350, // TAMBAHKAN MINIMUM HEIGHT
-      ),
       padding: EdgeInsets.all(isDesktop ? 20 : 16),
 
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Colors.white, statusColor.withOpacity(0.03)],
+          colors: [Colors.white, statusColor.withValues(alpha: 0.03)],
         ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: statusColor.withOpacity(0.2), width: 1.5),
+        border: Border.all(
+          color: statusColor.withValues(alpha: 0.2),
+          width: 1.5,
+        ),
         boxShadow: [
           BoxShadow(
-            color: statusColor.withOpacity(0.08),
+            color: statusColor.withValues(alpha: 0.08),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -540,7 +654,7 @@ class _PeriodePageState extends State<PeriodePage> {
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               colors: [
-                                statusColor.withOpacity(0.8),
+                                statusColor.withValues(alpha: 0.8),
                                 statusColor,
                               ],
                             ),
@@ -578,7 +692,7 @@ class _PeriodePageState extends State<PeriodePage> {
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
-                            color: statusColor.withOpacity(0.3),
+                            color: statusColor.withValues(alpha: 0.3),
                             blurRadius: 4,
                             offset: const Offset(0, 2),
                           ),
@@ -837,10 +951,16 @@ class _PeriodePageState extends State<PeriodePage> {
       padding: EdgeInsets.all(isDesktop ? 14 : 12),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [statusColor.withOpacity(0.1), statusColor.withOpacity(0.05)],
+          colors: [
+            statusColor.withValues(alpha: 0.1),
+            statusColor.withValues(alpha: 0.05),
+          ],
         ),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: statusColor.withOpacity(0.4), width: 1.5),
+        border: Border.all(
+          color: statusColor.withValues(alpha: 0.4),
+          width: 1.5,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1003,6 +1123,7 @@ class _PeriodePageState extends State<PeriodePage> {
     );
   }
 
+  // ignore: unused_element
   Widget _buildDesktopTable() {
     return ListView.builder(
       shrinkWrap: true,
@@ -1021,7 +1142,7 @@ class _PeriodePageState extends State<PeriodePage> {
             border: Border.all(color: Colors.grey[200]!),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: 0.05),
                 blurRadius: 10,
                 offset: const Offset(0, 2),
               ),
@@ -1053,8 +1174,8 @@ class _PeriodePageState extends State<PeriodePage> {
                           ),
                           decoration: BoxDecoration(
                             color: isActive
-                                ? Colors.green.withOpacity(0.1)
-                                : Colors.grey.withOpacity(0.1),
+                                ? Colors.green.withValues(alpha: 0.1)
+                                : Colors.grey.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
                               color: isActive ? Colors.green : Colors.grey,
@@ -1180,6 +1301,7 @@ class _PeriodePageState extends State<PeriodePage> {
     );
   }
 
+  // ignore: unused_element
   Widget _buildMobileList() {
     return ListView.builder(
       shrinkWrap: true,
@@ -1198,7 +1320,7 @@ class _PeriodePageState extends State<PeriodePage> {
             border: Border.all(color: Colors.grey[200]!),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: 0.05),
                 blurRadius: 10,
                 offset: const Offset(0, 2),
               ),
@@ -1231,8 +1353,8 @@ class _PeriodePageState extends State<PeriodePage> {
                           ),
                           decoration: BoxDecoration(
                             color: isActive
-                                ? Colors.green.withOpacity(0.1)
-                                : Colors.grey.withOpacity(0.1),
+                                ? Colors.green.withValues(alpha: 0.1)
+                                : Colors.grey.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
@@ -1380,7 +1502,7 @@ class _PeriodePageState extends State<PeriodePage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -1423,13 +1545,13 @@ class _PeriodePageState extends State<PeriodePage> {
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
-                            const Color(0xFF4169E1).withOpacity(0.1),
-                            const Color(0xFF4169E1).withOpacity(0.05),
+                            const Color(0xFF4169E1).withValues(alpha: 0.1),
+                            const Color(0xFF4169E1).withValues(alpha: 0.05),
                           ],
                         ),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color: const Color(0xFF4169E1).withOpacity(0.3),
+                          color: const Color(0xFF4169E1).withValues(alpha: 0.3),
                         ),
                       ),
                       child: Text(
@@ -1488,13 +1610,13 @@ class _PeriodePageState extends State<PeriodePage> {
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
-                            const Color(0xFF4169E1).withOpacity(0.1),
-                            const Color(0xFF4169E1).withOpacity(0.05),
+                            const Color(0xFF4169E1).withValues(alpha: 0.1),
+                            const Color(0xFF4169E1).withValues(alpha: 0.05),
                           ],
                         ),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color: const Color(0xFF4169E1).withOpacity(0.3),
+                          color: const Color(0xFF4169E1).withValues(alpha: 0.3),
                         ),
                       ),
                       child: Text(
@@ -1531,12 +1653,12 @@ class _PeriodePageState extends State<PeriodePage> {
     return Container(
       decoration: BoxDecoration(
         color: enabled
-            ? const Color(0xFF4169E1).withOpacity(0.1)
+            ? const Color(0xFF4169E1).withValues(alpha: 0.1)
             : Colors.grey[100],
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: enabled
-              ? const Color(0xFF4169E1).withOpacity(0.3)
+              ? const Color(0xFF4169E1).withValues(alpha: 0.3)
               : Colors.grey[300]!,
         ),
       ),
@@ -1582,7 +1704,7 @@ class _PeriodePageState extends State<PeriodePage> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.1),
+                color: Colors.orange.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Icon(Icons.stop_circle, color: Colors.orange),
@@ -1661,6 +1783,7 @@ class _PeriodePageState extends State<PeriodePage> {
 
       if (activeCheck != null) {
         // Show dialog asking if user wants to stop the active periode first
+        // ignore: unused_local_variable
         final confirm = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
@@ -1672,7 +1795,7 @@ class _PeriodePageState extends State<PeriodePage> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.orange.withOpacity(0.1),
+                    color: Colors.orange.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Icon(Icons.warning, color: Colors.orange),
@@ -1716,7 +1839,7 @@ class _PeriodePageState extends State<PeriodePage> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.green.withOpacity(0.1),
+                  color: Colors.green.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(Icons.play_circle, color: Colors.green),
@@ -1807,7 +1930,7 @@ class _PeriodePageState extends State<PeriodePage> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.orange.withOpacity(0.1),
+                    color: Colors.orange.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Icon(Icons.warning, color: Colors.orange),
@@ -1865,7 +1988,7 @@ class _PeriodePageState extends State<PeriodePage> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.1),
+                  color: Colors.red.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(Icons.delete, color: Colors.red),
