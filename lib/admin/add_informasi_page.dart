@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:image_cropper/image_cropper.dart';
+import 'package:file_picker/file_picker.dart';
 
 class AddInformasiPage extends StatefulWidget {
   final List<Map<String, dynamic>> ukmList;
@@ -35,6 +35,10 @@ class _AddInformasiPageState extends State<AddInformasiPage> {
   String? _selectedUkmId;
   String? _selectedPeriodeId;
 
+  // Platform detection
+  bool get _isDesktop =>
+      !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
+
   @override
   void dispose() {
     _judulController.dispose();
@@ -46,69 +50,71 @@ class _AddInformasiPageState extends State<AddInformasiPage> {
     setState(() => _isUploadingImage = true);
 
     try {
-      // Pick image
-      final XFile? pickedFile = await _picker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 85,
-      );
+      Uint8List? imageBytes;
 
-      if (pickedFile == null) {
+      if (_isDesktop) {
+        // Windows/Linux/macOS: Use file_picker (no cropping - not supported)
+        final result = await FilePicker.platform.pickFiles(
+          type: FileType.image,
+          allowMultiple: false,
+          withData: true,
+        );
+
+        if (result == null || result.files.isEmpty) {
+          setState(() => _isUploadingImage = false);
+          return;
+        }
+
+        final file = result.files.first;
+        if (file.bytes != null) {
+          imageBytes = file.bytes!;
+        } else if (file.path != null) {
+          imageBytes = await File(file.path!).readAsBytes();
+        }
+      } else if (kIsWeb) {
+        // Web: Use image_picker (no cropping)
+        final XFile? pickedFile = await _picker.pickImage(
+          source: ImageSource.gallery,
+          imageQuality: 85,
+        );
+
+        if (pickedFile == null) {
+          setState(() => _isUploadingImage = false);
+          return;
+        }
+
+        imageBytes = await pickedFile.readAsBytes();
+      } else {
+        // Mobile (Android/iOS): Use image_picker
+        final XFile? pickedFile = await _picker.pickImage(
+          source: ImageSource.gallery,
+          imageQuality: 85,
+          maxWidth: 1080,
+          maxHeight: 1080,
+        );
+
+        if (pickedFile == null) {
+          setState(() => _isUploadingImage = false);
+          return;
+        }
+
+        imageBytes = await pickedFile.readAsBytes();
+      }
+
+      if (imageBytes == null) {
         setState(() => _isUploadingImage = false);
         return;
       }
 
-      Uint8List? imageBytes;
-
-      if (kIsWeb) {
-        // Web: Skip cropper, use original
-        imageBytes = await pickedFile.readAsBytes();
-      } else {
-        // Mobile/Desktop: Use cropper
-        final croppedFile = await ImageCropper().cropImage(
-          sourcePath: pickedFile.path,
-          compressQuality: 85,
-          maxWidth: 1080,
-          maxHeight: 1080,
-          uiSettings: [
-            AndroidUiSettings(
-              toolbarTitle: 'Crop Gambar',
-              toolbarColor: const Color(0xFF4169E1),
-              toolbarWidgetColor: Colors.white,
-              initAspectRatio: CropAspectRatioPreset.square,
-              lockAspectRatio: false,
-              aspectRatioPresets: [
-                CropAspectRatioPreset.square,
-                CropAspectRatioPreset.ratio4x3,
-                CropAspectRatioPreset.ratio16x9,
-                CropAspectRatioPreset.original,
-              ],
-            ),
-            IOSUiSettings(
-              title: 'Crop Gambar',
-              aspectRatioPresets: [
-                CropAspectRatioPreset.square,
-                CropAspectRatioPreset.ratio4x3,
-                CropAspectRatioPreset.ratio16x9,
-                CropAspectRatioPreset.original,
-              ],
-            ),
-          ],
-        );
-
-        if (croppedFile == null) {
-          setState(() => _isUploadingImage = false);
-          return;
-        }
-        imageBytes = await File(croppedFile.path).readAsBytes();
-      }
+      // Generate unique filename
+      final uploadFileName =
+          'informasi_${DateTime.now().millisecondsSinceEpoch}.jpg';
 
       // Upload to Supabase Storage
-      final fileName = 'informasi_${DateTime.now().millisecondsSinceEpoch}.jpg';
-
       await _supabase.storage
           .from('informasi-images')
           .uploadBinary(
-            fileName,
+            uploadFileName,
             imageBytes,
             fileOptions: const FileOptions(
               contentType: 'image/jpeg',
@@ -117,7 +123,7 @@ class _AddInformasiPageState extends State<AddInformasiPage> {
           );
 
       setState(() {
-        _uploadedImagePath = fileName;
+        _uploadedImagePath = uploadFileName;
         _isUploadingImage = false;
       });
     } catch (e) {

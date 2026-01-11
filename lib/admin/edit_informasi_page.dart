@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:image_cropper/image_cropper.dart';
+import 'package:file_picker/file_picker.dart';
 
 class EditInformasiPage extends StatefulWidget {
   final Map<String, dynamic> informasi;
@@ -38,6 +38,10 @@ class _EditInformasiPageState extends State<EditInformasiPage> {
   String? _selectedUkmId;
   String? _selectedPeriodeId;
 
+  // Platform detection for cross-platform support
+  bool get _isDesktop =>
+      !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
+
   @override
   void initState() {
     super.initState();
@@ -62,65 +66,66 @@ class _EditInformasiPageState extends State<EditInformasiPage> {
     setState(() => _isUploadingImage = true);
 
     try {
-      // Pick image
-      final XFile? pickedFile = await _picker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 85,
-      );
+      Uint8List? imageBytes;
 
-      if (pickedFile == null) {
+      if (_isDesktop) {
+        // Windows/Linux/macOS: Use file_picker (no cropping - not supported)
+        final result = await FilePicker.platform.pickFiles(
+          type: FileType.image,
+          allowMultiple: false,
+          withData: true,
+        );
+
+        if (result == null || result.files.isEmpty) {
+          setState(() => _isUploadingImage = false);
+          return;
+        }
+
+        final file = result.files.first;
+        if (file.bytes != null) {
+          imageBytes = file.bytes!;
+        } else if (file.path != null) {
+          imageBytes = await File(file.path!).readAsBytes();
+        }
+      } else if (kIsWeb) {
+        // Web: Use image_picker (no cropping)
+        final XFile? pickedFile = await _picker.pickImage(
+          source: ImageSource.gallery,
+          imageQuality: 85,
+        );
+
+        if (pickedFile == null) {
+          setState(() => _isUploadingImage = false);
+          return;
+        }
+
+        imageBytes = await pickedFile.readAsBytes();
+      } else {
+        // Mobile (Android/iOS): Use image_picker
+        final XFile? pickedFile = await _picker.pickImage(
+          source: ImageSource.gallery,
+          imageQuality: 85,
+          maxWidth: 1080,
+          maxHeight: 1080,
+        );
+
+        if (pickedFile == null) {
+          setState(() => _isUploadingImage = false);
+          return;
+        }
+
+        imageBytes = await pickedFile.readAsBytes();
+      }
+
+      if (imageBytes == null) {
         setState(() => _isUploadingImage = false);
         return;
       }
 
-      Uint8List? imageBytes;
-
-      if (kIsWeb) {
-        // Web: Skip cropper, use original
-        imageBytes = await pickedFile.readAsBytes();
-      } else {
-        // Mobile/Desktop: Use cropper
-        final croppedFile = await ImageCropper().cropImage(
-          sourcePath: pickedFile.path,
-          compressQuality: 85,
-          maxWidth: 1080,
-          maxHeight: 1080,
-          uiSettings: [
-            AndroidUiSettings(
-              toolbarTitle: 'Crop Gambar',
-              toolbarColor: const Color(0xFF4169E1),
-              toolbarWidgetColor: Colors.white,
-              initAspectRatio: CropAspectRatioPreset.square,
-              lockAspectRatio: false,
-              aspectRatioPresets: [
-                CropAspectRatioPreset.square,
-                CropAspectRatioPreset.ratio4x3,
-                CropAspectRatioPreset.ratio16x9,
-                CropAspectRatioPreset.original,
-              ],
-            ),
-            IOSUiSettings(
-              title: 'Crop Gambar',
-              aspectRatioPresets: [
-                CropAspectRatioPreset.square,
-                CropAspectRatioPreset.ratio4x3,
-                CropAspectRatioPreset.ratio16x9,
-                CropAspectRatioPreset.original,
-              ],
-            ),
-          ],
-        );
-
-        if (croppedFile == null) {
-          setState(() => _isUploadingImage = false);
-          return;
-        }
-        imageBytes = await File(croppedFile.path).readAsBytes();
-      }
-
-      // Upload to Supabase Storage
+      // Generate unique filename
       final fileName = 'informasi_${DateTime.now().millisecondsSinceEpoch}.jpg';
 
+      // Upload to Supabase Storage
       await _supabase.storage
           .from('informasi-images')
           .uploadBinary(
@@ -266,7 +271,7 @@ class _EditInformasiPageState extends State<EditInformasiPage> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        shadowColor: Colors.black.withOpacity(0.1),
+        shadowColor: Colors.black.withValues(alpha: 0.1),
         leading: IconButton(
           onPressed: () => Navigator.pop(context),
           icon: Container(
@@ -353,7 +358,7 @@ class _EditInformasiPageState extends State<EditInformasiPage> {
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
+                        color: Colors.black.withValues(alpha: 0.05),
                         blurRadius: 10,
                         offset: const Offset(0, 4),
                       ),
@@ -367,7 +372,7 @@ class _EditInformasiPageState extends State<EditInformasiPage> {
                           Container(
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF4169E1).withOpacity(0.1),
+                              color: const Color(0xFF4169E1).withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: const Icon(
@@ -415,7 +420,7 @@ class _EditInformasiPageState extends State<EditInformasiPage> {
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
+                        color: Colors.black.withValues(alpha: 0.05),
                         blurRadius: 10,
                         offset: const Offset(0, 4),
                       ),
@@ -429,7 +434,7 @@ class _EditInformasiPageState extends State<EditInformasiPage> {
                           Container(
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF4169E1).withOpacity(0.1),
+                              color: const Color(0xFF4169E1).withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: const Icon(
@@ -513,8 +518,8 @@ class _EditInformasiPageState extends State<EditInformasiPage> {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              const Color(0xFF4169E1).withOpacity(0.1),
-              const Color(0xFF4169E1).withOpacity(0.05),
+              const Color(0xFF4169E1).withValues(alpha: 0.1),
+              const Color(0xFF4169E1).withValues(alpha: 0.05),
             ],
           ),
           borderRadius: BorderRadius.circular(16),
@@ -561,7 +566,7 @@ class _EditInformasiPageState extends State<EditInformasiPage> {
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
@@ -620,7 +625,7 @@ class _EditInformasiPageState extends State<EditInformasiPage> {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.black.withOpacity(0.4),
+                    Colors.black.withValues(alpha: 0.4),
                     Colors.transparent,
                     Colors.transparent,
                   ],
@@ -669,13 +674,13 @@ class _EditInformasiPageState extends State<EditInformasiPage> {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              const Color(0xFF4169E1).withOpacity(0.08),
-              const Color(0xFF4169E1).withOpacity(0.03),
+              const Color(0xFF4169E1).withValues(alpha: 0.08),
+              const Color(0xFF4169E1).withValues(alpha: 0.03),
             ],
           ),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: const Color(0xFF4169E1).withOpacity(0.3),
+            color: const Color(0xFF4169E1).withValues(alpha: 0.3),
             width: 2,
             style: BorderStyle.solid,
           ),
@@ -691,7 +696,7 @@ class _EditInformasiPageState extends State<EditInformasiPage> {
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF4169E1).withOpacity(0.2),
+                      color: const Color(0xFF4169E1).withValues(alpha: 0.2),
                       blurRadius: 15,
                       spreadRadius: 2,
                     ),
@@ -747,7 +752,7 @@ class _EditInformasiPageState extends State<EditInformasiPage> {
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withValues(alpha: 0.1),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
