@@ -153,36 +153,38 @@ class _SendNotifikasiPageState extends State<SendNotifikasiPage> {
 
       // Send based on target
       if (_selectedTarget == 'all_users') {
-        // Get all users and insert notification for each
-        final users = await _supabase.from('users').select('id_user');
-        for (var user in users) {
-          await _supabase.from('notification_preference').insert({
-            ...notificationData,
-            'id_user': user['id_user'],
-          });
-        }
+        // Insert SINGLE broadcast notification for all users
+        await _supabase.from('notification_preference').insert({
+          ...notificationData,
+          'is_broadcast': true,
+          'target_audience': 'all_users',
+          'id_user': null, // No specific user - broadcast to all
+        });
       } else if (_selectedTarget == 'all_ukm') {
-        // Get all UKM and insert notification for each
-        final ukms = await _supabase.from('ukm').select('id_ukm');
-        for (var ukm in ukms) {
-          await _supabase.from('notification_preference').insert({
-            ...notificationData,
-            'id_ukm': ukm['id_ukm'],
-          });
-        }
+        // Insert SINGLE broadcast notification for all UKM
+        await _supabase.from('notification_preference').insert({
+          ...notificationData,
+          'is_broadcast': true,
+          'target_audience': 'all_ukm',
+          'id_ukm': null, // No specific UKM - broadcast to all
+        });
       } else if (_selectedTarget == 'specific_ukm') {
-        // Insert for selected UKMs
+        // Insert for selected UKMs - still multiple but intentional
         for (var ukmId in _selectedUkmIds) {
           await _supabase.from('notification_preference').insert({
             ...notificationData,
+            'is_broadcast': false,
+            'target_audience': 'specific_ukm',
             'id_ukm': ukmId,
           });
         }
       } else if (_selectedTarget == 'specific_user') {
-        // Insert for selected users
+        // Insert for selected users - still multiple but intentional
         for (var userId in _selectedUserIds) {
           await _supabase.from('notification_preference').insert({
             ...notificationData,
+            'is_broadcast': false,
+            'target_audience': 'specific_user',
             'id_user': userId,
           });
         }
@@ -264,13 +266,13 @@ class _SendNotifikasiPageState extends State<SendNotifikasiPage> {
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               colors: [
-                                const Color(0xFF4169E1).withOpacity(0.1),
-                                const Color(0xFF4169E1).withOpacity(0.05),
+                                const Color(0xFF4169E1).withValues(alpha: 0.1),
+                                const Color(0xFF4169E1).withValues(alpha: 0.05),
                               ],
                             ),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: const Color(0xFF4169E1).withOpacity(0.3),
+                              color: const Color(0xFF4169E1).withValues(alpha: 0.3),
                             ),
                           ),
                           child: Row(
@@ -304,7 +306,7 @@ class _SendNotifikasiPageState extends State<SendNotifikasiPage> {
                             borderRadius: BorderRadius.circular(12),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
+                                color: Colors.black.withValues(alpha: 0.05),
                                 blurRadius: 10,
                                 offset: const Offset(0, 4),
                               ),

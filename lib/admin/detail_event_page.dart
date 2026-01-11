@@ -15,6 +15,7 @@ class DetailEventPage extends StatefulWidget {
 
 class _DetailEventPageState extends State<DetailEventPage> {
   final SupabaseClient _supabase = Supabase.instance.client;
+  // ignore: unused_field
   bool _isLoading = false;
   List<Map<String, dynamic>> _dokumenProposal = [];
   List<Map<String, dynamic>> _dokumenLpj = [];
@@ -157,7 +158,7 @@ class _DetailEventPageState extends State<DetailEventPage> {
                         Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
+                            color: Colors.white.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: const Icon(
@@ -200,7 +201,7 @@ class _DetailEventPageState extends State<DetailEventPage> {
                             height: 200,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: Colors.white.withOpacity(0.1),
+                              color: Colors.white.withValues(alpha: 0.1),
                             ),
                           ),
                         ),
@@ -212,7 +213,7 @@ class _DetailEventPageState extends State<DetailEventPage> {
                             height: 150,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: Colors.white.withOpacity(0.1),
+                              color: Colors.white.withValues(alpha: 0.1),
                             ),
                           ),
                         ),
@@ -225,7 +226,7 @@ class _DetailEventPageState extends State<DetailEventPage> {
                               Container(
                                 padding: const EdgeInsets.all(20),
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.2),
+                                  color: Colors.white.withValues(alpha: 0.2),
                                   shape: BoxShape.circle,
                                 ),
                                 child: const Icon(
@@ -292,7 +293,7 @@ class _DetailEventPageState extends State<DetailEventPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -313,7 +314,7 @@ class _DetailEventPageState extends State<DetailEventPage> {
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF4169E1).withOpacity(0.3),
+                      color: const Color(0xFF4169E1).withValues(alpha: 0.3),
                       blurRadius: 12,
                       offset: const Offset(0, 4),
                     ),
@@ -347,7 +348,7 @@ class _DetailEventPageState extends State<DetailEventPage> {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF4169E1).withOpacity(0.1),
+                        color: const Color(0xFF4169E1).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Row(
@@ -448,7 +449,7 @@ class _DetailEventPageState extends State<DetailEventPage> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -459,7 +460,7 @@ class _DetailEventPageState extends State<DetailEventPage> {
           Container(
             padding: EdgeInsets.all(isMobile ? 8 : 10),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.25),
+              color: Colors.white.withValues(alpha: 0.25),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(icon, color: Colors.white, size: isMobile ? 20 : 24),
@@ -479,7 +480,7 @@ class _DetailEventPageState extends State<DetailEventPage> {
             style: GoogleFonts.inter(
               fontSize: isMobile ? 10 : 12,
               fontWeight: FontWeight.w500,
-              color: Colors.white.withOpacity(0.9),
+              color: Colors.white.withValues(alpha: 0.9),
             ),
           ),
         ],
@@ -495,7 +496,7 @@ class _DetailEventPageState extends State<DetailEventPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -509,7 +510,7 @@ class _DetailEventPageState extends State<DetailEventPage> {
               Container(
                 padding: EdgeInsets.all(isMobile ? 8 : 10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF4169E1).withOpacity(0.1),
+                  color: const Color(0xFF4169E1).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
@@ -649,7 +650,7 @@ class _DetailEventPageState extends State<DetailEventPage> {
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: const Color(0xFF4169E1).withOpacity(0.1),
+            color: const Color(0xFF4169E1).withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(icon, size: 20, color: const Color(0xFF4169E1)),
@@ -694,7 +695,7 @@ class _DetailEventPageState extends State<DetailEventPage> {
         (doc) => {
           'id': doc['id_document'], // Unified table uses id_document
           'name': 'Proposal - ${widget.event['nama_event']}',
-          'type': 'Proposal',
+          'type': 'proposal',
           'status': doc['status'] ?? 'Menunggu',
           'uploadedAt': doc['tanggal_pengajuan'],
           'uploadedBy':
@@ -708,7 +709,7 @@ class _DetailEventPageState extends State<DetailEventPage> {
         (doc) => {
           'id': doc['id_document'], // Unified table uses id_document
           'name': 'LPJ - ${widget.event['nama_event']}',
-          'type': 'LPJ',
+          'type': 'lpj',
           'status': doc['status'] ?? 'Menunggu',
           'uploadedAt': doc['tanggal_pengajuan'],
           'uploadedBy':
@@ -727,7 +728,7 @@ class _DetailEventPageState extends State<DetailEventPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -741,7 +742,7 @@ class _DetailEventPageState extends State<DetailEventPage> {
               Container(
                 padding: EdgeInsets.all(isMobile ? 8 : 10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF4169E1).withOpacity(0.1),
+                  color: const Color(0xFF4169E1).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
@@ -766,7 +767,7 @@ class _DetailEventPageState extends State<DetailEventPage> {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF4169E1).withOpacity(0.1),
+                  color: const Color(0xFF4169E1).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
@@ -835,7 +836,7 @@ class _DetailEventPageState extends State<DetailEventPage> {
           border: Border.all(color: Colors.grey[200]!),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.02),
+              color: Colors.black.withValues(alpha: 0.02),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -852,8 +853,8 @@ class _DetailEventPageState extends State<DetailEventPage> {
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
-                        (doc['color'] as Color).withOpacity(0.2),
-                        (doc['color'] as Color).withOpacity(0.1),
+                        (doc['color'] as Color).withValues(alpha: 0.2),
+                        (doc['color'] as Color).withValues(alpha: 0.1),
                       ],
                     ),
                     borderRadius: BorderRadius.circular(12),
@@ -888,7 +889,9 @@ class _DetailEventPageState extends State<DetailEventPage> {
                               vertical: 4,
                             ),
                             decoration: BoxDecoration(
-                              color: (doc['color'] as Color).withOpacity(0.1),
+                              color: (doc['color'] as Color).withValues(
+                                alpha: 0.1,
+                              ),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
@@ -908,7 +911,7 @@ class _DetailEventPageState extends State<DetailEventPage> {
                               vertical: 4,
                             ),
                             decoration: BoxDecoration(
-                              color: statusColor.withOpacity(0.1),
+                              color: statusColor.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(

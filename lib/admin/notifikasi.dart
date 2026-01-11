@@ -28,6 +28,8 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
     setState(() => _isLoading = true);
 
     try {
+      // For admin view: show all notifications including broadcast
+      // Broadcast notifications have is_broadcast = true
       dynamic query = _supabase.from('notification_preference').select();
 
       // Apply filter
@@ -42,6 +44,8 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
 
       final response = await query;
 
+      // For admin: we show all notifications
+      // Broadcast notifications will only have 1 record
       setState(() {
         _allNotifications = List<Map<String, dynamic>>.from(response);
         _isLoading = false;
@@ -171,7 +175,7 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF4169E1).withOpacity(0.3),
+            color: const Color(0xFF4169E1).withValues(alpha: 0.3),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
@@ -188,7 +192,7 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
               height: 100,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.white.withOpacity(0.1),
+                color: Colors.white.withValues(alpha: 0.1),
               ),
             ),
           ),
@@ -200,7 +204,7 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
               height: 80,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.white.withOpacity(0.1),
+                color: Colors.white.withValues(alpha: 0.1),
               ),
             ),
           ),
@@ -213,7 +217,7 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
                   Container(
                     padding: EdgeInsets.all(isMobile ? 12 : 16),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(
@@ -266,7 +270,7 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
                               style: GoogleFonts.inter(
                                 fontSize: isDesktop ? 16 : 14,
                                 fontWeight: FontWeight.w500,
-                                color: Colors.white.withOpacity(0.9),
+                                color: Colors.white.withValues(alpha: 0.9),
                               ),
                             ),
                           ],
@@ -356,7 +360,7 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -404,7 +408,7 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
             boxShadow: isSelected
                 ? [
                     BoxShadow(
-                      color: const Color(0xFF4169E1).withOpacity(0.25),
+                      color: const Color(0xFF4169E1).withValues(alpha: 0.25),
                       blurRadius: 8,
                       offset: const Offset(0, 3),
                     ),
@@ -498,7 +502,7 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.1),
+                    color: Colors.red.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Icon(
@@ -562,8 +566,8 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
                 )
               : LinearGradient(
                   colors: [
-                    const Color(0xFF4169E1).withOpacity(0.08),
-                    const Color(0xFF4169E1).withOpacity(0.03),
+                    const Color(0xFF4169E1).withValues(alpha: 0.08),
+                    const Color(0xFF4169E1).withValues(alpha: 0.03),
                   ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
@@ -572,14 +576,14 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
           border: Border.all(
             color: isRead
                 ? Colors.grey[200]!
-                : const Color(0xFF4169E1).withOpacity(0.3),
+                : const Color(0xFF4169E1).withValues(alpha: 0.3),
             width: isRead ? 1 : 2,
           ),
           boxShadow: [
             BoxShadow(
               color: isRead
-                  ? Colors.black.withOpacity(0.03)
-                  : const Color(0xFF4169E1).withOpacity(0.1),
+                  ? Colors.black.withValues(alpha: 0.03)
+                  : const Color(0xFF4169E1).withValues(alpha: 0.1),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -604,13 +608,15 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
                     gradient: LinearGradient(
                       colors: [
                         _getNotificationColor(type),
-                        _getNotificationColor(type).withOpacity(0.7),
+                        _getNotificationColor(type).withValues(alpha: 0.7),
                       ],
                     ),
                     borderRadius: BorderRadius.circular(12),
                     boxShadow: [
                       BoxShadow(
-                        color: _getNotificationColor(type).withOpacity(0.3),
+                        color: _getNotificationColor(
+                          type,
+                        ).withValues(alpha: 0.3),
                         blurRadius: 8,
                         offset: const Offset(0, 4),
                       ),
@@ -669,24 +675,69 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
                         ],
                       ),
                       SizedBox(height: isMobile ? 6 : 8),
-                      Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: isMobile ? 8 : 10,
-                          vertical: isMobile ? 3 : 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _getNotificationColor(type).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          _getNotificationTypeName(type),
-                          style: GoogleFonts.inter(
-                            fontSize: isMobile ? 10 : 11,
-                            fontWeight: FontWeight.w700,
-                            color: _getNotificationColor(type),
-                            letterSpacing: 0.3,
+                      Row(
+                        children: [
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: isMobile ? 8 : 10,
+                              vertical: isMobile ? 3 : 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _getNotificationColor(
+                                type,
+                              ).withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              _getNotificationTypeName(type),
+                              style: GoogleFonts.inter(
+                                fontSize: isMobile ? 10 : 11,
+                                fontWeight: FontWeight.w700,
+                                color: _getNotificationColor(type),
+                                letterSpacing: 0.3,
+                              ),
+                            ),
                           ),
-                        ),
+                          const SizedBox(width: 8),
+                          // Show broadcast target badge
+                          if (notification['is_broadcast'] == true)
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: isMobile ? 8 : 10,
+                                vertical: isMobile ? 3 : 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.green.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.campaign_rounded,
+                                    size: isMobile ? 12 : 14,
+                                    color: Colors.green[700],
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    notification['target_audience'] ==
+                                            'all_users'
+                                        ? 'SEMUA USER'
+                                        : notification['target_audience'] ==
+                                              'all_ukm'
+                                        ? 'SEMUA UKM'
+                                        : 'BROADCAST',
+                                    style: GoogleFonts.inter(
+                                      fontSize: isMobile ? 10 : 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.green[700],
+                                      letterSpacing: 0.3,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
                       ),
                       SizedBox(height: isMobile ? 8 : 10),
                       Text(
@@ -764,7 +815,7 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
           border: Border.all(color: Colors.grey[200]!),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),

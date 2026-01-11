@@ -13,7 +13,6 @@ class EventPage extends StatefulWidget {
 
 class _EventPageState extends State<EventPage> {
   final SupabaseClient _supabase = Supabase.instance.client;
-  final String _sortBy = 'Urutkan';
   String _searchQuery = '';
   int _currentPage = 1;
   final int _itemsPerPage = 10;
@@ -192,7 +191,7 @@ class _EventPageState extends State<EventPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF4169E1).withOpacity(0.3),
+            color: const Color(0xFF4169E1).withValues(alpha: 0.3),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
@@ -203,7 +202,7 @@ class _EventPageState extends State<EventPage> {
           Container(
             padding: EdgeInsets.all(isMobile ? 12 : 16),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
@@ -231,7 +230,7 @@ class _EventPageState extends State<EventPage> {
                   style: GoogleFonts.inter(
                     fontSize: isDesktop ? 16 : 14,
                     fontWeight: FontWeight.w500,
-                    color: Colors.white.withOpacity(0.9),
+                    color: Colors.white.withValues(alpha: 0.9),
                   ),
                 ),
               ],
@@ -250,7 +249,7 @@ class _EventPageState extends State<EventPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -320,18 +319,22 @@ class _EventPageState extends State<EventPage> {
   }
 
   Widget _buildModernDesktopCards() {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 2.8,
-        crossAxisSpacing: 20,
-        mainAxisSpacing: 20,
-      ),
-      itemCount: _paginatedEvents.length,
-      itemBuilder: (context, index) {
-        return _buildEventCard(_paginatedEvents[index], true);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Calculate card width based on screen width
+        final cardWidth =
+            (constraints.maxWidth - 20) / 2; // 2 columns with 20px gap
+
+        return Wrap(
+          spacing: 20,
+          runSpacing: 20,
+          children: _paginatedEvents.map((event) {
+            return SizedBox(
+              width: cardWidth,
+              child: _buildEventCard(event, true),
+            );
+          }).toList(),
+        );
       },
     );
   }
@@ -357,16 +360,19 @@ class _EventPageState extends State<EventPage> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Colors.white, const Color(0xFF4169E1).withOpacity(0.03)],
+          colors: [
+            Colors.white,
+            const Color(0xFF4169E1).withValues(alpha: 0.03),
+          ],
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: const Color(0xFF4169E1).withOpacity(0.2),
+          color: const Color(0xFF4169E1).withValues(alpha: 0.2),
           width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF4169E1).withOpacity(0.08),
+            color: const Color(0xFF4169E1).withValues(alpha: 0.08),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -415,7 +421,7 @@ class _EventPageState extends State<EventPage> {
                         vertical: 2,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF4169E1).withOpacity(0.1),
+                        color: const Color(0xFF4169E1).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
@@ -444,7 +450,9 @@ class _EventPageState extends State<EventPage> {
                 color: const Color(0xFF4169E1),
                 tooltip: 'Lihat Detail',
                 style: IconButton.styleFrom(
-                  backgroundColor: const Color(0xFF4169E1).withOpacity(0.1),
+                  backgroundColor: const Color(
+                    0xFF4169E1,
+                  ).withValues(alpha: 0.1),
                   padding: const EdgeInsets.all(8),
                 ),
               ),
@@ -558,7 +566,7 @@ class _EventPageState extends State<EventPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -601,13 +609,13 @@ class _EventPageState extends State<EventPage> {
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
-                            const Color(0xFF4169E1).withOpacity(0.1),
-                            const Color(0xFF4169E1).withOpacity(0.05),
+                            const Color(0xFF4169E1).withValues(alpha: 0.1),
+                            const Color(0xFF4169E1).withValues(alpha: 0.05),
                           ],
                         ),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color: const Color(0xFF4169E1).withOpacity(0.3),
+                          color: const Color(0xFF4169E1).withValues(alpha: 0.3),
                         ),
                       ),
                       child: Text(
@@ -681,13 +689,13 @@ class _EventPageState extends State<EventPage> {
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
-                            const Color(0xFF4169E1).withOpacity(0.1),
-                            const Color(0xFF4169E1).withOpacity(0.05),
+                            const Color(0xFF4169E1).withValues(alpha: 0.1),
+                            const Color(0xFF4169E1).withValues(alpha: 0.05),
                           ],
                         ),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color: const Color(0xFF4169E1).withOpacity(0.3),
+                          color: const Color(0xFF4169E1).withValues(alpha: 0.3),
                         ),
                       ),
                       child: Text(
@@ -727,12 +735,12 @@ class _EventPageState extends State<EventPage> {
     return Container(
       decoration: BoxDecoration(
         color: enabled
-            ? const Color(0xFF4169E1).withOpacity(0.1)
+            ? const Color(0xFF4169E1).withValues(alpha: 0.1)
             : Colors.grey[100],
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: enabled
-              ? const Color(0xFF4169E1).withOpacity(0.3)
+              ? const Color(0xFF4169E1).withValues(alpha: 0.3)
               : Colors.grey[300]!,
         ),
       ),
