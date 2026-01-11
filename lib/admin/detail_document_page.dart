@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
+import 'package:pdfx/pdfx.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:http/http.dart' as http;
+import 'dart:typed_data';
 import '../models/document_model.dart';
 import '../services/document_service_admin.dart'; // CHANGED: Use admin service
 import '../services/document_storage_service.dart';
@@ -568,6 +570,26 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
           _downloadProgress = 0.0;
         });
       }
+    }
+  }
+
+  // Helper function to download PDF data from network
+  Future<Uint8List> _downloadPdfData(String fileUrl) async {
+    try {
+      print('📥 [_downloadPdfData] Downloading PDF from: $fileUrl');
+      final response = await http.get(Uri.parse(fileUrl));
+
+      if (response.statusCode == 200) {
+        print(
+          '✅ [_downloadPdfData] PDF downloaded successfully, size: ${response.bodyBytes.length} bytes',
+        );
+        return response.bodyBytes;
+      } else {
+        throw Exception('Failed to download PDF: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ [_downloadPdfData] Error: $e');
+      rethrow;
     }
   }
 
@@ -1920,34 +1942,80 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
         return _buildWebPdfViewer(fileUrl);
       }
 
-      print('📱 [_buildFilePreview] Using SfPdfViewer for mobile');
+      print('📱 [_buildFilePreview] Using PdfView for mobile/desktop');
       return ClipRRect(
         borderRadius: BorderRadius.circular(8),
-        child: SfPdfViewer.network(
-          fileUrl,
-          onDocumentLoadFailed: (details) {
-            print('❌ [PDF] Load failed: ${details.error}');
-            print('❌ [PDF] URL was: $fileUrl');
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'Gagal memuat PDF: ${details.error}\n\nURL: $fileUrl',
-                  ),
-                  backgroundColor: Colors.red,
-                  duration: const Duration(seconds: 5),
-                  action: SnackBarAction(
-                    label: 'Download',
-                    textColor: Colors.white,
-                    onPressed: () => _downloadDocument(fileUrl),
-                  ),
+        child: FutureBuilder<PdfDocument>(
+          future: PdfDocument.openData(
+            // Download PDF data from network
+            _downloadPdfData(fileUrl),
+          ),
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              print('❌ [PDF] Load failed: ${snapshot.error}');
+              print('❌ [PDF] URL was: $fileUrl');
+              if (mounted) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Gagal memuat PDF: ${snapshot.error}\n\nURL: $fileUrl',
+                      ),
+                      backgroundColor: Colors.red,
+                      duration: const Duration(seconds: 5),
+                      action: SnackBarAction(
+                        label: 'Download',
+                        textColor: Colors.white,
+                        onPressed: () => _downloadDocument(fileUrl),
+                      ),
+                    ),
+                  );
+                });
+              }
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Gagal memuat PDF',
+                      style: GoogleFonts.inter(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey[700],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    ElevatedButton.icon(
+                      onPressed: () => _downloadDocument(fileUrl),
+                      icon: const Icon(Icons.download),
+                      label: const Text('Download PDF'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF4169E1),
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ],
                 ),
               );
             }
-          },
-          onDocumentLoaded: (details) {
+
+            if (!snapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            final document = snapshot.data!;
             print(
-              '✅ [PDF] Document loaded successfully! Pages: ${details.document.pages.count}',
+              '✅ [PDF] Document loaded successfully! Pages: ${document.pagesCount}',
+            );
+
+            return PdfView(
+              controller: PdfController(document: Future.value(document)),
+              scrollDirection: Axis.vertical,
+              onDocumentError: (error) {
+                print('❌ [PDF] Document error: $error');
+              },
             );
           },
         ),
