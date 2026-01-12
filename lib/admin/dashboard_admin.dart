@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:unit_activity/widgets/admin_sidebar.dart';
 import 'package:unit_activity/widgets/admin_header.dart';
 import 'package:unit_activity/admin/pengguna.dart';
@@ -850,60 +851,418 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
         alertIcon = Icons.notifications;
     }
 
-    return Container(
-      margin: EdgeInsets.only(bottom: isMobile ? 8 : 10),
-      padding: EdgeInsets.all(isMobile ? 12 : 14),
-      decoration: BoxDecoration(
-        color: alertColor.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: alertColor.withOpacity(0.3)),
-      ),
-      child: Row(
-        children: [
-          Icon(alertIcon, color: alertColor, size: isMobile ? 20 : 24),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  alert['title'] ?? '',
-                  style: GoogleFonts.inter(
-                    fontSize: isMobile ? 13 : 14,
-                    fontWeight: FontWeight.w600,
-                    color: alertTextColor,
+    return GestureDetector(
+      onTap: () => _showAlertDetailModal(alert, isMobile),
+      child: Container(
+        margin: EdgeInsets.only(bottom: isMobile ? 8 : 10),
+        padding: EdgeInsets.all(isMobile ? 12 : 14),
+        decoration: BoxDecoration(
+          color: alertColor.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: alertColor.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          children: [
+            Icon(alertIcon, color: alertColor, size: isMobile ? 20 : 24),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    alert['title'] ?? '',
+                    style: GoogleFonts.inter(
+                      fontSize: isMobile ? 13 : 14,
+                      fontWeight: FontWeight.w600,
+                      color: alertTextColor,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  alert['message'] ?? '',
-                  style: GoogleFonts.inter(
-                    fontSize: isMobile ? 12 : 13,
-                    color: alertTextColor.withOpacity(0.8),
+                  const SizedBox(height: 4),
+                  Text(
+                    alert['message'] ?? '',
+                    style: GoogleFonts.inter(
+                      fontSize: isMobile ? 12 : 13,
+                      color: alertTextColor.withValues(alpha: 0.8),
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ),
-          if (alert['count'] != null)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: alertColor,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                '${alert['count']}',
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
+                ],
               ),
             ),
-        ],
+            if (alert['count'] != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: alertColor,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '${alert['count']}',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            const SizedBox(width: 8),
+            Icon(
+              Icons.arrow_forward_ios,
+              color: alertColor.withValues(alpha: 0.6),
+              size: 16,
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  void _showAlertDetailModal(Map<String, dynamic> alert, bool isMobile) {
+    final alertId = alert['alertId'] ?? '';
+    final events = alert['events'] as List? ?? [];
+    final documents = alert['documents'] as List? ?? [];
+
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Container(
+          width: isMobile ? double.infinity : 600,
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.7,
+            maxWidth: 600,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: _getAlertColor(alert['type']).withValues(alpha: 0.1),
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(16),
+                    topRight: Radius.circular(16),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      _getAlertIcon(alert['type']),
+                      color: _getAlertColor(alert['type']),
+                      size: 28,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            alert['title'] ?? 'Alert Detail',
+                            style: GoogleFonts.inter(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            alert['message'] ?? '',
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Content - Event/Document List
+              Flexible(
+                child: alertId == 'pending_review'
+                    ? _buildDocumentList(documents, isMobile)
+                    : _buildEventList(events, alertId, isMobile),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _getAlertColor(String? type) {
+    switch (type) {
+      case 'danger':
+        return Colors.red;
+      case 'warning':
+        return Colors.orange;
+      case 'info':
+        return Colors.blue;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  IconData _getAlertIcon(String? type) {
+    switch (type) {
+      case 'danger':
+        return Icons.error;
+      case 'warning':
+        return Icons.warning;
+      case 'info':
+        return Icons.info;
+      default:
+        return Icons.notifications;
+    }
+  }
+
+  Widget _buildEventList(List events, String alertId, bool isMobile) {
+    if (events.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.all(32),
+        child: Text(
+          'Tidak ada data event',
+          style: GoogleFonts.inter(color: Colors.grey[600]),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      shrinkWrap: true,
+      padding: const EdgeInsets.all(16),
+      itemCount: events.length,
+      separatorBuilder: (_, __) => const Divider(height: 1),
+      itemBuilder: (context, index) {
+        final event = events[index];
+        final eventName = event['nama_event'] ?? 'Unknown Event';
+        final ukmName = event['ukm']?['nama_ukm'] ?? 'Unknown UKM';
+        final eventId = event['id_events'];
+        final ukmId = event['id_ukm'];
+
+        return ListTile(
+          contentPadding: const EdgeInsets.symmetric(
+            vertical: 8,
+            horizontal: 8,
+          ),
+          leading: Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF4169E1).withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.event, color: Color(0xFF4169E1), size: 24),
+          ),
+          title: Text(
+            eventName,
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
+          ),
+          subtitle: Row(
+            children: [
+              Icon(Icons.groups, size: 14, color: Colors.grey[500]),
+              const SizedBox(width: 4),
+              Text(
+                ukmName,
+                style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600]),
+              ),
+            ],
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // View Event button
+              IconButton(
+                icon: const Icon(Icons.visibility, color: Color(0xFF4169E1)),
+                tooltip: 'Lihat Event',
+                onPressed: () {
+                  Navigator.pop(context);
+                  _handleMenuSelected('event');
+                },
+              ),
+              // Send Reminder button
+              IconButton(
+                icon: const Icon(
+                  Icons.notifications_active,
+                  color: Colors.orange,
+                ),
+                tooltip: 'Kirim Pengingat',
+                onPressed: () => _sendReminderNotification(
+                  eventId: eventId,
+                  eventName: eventName,
+                  ukmId: ukmId,
+                  ukmName: ukmName,
+                  alertType: alertId,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDocumentList(List documents, bool isMobile) {
+    if (documents.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.all(32),
+        child: Text(
+          'Tidak ada dokumen menunggu review',
+          style: GoogleFonts.inter(color: Colors.grey[600]),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      shrinkWrap: true,
+      padding: const EdgeInsets.all(16),
+      itemCount: documents.length,
+      separatorBuilder: (_, __) => const Divider(height: 1),
+      itemBuilder: (context, index) {
+        final doc = documents[index];
+        final docType = doc['document_type'] ?? 'unknown';
+        final eventData = doc['events'];
+        final eventName = eventData?['nama_event'] ?? 'Unknown Event';
+        final ukmName = eventData?['ukm']?['nama_ukm'] ?? 'Unknown UKM';
+
+        return ListTile(
+          contentPadding: const EdgeInsets.symmetric(
+            vertical: 8,
+            horizontal: 8,
+          ),
+          leading: Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: docType == 'proposal'
+                  ? Colors.blue.withValues(alpha: 0.1)
+                  : Colors.green.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              Icons.description,
+              color: docType == 'proposal' ? Colors.blue : Colors.green,
+              size: 24,
+            ),
+          ),
+          title: Text(
+            docType == 'proposal' ? 'Proposal' : 'LPJ',
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                eventName,
+                style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[700]),
+              ),
+              Row(
+                children: [
+                  Icon(Icons.groups, size: 12, color: Colors.grey[500]),
+                  const SizedBox(width: 4),
+                  Text(
+                    ukmName,
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          trailing: ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _handleMenuSelected('event');
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF4169E1),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: Text(
+              'Review',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _sendReminderNotification({
+    required String eventId,
+    required String eventName,
+    required String ukmId,
+    required String ukmName,
+    required String alertType,
+  }) async {
+    final supabase = Supabase.instance.client;
+
+    String notifTitle;
+    String notifMessage;
+
+    if (alertType == 'no_proposal') {
+      notifTitle = '📋 Pengingat: Upload Proposal';
+      notifMessage =
+          'Event "$eventName" belum memiliki proposal. Silakan upload proposal event secepatnya.';
+    } else if (alertType == 'overdue_lpj') {
+      notifTitle = '📄 Pengingat: Upload LPJ';
+      notifMessage =
+          'Event "$eventName" sudah selesai. Silakan upload LPJ secepatnya.';
+    } else {
+      notifTitle = '📢 Pengingat Dokumen';
+      notifMessage = 'Harap lengkapi dokumen untuk event "$eventName".';
+    }
+
+    try {
+      // Insert notification for UKM
+      await supabase.from('notification_preference').insert({
+        'type': 'reminder',
+        'judul': notifTitle,
+        'pesan': notifMessage,
+        'id_ukm': ukmId,
+        'id_events': eventId,
+        'is_broadcast': false,
+        'target_audience': 'specific_ukm',
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Pengingat berhasil dikirim ke $ukmName'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal mengirim pengingat: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildEventChart(bool isMobile) {
