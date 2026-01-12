@@ -233,6 +233,81 @@ class UkmDashboardService {
         totalPertemuan = 0;
       }
 
+      // ========== GET EVENTS WITHOUT DOCUMENTS ==========
+      int eventsWithoutProposal = 0;
+      int eventsWithoutLpj = 0;
+      
+      try {
+        // Get all events for this UKM (active events only)
+        final allEvents = await _supabase
+            .from('events')
+            .select('id_events, status, tanggal_akhir')
+            .eq('id_ukm', ukmId);
+        
+        print('DEBUG: Total events for UKM $ukmId: ${(allEvents as List).length}');
+        
+        // Get all event documents for this UKM
+        final allDocs = await _supabase
+            .from('event_documents')
+            .select('id_event, document_type')
+            .eq('id_ukm', ukmId);
+        
+        print('DEBUG: Total documents for UKM $ukmId: ${(allDocs as List).length}');
+        
+        // Create sets for quick lookup
+        final eventsWithProposal = <String>{};
+        final eventsWithLpj = <String>{};
+        
+        for (final doc in (allDocs as List)) {
+          final eventId = doc['id_event']?.toString();
+          final docType = doc['document_type']?.toString();
+          if (eventId != null) {
+            if (docType == 'proposal') {
+              eventsWithProposal.add(eventId);
+            } else if (docType == 'lpj') {
+              eventsWithLpj.add(eventId);
+            }
+          }
+        }
+        
+        print('DEBUG: Events with proposal: ${eventsWithProposal.length}');
+        print('DEBUG: Events with LPJ: ${eventsWithLpj.length}');
+        
+        // Count events without documents
+        final now = DateTime.now();
+        for (final event in (allEvents as List)) {
+          final eventId = event['id_events']?.toString();
+          if (eventId == null) continue;
+          
+          // Check for missing proposal (all active events should have proposal)
+          if (!eventsWithProposal.contains(eventId)) {
+            eventsWithoutProposal++;
+            print('DEBUG: Event without proposal: $eventId');
+          }
+          
+          // Check for missing LPJ (only for completed events)
+          final endDateStr = event['tanggal_akhir']?.toString();
+          if (endDateStr != null) {
+            try {
+              final endDate = DateTime.parse(endDateStr);
+              if (endDate.isBefore(now) && !eventsWithLpj.contains(eventId)) {
+                eventsWithoutLpj++;
+                print('DEBUG: Completed event without LPJ: $eventId');
+              }
+            } catch (e) {
+              // Ignore parse errors
+            }
+          }
+        }
+        
+        print('======== ALERT SUMMARY ========');
+        print('Events without proposal: $eventsWithoutProposal');
+        print('Events without LPJ: $eventsWithoutLpj');
+        print('===============================');
+      } catch (e) {
+        print('Error checking event documents: $e');
+      }
+
       print(
         'UKM stats loaded: Peserta=$totalPeserta, Events=$totalEvent, Pertemuan=$totalPertemuan',
       );
@@ -243,6 +318,8 @@ class UkmDashboardService {
           'totalPeserta': totalPeserta,
           'totalEvent': totalEvent,
           'totalPertemuan': totalPertemuan,
+          'eventsWithoutProposal': eventsWithoutProposal,
+          'eventsWithoutLpj': eventsWithoutLpj,
         },
       };
     } catch (e) {
@@ -392,4 +469,106 @@ class UkmDashboardService {
       return [];
     }
   }
+
+  /// Get alerts and warnings for UKM dashboard
+  /// Similar pattern to admin DashboardService.getAlerts()
+  Future<Map<String, dynamic>> getAlerts(String ukmId) async {
+    try {
+      List<Map<String, dynamic>> alerts = [];
+
+      // Check events without proposal
+      try {
+        final eventsNoProposal = await _supabase
+            .from('events')
+            .select('id_events, nama_event')
+            .eq('id_ukm', ukmId)
+            .eq('status', true)
+            .or('status_proposal.is.null,status_proposal.eq.belum_ajukan');
+
+        if ((eventsNoProposal as List).isNotEmpty) {
+          alerts.add({
+            'type': 'warning',
+            'title': 'Event Tanpa Proposal',
+            'message':
+                '${eventsNoProposal.length} event aktif belum upload proposal',
+            'count': eventsNoProposal.length,
+          });
+        }
+      } catch (e) {
+        print('Error checking events without proposal: $e');
+      }
+
+      // Check overdue LPJ (events ended but no LPJ)
+      try {
+        final now = DateTime.now();
+        final overdueEvents = await _supabase
+            .from('events')
+            .select('id_events, nama_event, tanggal_akhir')
+            .eq('id_ukm', ukmId)
+            .lt('tanggal_akhir', now.toIso8601String())
+            .or('status_lpj.is.null,status_lpj.eq.belum_ajukan');
+
+        if ((overdueEvents as List).isNotEmpty) {
+          alerts.add({
+            'type': 'danger',
+            'title': 'LPJ Terlambat',
+            'message':
+                '${overdueEvents.length} event sudah selesai tapi belum upload LPJ',
+            'count': overdueEvents.length,
+          });
+        }
+      } catch (e) {
+        print('Error checking overdue LPJ: $e');
+      }
+
+      // Check pending document approvals
+      try {
+        int pendingProposals = 0;
+        int pendingLpj = 0;
+
+        try {
+          final proposals = await _supabase
+              .from('event_documents')
+              .select('id_document')
+              .eq('id_ukm', ukmId)
+              .eq('document_type', 'proposal')
+              .eq('status', 'menunggu');
+          pendingProposals = (proposals as List).length;
+        } catch (e) {
+          print('Error fetching pending proposals: $e');
+        }
+
+        try {
+          final lpjs = await _supabase
+              .from('event_documents')
+              .select('id_document')
+              .eq('id_ukm', ukmId)
+              .eq('document_type', 'lpj')
+              .eq('status', 'menunggu');
+          pendingLpj = (lpjs as List).length;
+        } catch (e) {
+          print('Error fetching pending LPJs: $e');
+        }
+
+        final totalPending = pendingProposals + pendingLpj;
+        if (totalPending > 0) {
+          alerts.add({
+            'type': 'info',
+            'title': 'Dokumen Menunggu Review',
+            'message':
+                '$pendingProposals proposal dan $pendingLpj LPJ menunggu review admin',
+            'count': totalPending,
+          });
+        }
+      } catch (e) {
+        print('Error checking pending documents: $e');
+      }
+
+      return {'success': true, 'data': alerts};
+    } catch (e) {
+      print('Error fetching alerts: $e');
+      return {'success': false, 'error': e.toString()};
+    }
+  }
 }
+

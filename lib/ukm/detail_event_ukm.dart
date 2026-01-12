@@ -28,6 +28,15 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
   // Use getter to always access the singleton instance
   CustomAuthService get _authService => CustomAuthService();
 
+  // Helper to get public URL for event image
+  String _getEventImageUrl(String? imagePath) {
+    if (imagePath == null || imagePath.isEmpty) return '';
+    // If it's already a full URL, return as is
+    if (imagePath.startsWith('http')) return imagePath;
+    // Otherwise, get public URL from event-images bucket
+    return _supabase.storage.from('event-images').getPublicUrl(imagePath);
+  }
+
   Map<String, dynamic>? _event;
   List<Map<String, dynamic>> _dokumenProposal = [];
   List<Map<String, dynamic>> _dokumenLpj = [];
@@ -1587,7 +1596,7 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12),
                   child: Image.network(
-                    _event!['gambar'],
+                    _getEventImageUrl(_event!['gambar']?.toString()),
                     width: double.infinity,
                     height: 250,
                     fit: BoxFit.cover,

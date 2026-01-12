@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:unit_activity/services/informasi_service.dart';
 import 'package:unit_activity/models/informasi_model.dart';
 import 'package:unit_activity/ukm/add_informasi_ukm_page.dart';
@@ -16,6 +17,16 @@ class InformasiUKMPage extends StatefulWidget {
 class _InformasiUKMPageState extends State<InformasiUKMPage> {
   final InformasiService _informasiService = InformasiService();
   final TextEditingController _searchController = TextEditingController();
+  final _supabase = Supabase.instance.client;
+
+  // Helper to get public URL for informasi image
+  String _getImageUrl(String? imagePath) {
+    if (imagePath == null || imagePath.isEmpty) return '';
+    // If it's already a full URL, return as is
+    if (imagePath.startsWith('http')) return imagePath;
+    // Otherwise, get public URL from informasi-images bucket
+    return _supabase.storage.from('informasi-images').getPublicUrl(imagePath);
+  }
 
   String _filterStatus = 'Semua';
   String _searchQuery = '';
@@ -436,7 +447,7 @@ class _InformasiUKMPageState extends State<InformasiUKMPage> {
                     ClipRRect(
                       borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16)),
                       child: Image.network(
-                        info.gambar!,
+                        _getImageUrl(info.gambar),
                         width: double.infinity,
                         height: 140,
                         fit: BoxFit.cover,
@@ -587,7 +598,7 @@ class _InformasiUKMPageState extends State<InformasiUKMPage> {
                     ? ClipRRect(
                         borderRadius: BorderRadius.circular(8),
                         child: Image.network(
-                          info.gambar!,
+                          _getImageUrl(info.gambar),
                           fit: BoxFit.cover,
                           loadingBuilder: (context, child, loadingProgress) {
                             if (loadingProgress == null) return child;

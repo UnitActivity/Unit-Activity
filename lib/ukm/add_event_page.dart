@@ -273,7 +273,16 @@ class _AddEventPageState extends State<AddEventPage> {
           );
         } catch (e) {
           print('Error uploading image: $e');
-          // Continue without image if upload fails
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Gagal upload gambar: $e'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+          setState(() => _isLoading = false);
+          return; // Stop if image upload fails
         }
       }
 
