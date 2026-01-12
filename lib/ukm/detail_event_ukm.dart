@@ -5,6 +5,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:unit_activity/services/event_service_new.dart';
 import 'package:unit_activity/services/custom_auth_service.dart';
 import 'package:unit_activity/services/file_upload_service.dart';
+import 'package:unit_activity/services/dynamic_qr_service.dart';
 import 'package:unit_activity/ukm/detail_document_ukm_page.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -773,7 +774,7 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
 
       if (result != null && result.files.isNotEmpty && mounted) {
         final file = result.files.first;
-        
+
         setState(() => _isUploadingFile = true);
 
         try {
@@ -792,7 +793,7 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
 
           // Force reload event details from database to get fresh data
           final freshEvent = await _eventService.getEventById(widget.eventId);
-          
+
           // Update state with fresh data
           if (mounted) {
             setState(() {
@@ -802,7 +803,10 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
 
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Gambar berhasil diupload!', style: GoogleFonts.inter()),
+                content: Text(
+                  'Gambar berhasil diupload!',
+                  style: GoogleFonts.inter(),
+                ),
                 backgroundColor: Colors.green,
               ),
             );
@@ -812,7 +816,10 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
             setState(() => _isUploadingFile = false);
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Gagal upload gambar: $e', style: GoogleFonts.inter()),
+                content: Text(
+                  'Gagal upload gambar: $e',
+                  style: GoogleFonts.inter(),
+                ),
                 backgroundColor: Colors.red,
               ),
             );
@@ -1590,7 +1597,8 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
             ),
           ),
           const SizedBox(height: 12),
-          if (_event!['gambar'] != null && _event!['gambar'].toString().isNotEmpty) ...[
+          if (_event!['gambar'] != null &&
+              _event!['gambar'].toString().isNotEmpty) ...[
             Stack(
               children: [
                 ClipRRect(
@@ -1609,7 +1617,7 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
                           child: CircularProgressIndicator(
                             value: loadingProgress.expectedTotalBytes != null
                                 ? loadingProgress.cumulativeBytesLoaded /
-                                    loadingProgress.expectedTotalBytes!
+                                      loadingProgress.expectedTotalBytes!
                                 : null,
                           ),
                         ),
@@ -1626,11 +1634,18 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.broken_image, size: 48, color: Colors.grey[400]),
+                              Icon(
+                                Icons.broken_image,
+                                size: 48,
+                                color: Colors.grey[400],
+                              ),
                               const SizedBox(height: 8),
                               Text(
                                 'Gagal memuat gambar',
-                                style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[500]),
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  color: Colors.grey[500],
+                                ),
                               ),
                             ],
                           ),
@@ -1653,7 +1668,10 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
                       foregroundColor: Colors.white,
                       backgroundColor: Colors.black.withOpacity(0.6),
                       side: const BorderSide(color: Colors.white),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                     ),
                   ),
                 ),
@@ -1670,7 +1688,11 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.image_not_supported, size: 64, color: Colors.grey[400]),
+                  Icon(
+                    Icons.image_not_supported,
+                    size: 64,
+                    color: Colors.grey[400],
+                  ),
                   const SizedBox(height: 12),
                   Text(
                     'Belum ada gambar',
@@ -1684,14 +1706,21 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
                   OutlinedButton.icon(
                     onPressed: _isUploadingFile ? null : _showEditImageDialog,
                     icon: Icon(
-                      _isUploadingFile ? Icons.hourglass_empty : Icons.add_photo_alternate,
+                      _isUploadingFile
+                          ? Icons.hourglass_empty
+                          : Icons.add_photo_alternate,
                       size: 20,
                     ),
-                    label: Text(_isUploadingFile ? 'Uploading...' : 'Tambah Gambar'),
+                    label: Text(
+                      _isUploadingFile ? 'Uploading...' : 'Tambah Gambar',
+                    ),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: const Color(0xFF4169E1),
                       side: const BorderSide(color: Color(0xFF4169E1)),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
                     ),
                   ),
                 ],
@@ -2087,17 +2116,19 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
     final canViewDetail = status != 'draft';
 
     return InkWell(
-      onTap: canViewDetail ? () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => DetailDocumentUKMPage(
-              documentId: docId,
-              documentType: documentType,
-            ),
-          ),
-        ).then((_) => _loadEventDetails());
-      } : null,
+      onTap: canViewDetail
+          ? () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => DetailDocumentUKMPage(
+                    documentId: docId,
+                    documentType: documentType,
+                  ),
+                ),
+              ).then((_) => _loadEventDetails());
+            }
+          : null,
       borderRadius: BorderRadius.circular(12),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
@@ -2132,190 +2163,200 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  filename,
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
+                children: [
+                  Text(
+                    filename,
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Diupload: ${_formatDate(doc['tanggal_pengajuan'])}',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
-                ),
-                if (documentType == 'lpj') ...[
                   const SizedBox(height: 4),
                   Text(
-                    'File Keuangan: ${doc['original_filename_keuangan'] ?? 'keuangan.pdf'}',
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      color: Colors.grey[500],
-                    ),
-                  ),
-                ],
-                if (doc['catatan_admin'] != null &&
-                    doc['catatan_admin'].toString().isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.amber[50],
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(
-                          Icons.info_outline_rounded,
-                          size: 16,
-                          color: Colors.amber[900],
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Catatan Admin: ${doc['catatan_admin']}',
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              color: Colors.amber[900],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-
-          // Action buttons for draft status
-          if (status == 'draft') ...[
-            Column(
-              children: [
-                // Submit button
-                SizedBox(
-                  width: 100,
-                  child: ElevatedButton.icon(
-                    onPressed: () => _submitDocument(docId, documentType),
-                    icon: const Icon(Icons.send_rounded, size: 16),
-                    label: Text(
-                      'Ajukan',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF4169E1),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 8,
-                        horizontal: 12,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      elevation: 0,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                // Delete button
-                SizedBox(
-                  width: 100,
-                  child: OutlinedButton.icon(
-                    onPressed: () => _deleteDocument(docId, documentType),
-                    icon: const Icon(Icons.delete_outline_rounded, size: 16),
-                    label: Text(
-                      'Hapus',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.red,
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 8,
-                        horizontal: 12,
-                      ),
-                      side: const BorderSide(color: Colors.red),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ] else
-            Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: statusColor,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    statusLabel,
+                    'Diupload: ${_formatDate(doc['tanggal_pengajuan'])}',
                     style: GoogleFonts.inter(
                       fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
+                      color: Colors.grey[600],
                     ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                // Lihat Detail button for non-draft documents
-                InkWell(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => DetailDocumentUKMPage(
-                          documentId: docId,
-                          documentType: documentType,
+                  if (documentType == 'lpj') ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'File Keuangan: ${doc['original_filename_keuangan'] ?? 'keuangan.pdf'}',
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: Colors.grey[500],
+                      ),
+                    ),
+                  ],
+                  if (doc['catatan_admin'] != null &&
+                      doc['catatan_admin'].toString().isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.amber[50],
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.info_outline_rounded,
+                            size: 16,
+                            color: Colors.amber[900],
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Catatan Admin: ${doc['catatan_admin']}',
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                color: Colors.amber[900],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+
+            // Action buttons for draft status
+            if (status == 'draft') ...[
+              Column(
+                children: [
+                  // Submit button
+                  SizedBox(
+                    width: 100,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _submitDocument(docId, documentType),
+                      icon: const Icon(Icons.send_rounded, size: 16),
+                      label: Text(
+                        'Ajukan',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
-                    ).then((_) => _loadEventDetails());
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF4169E1).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.visibility_rounded, size: 14, color: Color(0xFF4169E1)),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Detail',
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF4169E1),
-                          ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF4169E1),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 8,
+                          horizontal: 12,
                         ),
-                      ],
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        elevation: 0,
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
-        ],
-      ),
+                  const SizedBox(height: 8),
+                  // Delete button
+                  SizedBox(
+                    width: 100,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _deleteDocument(docId, documentType),
+                      icon: const Icon(Icons.delete_outline_rounded, size: 16),
+                      label: Text(
+                        'Hapus',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red,
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 8,
+                          horizontal: 12,
+                        ),
+                        side: const BorderSide(color: Colors.red),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ] else
+              Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: statusColor,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      statusLabel,
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  // Lihat Detail button for non-draft documents
+                  InkWell(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => DetailDocumentUKMPage(
+                            documentId: docId,
+                            documentType: documentType,
+                          ),
+                        ),
+                      ).then((_) => _loadEventDetails());
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF4169E1).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.visibility_rounded,
+                            size: 14,
+                            color: Color(0xFF4169E1),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Detail',
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF4169E1),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -2722,27 +2763,18 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
   }
 
   // Default auto-regenerate to true
-  bool _autoRegenerateQR = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadEventDetails();
-    // No need to load current QR from DB as we generate dynamic ones on the fly
-  }
-
-  // ... (keep existing code)
+  // (Duplicate declarations removed; using the primary `_autoRegenerateQR` and `initState` above.)
 
   Future<void> _generateQRCode() async {
     try {
       // Use DynamicQRService to generate correct format: EVENT:ID:TIMESTAMP:SIG
       final qrCode = DynamicQRService.generateEventQR(widget.eventId);
-      
+
       setState(() {
         _currentQRCode = qrCode;
         // Set expiry to validity window + grace period
         _qrExpiresAt = DateTime.now().add(
-          Duration(seconds: DynamicQRService.validityWindow), 
+          Duration(seconds: DynamicQRService.validityWindow),
         );
         _isQRActive = true;
       });
