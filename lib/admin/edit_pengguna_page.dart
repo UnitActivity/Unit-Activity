@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:http/http.dart' as http;
+import 'package:crypto/crypto.dart';
 import 'dart:convert';
 
 class EditPenggunaPage extends StatefulWidget {
@@ -63,6 +63,13 @@ class _EditPenggunaPageState extends State<EditPenggunaPage> {
           _confirmPasswordController.text.isNotEmpty &&
           _newPasswordController.text == _confirmPasswordController.text;
     });
+  }
+
+  // Hash password using SHA256
+  String _hashPassword(String password) {
+    final bytes = utf8.encode(password);
+    final digest = sha256.convert(bytes);
+    return digest.toString();
   }
 
   @override
@@ -167,50 +174,22 @@ class _EditPenggunaPageState extends State<EditPenggunaPage> {
         }
       }
 
-      // Update password in auth if changing (using admin API)
+      // Prepare update data
+      final updateData = <String, dynamic>{
+        'username': username,
+        'email': email,
+        'nim': nim,
+      };
+
+      // Add hashed password if changing
       if (_isChangingPassword) {
-        try {
-          final response = await http.post(
-            Uri.parse('http://localhost:3000/api/admin-update-password'),
-            headers: {'Content-Type': 'application/json'},
-            body: json.encode({
-              'userId': widget.user['id_user'],
-              'newPassword': _newPasswordController.text,
-            }),
-          );
-
-          final result = json.decode(response.body);
-
-          if (!result['success']) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(result['error'] ?? 'Gagal mengupdate password'),
-                  backgroundColor: Colors.red,
-                ),
-              );
-            }
-            setState(() => _isLoading = false);
-            return;
-          }
-        } catch (e) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Error mengupdate password: $e'),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
-          setState(() => _isLoading = false);
-          return;
-        }
+        updateData['password'] = _hashPassword(_newPasswordController.text);
       }
 
-      // Update user in database
+      // Update user in database (direct update, no external API)
       await _supabase
           .from('users')
-          .update({'username': username, 'email': email, 'nim': nim})
+          .update(updateData)
           .eq('id_user', widget.user['id_user']);
 
       if (mounted) {
@@ -270,7 +249,7 @@ class _EditPenggunaPageState extends State<EditPenggunaPage> {
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
+                      color: Colors.black.withValues(alpha: 0.05),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
@@ -332,9 +311,9 @@ class _EditPenggunaPageState extends State<EditPenggunaPage> {
                     Container(
                       padding: EdgeInsets.all(isMobile ? 12 : 16),
                       decoration: BoxDecoration(
-                        color: Colors.blue.withOpacity(0.05),
+                        color: Colors.blue.withValues(alpha: 0.05),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.blue.withOpacity(0.2)),
+                        border: Border.all(color: Colors.blue.withValues(alpha: 0.2)),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,

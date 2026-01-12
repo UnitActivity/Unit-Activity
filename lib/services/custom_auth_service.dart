@@ -1,6 +1,8 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:crypto/crypto.dart';
+import 'dart:convert';
 import 'push_notification_service.dart';
 
 class CustomAuthService {
@@ -103,10 +105,9 @@ class CustomAuthService {
         if (userResult != null) {
           print('User found: ${userResult['username']}');
 
-          // Check password (supports both plain text and hashed)
+          // Check password (supports both plain text and SHA256 hash)
           final storedPassword = userResult['password'];
-          if (storedPassword == password ||
-              _verifyPassword(password, storedPassword)) {
+          if (_verifyPassword(password, storedPassword)) {
             print('✅ Login successful as user');
 
             _currentUserId = userResult['id_user'];
@@ -159,12 +160,39 @@ class CustomAuthService {
     }
   }
 
-  /// Verify password - supports both plain text comparison and bcrypt hash
+  /// Hash password using SHA256
+  String _hashPassword(String password) {
+    final bytes = utf8.encode(password);
+    final digest = sha256.convert(bytes);
+    return digest.toString();
+  }
+
+  /// Verify password - supports plain text, SHA256 hash
   bool _verifyPassword(String inputPassword, String storedPassword) {
-    // If stored password starts with $2b$ or $2a$, it's bcrypt
-    // For now, we'll just do simple comparison since we don't have bcrypt in Flutter
-    // In production, you should use proper password hashing
-    return inputPassword == storedPassword;
+    // 1. Direct plain text comparison
+    if (inputPassword == storedPassword) {
+      print('✅ Password matched (plain text)');
+      return true;
+    }
+
+    // 2. Compare SHA256 hash of input with stored password
+    final hashedInput = _hashPassword(inputPassword);
+    if (hashedInput == storedPassword) {
+      print('✅ Password matched (SHA256)');
+      return true;
+    }
+
+    // 3. Check if stored password is a SHA256 hash (64 hex chars)
+    // and compare with hashed input
+    if (storedPassword.length == 64 &&
+        RegExp(r'^[a-f0-9]+$').hasMatch(storedPassword)) {
+      // Already compared above
+      print('❌ SHA256 password comparison failed');
+      return false;
+    }
+
+    print('❌ Password verification failed');
+    return false;
   }
 
   /// Register admin/ukm
