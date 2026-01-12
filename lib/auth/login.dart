@@ -116,7 +116,7 @@ class _LoginPageState extends State<LoginPage> {
             end: Alignment.bottomRight,
             colors: [
               const Color(0xFF4169E1),
-              const Color(0xFF4169E1).withOpacity(0.8),
+              const Color(0xFF4169E1).withValues(alpha: 0.8),
               const Color(0xFF7B68EE),
             ],
           ),
@@ -158,7 +158,6 @@ class _LoginPageState extends State<LoginPage> {
 
   Widget _buildBrandingSection() {
     final size = MediaQuery.of(context).size;
-    final isDesktop = size.width > 900;
     final isMobile = size.width < 600;
 
     return Column(
@@ -169,11 +168,11 @@ class _LoginPageState extends State<LoginPage> {
         Container(
           padding: EdgeInsets.all(isMobile ? 16 : 24),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.2),
+            color: Colors.white.withValues(alpha: 0.2),
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withValues(alpha: 0.1),
                 blurRadius: 30,
                 offset: const Offset(0, 10),
               ),
@@ -208,7 +207,7 @@ class _LoginPageState extends State<LoginPage> {
           style: GoogleFonts.inter(
             fontSize: isMobile ? 12 : 16,
             fontWeight: FontWeight.w400,
-            color: Colors.white.withOpacity(0.9),
+            color: Colors.white.withValues(alpha: 0.9),
             letterSpacing: 0.5,
           ),
         ),
@@ -227,7 +226,7 @@ class _LoginPageState extends State<LoginPage> {
         borderRadius: BorderRadius.circular(isMobile ? 16 : 24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.15),
+            color: Colors.black.withValues(alpha: 0.15),
             blurRadius: 30,
             offset: const Offset(0, 15),
           ),
@@ -468,7 +467,7 @@ class _LoginPageState extends State<LoginPage> {
                   backgroundColor: const Color(0xFF4169E1),
                   foregroundColor: Colors.white,
                   elevation: 0,
-                  shadowColor: const Color(0xFF4169E1).withOpacity(0.3),
+                  shadowColor: const Color(0xFF4169E1).withValues(alpha: 0.3),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),

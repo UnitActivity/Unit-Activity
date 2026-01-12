@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:crypto/crypto.dart';
+import 'dart:convert';
 
 class AddPenggunaPage extends StatefulWidget {
   const AddPenggunaPage({super.key});
@@ -44,6 +46,13 @@ class _AddPenggunaPageState extends State<AddPenggunaPage> {
       _hasNumber = RegExp(r'[0-9]').hasMatch(password);
       _hasSymbol = RegExp(r'[!@#\$%^&*]').hasMatch(password);
     });
+  }
+
+  // Hash password using SHA256
+  String _hashPassword(String password) {
+    final bytes = utf8.encode(password);
+    final digest = sha256.convert(bytes);
+    return digest.toString();
   }
 
   @override
@@ -103,7 +112,6 @@ class _AddPenggunaPageState extends State<AddPenggunaPage> {
     try {
       final username = _usernameController.text.trim();
       final email = _emailController.text.trim().toLowerCase();
-      final password = _passwordController.text;
       final nim = _nimController.text.trim();
 
       // Check if email already exists
@@ -146,32 +154,12 @@ class _AddPenggunaPageState extends State<AddPenggunaPage> {
         return;
       }
 
-      // Create user in Supabase Auth (skip email confirmation for admin-created users)
-      final authResponse = await _supabase.auth.signUp(
-        email: email,
-        password: password,
-        data: {'username': username, 'nim': nim},
-      );
-
-      if (authResponse.user == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Gagal membuat user'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        setState(() => _isLoading = false);
-        return;
-      }
-
-      // Insert user data into users table
+      // Insert user directly into database (NO Supabase Auth)
+      // Password is hashed using SHA256
       await _supabase.from('users').insert({
-        'id_user': authResponse.user!.id,
         'username': username,
         'email': email,
-        'password': authResponse.user!.id,
+        'password': _hashPassword(password),
         'nim': nim,
         'picture': null,
         'create_at': DateTime.now().toIso8601String(),
@@ -183,15 +171,6 @@ class _AddPenggunaPageState extends State<AddPenggunaPage> {
           const SnackBar(
             content: Text('Pengguna berhasil ditambahkan!'),
             backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } on AuthException catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.message}'),
-            backgroundColor: Colors.red,
           ),
         );
       }
@@ -241,7 +220,7 @@ class _AddPenggunaPageState extends State<AddPenggunaPage> {
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
+                      color: Colors.black.withValues(alpha: 0.05),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
@@ -307,9 +286,9 @@ class _AddPenggunaPageState extends State<AddPenggunaPage> {
                     Container(
                       padding: EdgeInsets.all(isMobile ? 12 : 16),
                       decoration: BoxDecoration(
-                        color: Colors.blue.withOpacity(0.05),
+                        color: Colors.blue.withValues(alpha: 0.05),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.blue.withOpacity(0.2)),
+                        border: Border.all(color: Colors.blue.withValues(alpha: 0.2)),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,

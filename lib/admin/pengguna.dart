@@ -326,7 +326,7 @@ class _PenggunaPageState extends State<PenggunaPage> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -337,7 +337,7 @@ class _PenggunaPageState extends State<PenggunaPage> {
           Container(
             padding: EdgeInsets.all(isMobile ? 8 : 10),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.25),
+              color: Colors.white.withValues(alpha: 0.25),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(icon, color: Colors.white, size: isMobile ? 20 : 24),
@@ -352,7 +352,7 @@ class _PenggunaPageState extends State<PenggunaPage> {
                   style: GoogleFonts.inter(
                     fontSize: isMobile ? 11 : 12,
                     fontWeight: FontWeight.w500,
-                    color: Colors.white.withOpacity(0.9),
+                    color: Colors.white.withValues(alpha: 0.9),
                   ),
                 ),
                 SizedBox(height: isMobile ? 3 : 4),
@@ -392,7 +392,7 @@ class _PenggunaPageState extends State<PenggunaPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -433,7 +433,7 @@ class _PenggunaPageState extends State<PenggunaPage> {
                   vertical: isMobile ? 4 : 6,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF4169E1).withOpacity(0.1),
+                  color: const Color(0xFF4169E1).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
@@ -472,7 +472,7 @@ class _PenggunaPageState extends State<PenggunaPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -515,7 +515,7 @@ class _PenggunaPageState extends State<PenggunaPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -573,7 +573,7 @@ class _PenggunaPageState extends State<PenggunaPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -717,7 +717,7 @@ class _PenggunaPageState extends State<PenggunaPage> {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF4169E1).withOpacity(0.1),
+                      color: const Color(0xFF4169E1).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: const Icon(
@@ -783,7 +783,7 @@ class _PenggunaPageState extends State<PenggunaPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -797,8 +797,8 @@ class _PenggunaPageState extends State<PenggunaPage> {
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  const Color(0xFF4169E1).withOpacity(0.08),
-                  const Color(0xFF4169E1).withOpacity(0.03),
+                  const Color(0xFF4169E1).withValues(alpha: 0.08),
+                  const Color(0xFF4169E1).withValues(alpha: 0.03),
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -877,7 +877,6 @@ class _PenggunaPageState extends State<PenggunaPage> {
             itemCount: _allUsers.length,
             itemBuilder: (context, index) {
               final user = _allUsers[index];
-              final userId = user['id_user'].toString();
 
               return InkWell(
                 onTap: () async {
@@ -894,7 +893,7 @@ class _PenggunaPageState extends State<PenggunaPage> {
                     _loadUsers();
                   }
                 },
-                hoverColor: const Color(0xFF4169E1).withOpacity(0.03),
+                hoverColor: const Color(0xFF4169E1).withValues(alpha: 0.03),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 24,
@@ -916,7 +915,7 @@ class _PenggunaPageState extends State<PenggunaPage> {
                                 shape: BoxShape.circle,
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.1),
+                                    color: Colors.black.withValues(alpha: 0.1),
                                     blurRadius: 6,
                                     offset: const Offset(0, 2),
                                   ),
@@ -926,7 +925,7 @@ class _PenggunaPageState extends State<PenggunaPage> {
                                 radius: 20,
                                 backgroundColor: const Color(
                                   0xFF4169E1,
-                                ).withOpacity(0.12),
+                                ).withValues(alpha: 0.12),
                                 backgroundImage:
                                     user['picture'] != null &&
                                         user['picture'].toString().isNotEmpty
@@ -1040,7 +1039,7 @@ class _PenggunaPageState extends State<PenggunaPage> {
         child: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(icon, size: 16, color: color),
@@ -1061,8 +1060,6 @@ class _PenggunaPageState extends State<PenggunaPage> {
   }
 
   Widget _buildMobileCard(Map<String, dynamic> user) {
-    final userId = user['id_user'].toString();
-
     return GestureDetector(
       onTap: () async {
         // Navigate to detail page
@@ -1085,7 +1082,7 @@ class _PenggunaPageState extends State<PenggunaPage> {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 8,
               offset: const Offset(0, 4),
             ),
@@ -1101,7 +1098,7 @@ class _PenggunaPageState extends State<PenggunaPage> {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    const Color(0xFF4169E1).withOpacity(0.03),
+                    const Color(0xFF4169E1).withValues(alpha: 0.03),
                     Colors.transparent,
                   ],
                 ),
@@ -1118,7 +1115,7 @@ class _PenggunaPageState extends State<PenggunaPage> {
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF4169E1).withOpacity(0.2),
+                          color: const Color(0xFF4169E1).withValues(alpha: 0.2),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),
@@ -1128,7 +1125,7 @@ class _PenggunaPageState extends State<PenggunaPage> {
                       radius: 28,
                       backgroundColor: const Color(
                         0xFF4169E1,
-                      ).withOpacity(0.12),
+                      ).withValues(alpha: 0.12),
                       backgroundImage:
                           user['picture'] != null &&
                               user['picture'].toString().isNotEmpty
@@ -1283,7 +1280,7 @@ class _PenggunaPageState extends State<PenggunaPage> {
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: const Color(0xFF4169E1).withOpacity(0.08),
+            color: const Color(0xFF4169E1).withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(icon, size: 16, color: const Color(0xFF4169E1)),
@@ -1328,7 +1325,7 @@ class _PenggunaPageState extends State<PenggunaPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -1372,13 +1369,13 @@ class _PenggunaPageState extends State<PenggunaPage> {
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
-                            const Color(0xFF4169E1).withOpacity(0.1),
-                            const Color(0xFF4169E1).withOpacity(0.05),
+                            const Color(0xFF4169E1).withValues(alpha: 0.1),
+                            const Color(0xFF4169E1).withValues(alpha: 0.05),
                           ],
                         ),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color: const Color(0xFF4169E1).withOpacity(0.3),
+                          color: const Color(0xFF4169E1).withValues(alpha: 0.3),
                         ),
                       ),
                       child: Text(
@@ -1454,13 +1451,13 @@ class _PenggunaPageState extends State<PenggunaPage> {
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
-                            const Color(0xFF4169E1).withOpacity(0.1),
-                            const Color(0xFF4169E1).withOpacity(0.05),
+                            const Color(0xFF4169E1).withValues(alpha: 0.1),
+                            const Color(0xFF4169E1).withValues(alpha: 0.05),
                           ],
                         ),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color: const Color(0xFF4169E1).withOpacity(0.3),
+                          color: const Color(0xFF4169E1).withValues(alpha: 0.3),
                         ),
                       ),
                       child: Text(
@@ -1501,12 +1498,12 @@ class _PenggunaPageState extends State<PenggunaPage> {
     return Container(
       decoration: BoxDecoration(
         color: enabled
-            ? const Color(0xFF4169E1).withOpacity(0.1)
+            ? const Color(0xFF4169E1).withValues(alpha: 0.1)
             : Colors.grey[100],
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: enabled
-              ? const Color(0xFF4169E1).withOpacity(0.3)
+              ? const Color(0xFF4169E1).withValues(alpha: 0.3)
               : Colors.grey[300]!,
         ),
       ),
@@ -1534,7 +1531,7 @@ class _PenggunaPageState extends State<PenggunaPage> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.1),
+                  color: Colors.red.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
@@ -1690,7 +1687,7 @@ class LineChartPainter extends CustomPainter {
 
     // Draw grid lines
     final gridPaint = Paint()
-      ..color = Colors.grey.withOpacity(0.15)
+      ..color = Colors.grey.withValues(alpha: 0.15)
       ..strokeWidth = 1;
 
     for (int i = 0; i <= 5; i++) {
@@ -1756,8 +1753,8 @@ class LineChartPainter extends CustomPainter {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            const Color(0xFF4169E1).withOpacity(0.3),
-            const Color(0xFF4169E1).withOpacity(0.05),
+            const Color(0xFF4169E1).withValues(alpha: 0.3),
+            const Color(0xFF4169E1).withValues(alpha: 0.05),
           ],
         ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
 
