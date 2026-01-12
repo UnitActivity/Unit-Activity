@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:unit_activity/services/ukm_dashboard_service.dart';
+import 'package:unit_activity/services/dynamic_qr_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class DetailPertemuanUKMPage extends StatefulWidget {
@@ -31,6 +32,7 @@ class _DetailPertemuanUKMPageState extends State<DetailPertemuanUKMPage>
   DateTime? _qrExpiresAt;
   bool _isQRActive = false;
   bool _autoRegenerateQR = true;
+  Timer? _qrTimer;
 
   // Track attendance by user ID
   final Map<String, bool> _attendanceData = {};
@@ -65,14 +67,26 @@ class _DetailPertemuanUKMPageState extends State<DetailPertemuanUKMPage>
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _loadMembers();
+    
+    // Start auto-regenerate timer if active
+    _qrTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_isQRActive && _autoRegenerateQR && _qrExpiresAt != null) {
+        if (DateTime.now().isAfter(_qrExpiresAt!)) {
+          _generateQRCode();
+        }
+      }
+    });
   }
 
   @override
   void dispose() {
+    _qrTimer?.cancel();
     _tabController.dispose();
     _searchController.dispose();
     super.dispose();
   }
+
+  // ... (rest of _loadMembers and _filterMembers unchanged) ...
 
   Future<void> _loadMembers() async {
     setState(() => _isLoadingMembers = true);
@@ -142,15 +156,15 @@ class _DetailPertemuanUKMPageState extends State<DetailPertemuanUKMPage>
   }
 
   Future<void> _generateQRCode() async {
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final random = Random().nextInt(999999);
-    final token = '$timestamp-$random';
+    final qrCode = DynamicQRService.generatePertemuanQR(widget.pertemuan['id']);
 
-    setState(() {
-      _currentQRCode = 'MEETING_ATTENDANCE:${widget.pertemuan['id']}:$token';
-      _qrExpiresAt = DateTime.now().add(const Duration(seconds: 10));
-      _isQRActive = true;
-    });
+    if (mounted) {
+      setState(() {
+        _currentQRCode = qrCode;
+        _qrExpiresAt = DateTime.now().add(Duration(seconds: DynamicQRService.validityWindow));
+        _isQRActive = true;
+      });
+    }
   }
 
   int get _presentCount => _attendanceData.values.where((v) => v).length;
@@ -514,62 +528,66 @@ class _DetailPertemuanUKMPageState extends State<DetailPertemuanUKMPage>
   }
 
   Widget _buildKehadiranTab(bool isMobile) {
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(isMobile ? 16 : 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Search bar
-          TextField(
-            controller: _searchController,
-            onChanged: _filterMembers,
-            decoration: InputDecoration(
-              hintText: 'Cari nama atau NIM...',
-              hintStyle: GoogleFonts.inter(
-                fontSize: 14,
-                color: Colors.grey[400],
-              ),
-              prefixIcon: Icon(Icons.search_rounded, color: Colors.grey[400]),
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.grey[300]!),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.grey[300]!),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFF4169E1)),
+    return RefreshIndicator(
+      onRefresh: _loadMembers,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: EdgeInsets.all(isMobile ? 16 : 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Search bar
+            TextField(
+              controller: _searchController,
+              onChanged: _filterMembers,
+              decoration: InputDecoration(
+                hintText: 'Cari nama atau NIM...',
+                hintStyle: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: Colors.grey[400],
+                ),
+                prefixIcon: Icon(Icons.search_rounded, color: Colors.grey[400]),
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[300]!),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[300]!),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFF4169E1)),
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 16),
+            const SizedBox(height: 16),
 
-          // Members List
-          if (_isLoadingMembers)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.all(40),
-                child: CircularProgressIndicator(),
+            // Members List
+            if (_isLoadingMembers)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(40),
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            else if (_filteredMembersList.isEmpty)
+              _buildEmptyState()
+            else
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _filteredMembersList.length,
+                itemBuilder: (context, index) => _buildMemberCard(
+                  _filteredMembersList[index],
+                  index,
+                  isMobile,
+                ),
               ),
-            )
-          else if (_filteredMembersList.isEmpty)
-            _buildEmptyState()
-          else
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _filteredMembersList.length,
-              itemBuilder: (context, index) => _buildMemberCard(
-                _filteredMembersList[index],
-                index,
-                isMobile,
-              ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -904,26 +922,6 @@ class _DetailPertemuanUKMPageState extends State<DetailPertemuanUKMPage>
                       ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 16),
-              // Auto regenerate toggle
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    'Auto Regenerate:',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Switch(
-                    value: _autoRegenerateQR,
-                    onChanged: (val) => setState(() => _autoRegenerateQR = val),
-                    activeThumbColor: const Color(0xFF4169E1),
-                  ),
-                ],
               ),
               const SizedBox(height: 16),
               SizedBox(

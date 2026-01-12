@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
@@ -51,9 +51,14 @@ Future<void> main() async {
   }
 
   // Disable DevicePreview in release mode for better performance
-  // final enableDevicePreview = !kReleaseMode;
+  final enableDevicePreview = !kReleaseMode;
 
-  runApp(DevicePreview(enabled: false, builder: (context) => const MyApp()));
+   runApp(
+    DevicePreview(
+      enabled: enableDevicePreview,
+      builder: (context) => const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {

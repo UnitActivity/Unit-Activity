@@ -1137,16 +1137,19 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
       backgroundColor: Colors.grey[50],
       body: Stack(
         children: [
-          SingleChildScrollView(
-            padding: const EdgeInsets.only(
-              top: 70,
-              left: 12,
-              right: 12,
-              bottom: 80,
-            ),
-            child: _selectedUKM == null
-                ? _buildUKMListMobile()
-                : _buildUKMDetailMobile(),
+          Column(
+            children: [
+              SizedBox(height: 70),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: _selectedUKM == null
+                      ? _buildUKMListMobile()
+                      : _buildUKMDetailMobile(),
+                ),
+              ),
+              SizedBox(height: 80), // Bottom nav space
+            ],
           ),
           Positioned(
             top: 0,
@@ -2216,7 +2219,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
               ),
             ),
             Padding(
-              padding: EdgeInsets.all(isMobile ? 8 : 10),
+              padding: EdgeInsets.all(isMobile ? 4 : 10),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2224,7 +2227,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                   if (isRegistered) ...[
                     // Progress bar untuk pertemuan
                     Container(
-                      padding: EdgeInsets.all(isMobile ? 6 : 8),
+                      padding: EdgeInsets.all(isMobile ? 4 : 8),
                       decoration: BoxDecoration(
                         color: Colors.blue[50],
                         borderRadius: BorderRadius.circular(8),
@@ -2292,7 +2295,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                   ] else ...[
                     // Belum terdaftar
                     Container(
-                      padding: EdgeInsets.all(isMobile ? 6 : 8),
+                      padding: EdgeInsets.all(isMobile ? 4 : 8),
                       decoration: BoxDecoration(
                         color: Colors.grey[100],
                         borderRadius: BorderRadius.circular(8),
@@ -2335,11 +2338,11 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                       ),
                     ),
                   ],
-                  SizedBox(height: isMobile ? 6 : 8),
+                  SizedBox(height: isMobile ? 4 : 8),
                   Container(
                     padding: EdgeInsets.symmetric(
                       horizontal: isMobile ? 10 : 12,
-                      vertical: isMobile ? 6 : 8,
+                      vertical: isMobile ? 4 : 8,
                     ),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
@@ -2364,7 +2367,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                           isRegistered ? 'Terdaftar' : 'Belum Terdaftar',
                           style: GoogleFonts.poppins(
                             color: Colors.white,
-                            fontSize: isMobile ? 11 : 13,
+                            fontSize: isMobile ? 10 : 13,
                             fontWeight: FontWeight.w600,
                             letterSpacing: 0.5,
                           ),
@@ -2578,50 +2581,145 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
 
   // ==================== UKM DETAIL VIEW - MOBILE ====================
   Widget _buildUKMDetailMobile() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(12),
+    return DefaultTabController(
+      length: 2,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          TextButton.icon(
-            onPressed: _backToList,
-            icon: const Icon(Icons.arrow_back, size: 16),
-            label: const Text('Kembali', style: TextStyle(fontSize: 12)),
-            style: TextButton.styleFrom(foregroundColor: Colors.black87),
+          // Header Section (Fixed)
+          Row(
+            children: [
+              TextButton.icon(
+                onPressed: _backToList,
+                icon: const Icon(Icons.arrow_back, size: 16),
+                label: const Text('Kembali', style: TextStyle(fontSize: 12)),
+                style: TextButton.styleFrom(foregroundColor: Colors.black87),
+              ),
+            ],
           ),
-          const SizedBox(height: 8),
+          
+          // UKM Info Card (Compact)
           Container(
             width: double.infinity,
-            height: 180,
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.grey[200],
+              color: Colors.white,
               borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _buildUKMLogo(_selectedUKM!['logo'], size: 80),
-                  const SizedBox(height: 8),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    child: Text(
-                      _selectedUKM!['name'],
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
+            child: Row(
+              children: [
+                _buildUKMLogo(_selectedUKM!['logo'], size: 60),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _selectedUKM!['name'],
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                      const SizedBox(height: 8),
+                      // Action Button (Daftar/Keluar)
+                       if (!_selectedUKM!['isRegistered'])
+                        SizedBox(
+                          height: 32,
+                          child: ElevatedButton(
+                            onPressed: () => _showRegisterDialog(_selectedUKM!),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue[700],
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: const Text('Daftar', style: TextStyle(fontSize: 12)),
+                          ),
+                        )
+                      else
+                        SizedBox(
+                          height: 32,
+                          child: OutlinedButton(
+                            onPressed: () => _unjoinUKM(_selectedUKM!),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.red[700],
+                              side: BorderSide(color: Colors.red[200]!),
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: const Text('Keluar', style: TextStyle(fontSize: 12)),
+                          ),
+                        ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
+          
+          const SizedBox(height: 16),
+
+          // Tab Bar
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey[200]!),
+            ),
+            child: TabBar(
+              labelColor: Colors.blue[700],
+              unselectedLabelColor: Colors.grey[600],
+              indicatorColor: Colors.blue[700],
+              indicatorSize: TabBarIndicatorSize.label,
+              labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              tabs: const [
+                Tab(text: 'Pertemuan'),
+                Tab(text: 'Event'),
+              ],
+            ),
+          ),
+          
           const SizedBox(height: 12),
-          _buildDetailCard(isMobile: true),
+
+          // Tab View
+          Expanded(
+            child: TabBarView(
+              children: [
+                // Pertemuan Tab
+                SingleChildScrollView(
+                  padding: const EdgeInsets.only(bottom: 20),
+                  child: Column(
+                     crossAxisAlignment: CrossAxisAlignment.start,
+                     children: [
+                        if (_currentPeriode != null) _buildPeriodeSection(isMobile: true),
+                        const SizedBox(height: 12),
+                        _buildPertemuanSection(isMobile: true),
+                     ],
+                  ),
+                ),
+                
+                // Event Tab
+                SingleChildScrollView(
+                  padding: const EdgeInsets.only(bottom: 20),
+                  child: _buildEventsSection(isMobile: true),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -2703,38 +2801,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
             style: TextButton.styleFrom(foregroundColor: Colors.black87),
           ),
           const SizedBox(height: 20),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 300,
-                height: 300,
-                decoration: BoxDecoration(
-                  color: Colors.grey[200],
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _buildUKMLogo(_selectedUKM!['logo'], size: 120),
-                      const SizedBox(height: 16),
-                      Text(
-                        _selectedUKM!['name'],
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 40),
-              Expanded(child: _buildDetailCard(isMobile: false)),
-            ],
-          ),
+          _buildDetailCard(isMobile: false),
         ],
       ),
     );
@@ -2742,116 +2809,203 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
 
   // ==================== DETAIL CARD ====================
   Widget _buildDetailCard({required bool isMobile}) {
-    return Container(
-      padding: EdgeInsets.all(isMobile ? 12 : 20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+    return DefaultTabController(
+      length: 2,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Detail',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              if (!_selectedUKM!['isRegistered'])
-                SizedBox(
-                  width: isMobile ? 80 : 120,
-                  child: ElevatedButton(
-                    onPressed: () => _showRegisterDialog(_selectedUKM!),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue[700],
-                      foregroundColor: Colors.white,
-                      padding: EdgeInsets.symmetric(
-                        vertical: isMobile ? 6 : 12,
+          // TOP SECTION: Photo + Info
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header: Title + Button
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              _selectedUKM!['name'],
+                              style: GoogleFonts.poppins(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey[900],
+                              ),
+                            ),
+                          ),
+                          if (!_selectedUKM!['isRegistered'])
+                            ElevatedButton(
+                              onPressed: () => _showRegisterDialog(_selectedUKM!),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blue[700],
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 24,
+                                  vertical: 16,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              child: const Text(
+                                'Daftar',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            )
+                          else
+                            ElevatedButton(
+                              onPressed: () => _unjoinUKM(_selectedUKM!),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red[50],
+                                foregroundColor: Colors.red[700],
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 24,
+                                  vertical: 16,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  side: BorderSide(color: Colors.red[300]!),
+                                ),
+                              ),
+                              child: const Text(
+                                'Keluar',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                      
+                      const SizedBox(height: 24),
+                      
+                      // Details Grid/Row
+                      Wrap(
+                        spacing: 24,
+                        runSpacing: 16,
+                        children: [
+                           _buildInfoItem(Icons.calendar_today, 'Jadwal', _selectedUKM!['jadwal'] ?? '-'),
+                           _buildInfoItem(Icons.access_time, 'Waktu', _selectedUKM!['time'] ?? '-'),
+                           _buildInfoItem(Icons.location_on, 'Lokasi', _selectedUKM!['location'] ?? '-'),
+                        ],
                       ),
-                    ),
-                    child: Text(
-                      'Daftar',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: isMobile ? 11 : 14,
+                      
+                      const SizedBox(height: 24),
+                      
+                      const Text(
+                        'Deskripsi',
+                         style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                       ),
-                    ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _selectedUKM!['description'] ?? 'Tidak ada deskripsi',
+                        style: TextStyle(color: Colors.grey[700], height: 1.5),
+                         maxLines: 3,
+                         overflow: TextOverflow.ellipsis,
+                      ),
+                      
+                      // Periode Section (Moved here)
+                      if (_currentPeriode != null) ...[
+                        const SizedBox(height: 24),
+                        _buildPeriodeSection(isMobile: isMobile),
+                      ],
+                    ],
                   ),
-                )
-              else
-                ElevatedButton(
-                  onPressed: () => _unjoinUKM(_selectedUKM!),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red[50],
-                    foregroundColor: Colors.red[700],
-                    padding: EdgeInsets.symmetric(
-                      horizontal: isMobile ? 8 : 12,
-                      vertical: isMobile ? 6 : 12,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      side: BorderSide(color: Colors.red[300]!),
-                    ),
-                  ),
-                  child: Text(
-                    'Keluar',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: isMobile ? 11 : 14,
-                    ),
+          ),
+          
+          const SizedBox(height: 32),
+
+          // TABS SECTION
+          Container(
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: Colors.grey, width: 0.5)),
+            ),
+            child: TabBar(
+              labelColor: Colors.blue[700],
+              unselectedLabelColor: Colors.grey[600],
+              indicatorColor: Colors.blue[700],
+              indicatorWeight: 3,
+              labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              tabs: const [
+                Tab(text: 'Pertemuan'),
+                Tab(text: 'Event'),
+              ],
+            ),
+          ),
+          
+          const SizedBox(height: 24),
+          
+          // TAB CONTENT
+          SizedBox(
+            height: 600,
+            child: TabBarView(
+              children: [
+                SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                       // Period removed from here
+                       const SizedBox(height: 16),
+                       _buildPertemuanSection(isMobile: isMobile),
+                    ],
                   ),
                 ),
-            ],
+                SingleChildScrollView(
+                  child: _buildEventsSection(isMobile: isMobile),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 12),
-          _buildDetailSection(
-            title: 'Jadwal',
-            items: [
-              {'icon': Icons.calendar_today, 'text': _selectedUKM!['jadwal']},
-              {'icon': Icons.access_time, 'text': _selectedUKM!['time']},
-            ],
-            isMobile: isMobile,
-          ),
-          const SizedBox(height: 12),
-          _buildDetailSection(
-            title: 'Lokasi',
-            items: [
-              {'icon': Icons.location_on, 'text': _selectedUKM!['location']},
-            ],
-            isMobile: isMobile,
-          ),
-          const SizedBox(height: 12),
-          _buildDetailSection(
-            title: 'Kontak',
-            items: _selectedUKM!['kontak'] as List,
-            isMobile: isMobile,
-          ),
-          // Periode Section
-          if (_currentPeriode != null) ...[
-            const SizedBox(height: 12),
-            _buildPeriodeSection(isMobile: isMobile),
-          ],
-          const SizedBox(height: 24),
-          // Kegiatan Pertemuan Section
-          _buildPertemuanSection(isMobile: isMobile),
-          const SizedBox(height: 24),
-          // Event UKM Section
-          _buildEventsSection(isMobile: isMobile),
         ],
       ),
     );
   }
+  
+  // Helper for Top Info
+  Widget _buildInfoItem(IconData icon, String label, String value) {
+     return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+           Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                 Icon(icon, size: 16, color: Colors.grey[600]),
+                 const SizedBox(width: 8),
+                 Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+              ],
+           ),
+           const SizedBox(height: 4),
+           Text(value, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+        ],
+      );
+   }
+
+
+  // Helper method for unused sections in new layout
+  Widget _buildDetailSectionNull({
+    required String title,
+    required List<dynamic> items,
+    required bool isMobile,
+  }) {
+    return const SizedBox.shrink();
+  }
+
 
   Widget _buildPertemuanSection({required bool isMobile}) {
     return Column(

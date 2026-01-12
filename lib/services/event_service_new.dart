@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:unit_activity/services/dynamic_qr_service.dart';
 
 class EventService {
   final SupabaseClient _supabase = Supabase.instance.client;
@@ -251,6 +252,7 @@ class EventService {
     }
   }
 
+
   /// Generate QR code for event attendance (valid for 10 seconds)
   Future<Map<String, dynamic>> generateAttendanceQR(String eventId) async {
     try {
@@ -258,7 +260,10 @@ class EventService {
       print('Event ID: $eventId');
 
       final now = DateTime.now();
-      final qrCode = '${eventId}_${now.millisecondsSinceEpoch}';
+      
+      // Use DynamicQRService to generate valid format
+      final qrCode = DynamicQRService.generateEventQR(eventId);
+      
       // Format time as HH:mm:ss.SSS for PostgreSQL time type
       final qrTimeForDb =
           '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}.${now.millisecond.toString().padLeft(3, '0')}';
@@ -272,7 +277,7 @@ class EventService {
       return {
         'qr_code': qrCode,
         'qr_time': now.toIso8601String(),
-        'expires_at': now.add(const Duration(seconds: 10)).toIso8601String(),
+        'expires_at': now.add(Duration(seconds: DynamicQRService.validityWindow)).toIso8601String(),
       };
     } catch (e) {
       print('❌ Error generating QR code: $e');

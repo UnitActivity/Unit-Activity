@@ -44,7 +44,7 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
   String? _currentQRCode;
   DateTime? _qrExpiresAt;
   bool _isQRActive = false;
-  bool _autoRegenerateQR = false;
+  // Auto regenerate is always enabled
 
   @override
   void initState() {
@@ -1258,9 +1258,12 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
   }
 
   Widget _buildPesertaTab(bool isDesktop) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Container(
+    return RefreshIndicator(
+      onRefresh: _loadEventDetails,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(24),
+        child: Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
           color: Colors.white,
@@ -1424,8 +1427,9 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildPesertaItem(int number, Map<String, dynamic>? user) {
     return Container(
@@ -2566,15 +2570,9 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
                             builder: (context, value, child) {
                               if (value == 0) {
                                 Future.microtask(() async {
-                                  if (mounted && _autoRegenerateQR) {
+                                  if (mounted) {
                                     // Auto regenerate QR code
                                     await _generateQRCode();
-                                  } else {
-                                    setState(() {
-                                      _isQRActive = false;
-                                      _currentQRCode = null;
-                                      _qrExpiresAt = null;
-                                    });
                                   }
                                 });
                               }
@@ -2614,9 +2612,7 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
                                   const SizedBox(height: 8),
                                   Text(
                                     value <= 3
-                                        ? (_autoRegenerateQR
-                                              ? 'QR baru dalam $value detik'
-                                              : 'Kadaluarsa dalam $value detik')
+                                        ? 'QR baru dalam $value detik'
                                         : 'Berlaku $value detik lagi',
                                     style: GoogleFonts.inter(
                                       fontSize: 14,
@@ -2633,29 +2629,6 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
                             },
                           ),
                         const SizedBox(height: 16),
-                        // Auto regenerate toggle
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              'Auto regenerate',
-                              style: GoogleFonts.inter(
-                                fontSize: 14,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Switch(
-                              value: _autoRegenerateQR,
-                              onChanged: (value) {
-                                setState(() {
-                                  _autoRegenerateQR = value;
-                                });
-                              },
-                              activeThumbColor: const Color(0xFF4169E1),
-                            ),
-                          ],
-                        ),
                         const SizedBox(height: 8),
                         // Stop button
                         TextButton.icon(
@@ -2664,7 +2637,6 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
                               _isQRActive = false;
                               _currentQRCode = null;
                               _qrExpiresAt = null;
-                              _autoRegenerateQR = false;
                             });
                           },
                           icon: const Icon(

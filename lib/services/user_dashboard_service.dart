@@ -688,9 +688,21 @@ class UserDashboardService {
       final ukmIds = userUkms.map((e) => e['id_ukm']).toList();
       print('UKM IDs to filter: $ukmIds');
 
-      // Get all events from user's joined UKMs that have ended
+      // Get all events from user's joined UKMs that have ended OR user has attended
       final todayStr = DateTime.now().toIso8601String().split('T')[0];
-      final eventsResponse = await _supabase
+      
+      // 1. Get events the user has physically attended (absen_event)
+      final attendedResponse = await _supabase
+          .from('absen_event')
+          .select('id_event')
+          .eq('id_user', userId);
+          
+      final attendedEventIds = (attendedResponse as List)
+          .map((e) => e['id_event'] as String)
+          .toList();
+
+      // 2. Fetch Past Events (joined UKMs, ended)
+      final pastEventsResponse = await _supabase
           .from('events')
           .select('''
             id_events,
@@ -707,18 +719,54 @@ class UserDashboardService {
           .lt('tanggal_akhir', todayStr)
           .order('tanggal_akhir', ascending: false);
 
-      print('✅ Found ${(eventsResponse as List).length} past events');
+      // 3. Fetch Attended Events (if not already in past events)
+      // We fetch details for attended events regardless of date
+      List<dynamic> attendedEventsDetails = [];
+      if (attendedEventIds.isNotEmpty) {
+         attendedEventsDetails = await _supabase
+          .from('events')
+          .select('''
+            id_events,
+            nama_event,
+            deskripsi,
+            lokasi,
+            tanggal_mulai,
+            tanggal_akhir,
+            logbook,
+            gambar,
+            ukm(id_ukm, nama_ukm)
+          ''')
+          .inFilter('id_events', attendedEventIds)
+          .order('tanggal_akhir', ascending: false);
+      }
+
+      // 4. Merge and Deduplicate
+      // Use a Map to deduplicate by id_events
+      final Map<String, Map<String, dynamic>> mergedEvents = {};
+      
+      for (var event in pastEventsResponse) {
+        mergedEvents[event['id_events']] = event;
+      }
+      
+      for (var event in attendedEventsDetails) {
+        mergedEvents[event['id_events']] = event;
+      }
+      
+      final eventsResponse = mergedEvents.values.toList();
+
+      print('✅ Found ${eventsResponse.length} total history events (Past + Attended)');
 
       // Get user's attendance records
-      final eventIds = eventsResponse.map((e) => e['id_events']).toList();
+      // We essentially just did this to get IDs, but we need the details (jam/created_at) again for the map
+      final allEventIds = eventsResponse.map((e) => e['id_events']).toList();
       Map<String, Map<String, dynamic>> attendanceMap = {};
 
-      if (eventIds.isNotEmpty) {
+      if (allEventIds.isNotEmpty) {
         final attendanceData = await _supabase
             .from('absen_event')
             .select('id_event, jam, created_at')
             .eq('id_user', userId)
-            .inFilter('id_event', eventIds);
+            .inFilter('id_event', allEventIds);
 
         for (var item in attendanceData) {
           attendanceMap[item['id_event']] = {
@@ -832,7 +880,7 @@ class UserDashboardService {
       final ukmIds = userUkms.map((e) => e['id_ukm']).toList();
       print('UKM IDs to filter: $ukmIds');
 
-      // Build query for pertemuan
+      // Build query for pertemuan (Joined UKMs)
       var query = _supabase
           .from('pertemuan')
           .select('''
@@ -854,7 +902,66 @@ class UserDashboardService {
         query = query.gte('tanggal', todayStr);
       }
 
-      final pertemuanResponse = await query.order('tanggal', ascending: false);
+      final joinedPertemuanResponse = await query.order('tanggal', ascending: false);
+
+      // --- NEW: Also fetch meetings the user has explicitly attended ---
+      // This ensures realtime history even if not a member or logic changes
+      List<dynamic> attendedPertemuanDetails = [];
+      
+      // 1. Get attended pertemuan IDs
+      final attendedResponse = await _supabase
+          .from('absen_pertemuan')
+          .select('id_pertemuan')
+          .eq('id_user', userId);
+          
+      final attendedIds = (attendedResponse as List)
+          .map((e) => e['id_pertemuan'] as String)
+          .toSet() // Deduplicate locally
+          .toList();
+
+      if (attendedIds.isNotEmpty) {
+        // 2. Fetch details for these meetings
+        var attendedQuery = _supabase
+          .from('pertemuan')
+          .select('''
+            id_pertemuan,
+            topik,
+            deskripsi,
+            tanggal,
+            jam_mulai,
+            jam_akhir,
+            lokasi,
+            created_at,
+            ukm(id_ukm, nama_ukm, logo)
+          ''')
+          .inFilter('id_pertemuan', attendedIds);
+          
+        // Apply upcoming logic if needed (usually History wants all, but if upcomingOnly is true, we respect it)
+        if (upcomingOnly) {
+           final todayStr = DateTime.now().toIso8601String().split('T')[0];
+           attendedQuery = attendedQuery.gte('tanggal', todayStr);
+        }
+        
+        attendedPertemuanDetails = await attendedQuery.order('tanggal', ascending: false);
+      }
+
+      // --- MERGE & DEDUPLICATE ---
+      final Map<String, dynamic> mergedMap = {};
+      
+      // Add joined UKM meetings
+      for (var p in joinedPertemuanResponse) {
+        mergedMap[p['id_pertemuan']] = p;
+      }
+      
+      // Add/Overwrite with attended meetings (ensures they are present)
+      for (var p in attendedPertemuanDetails) {
+        mergedMap[p['id_pertemuan']] = p;
+      }
+      
+      final pertemuanResponse = mergedMap.values.toList()
+        ..sort((a, b) => (b['tanggal'] ?? '').compareTo(a['tanggal'] ?? '')); // Re-sort by date descending
+
+
 
       print('✅ Found ${(pertemuanResponse as List).length} pertemuan');
 

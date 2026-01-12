@@ -1,11 +1,13 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dynamic_qr_service.dart';
+import 'custom_auth_service.dart';
 
 class AttendanceService {
   final SupabaseClient _supabase = Supabase.instance.client;
+  final CustomAuthService _authService = CustomAuthService();
 
   /// Get current user ID
-  String? get currentUserId => _supabase.auth.currentUser?.id;
+  String? get currentUserId => _authService.currentUserId;
 
   /// Record attendance for event via QR scan
   /// User must be registered in peserta_event before attendance can be recorded
@@ -61,7 +63,7 @@ class AttendanceService {
       // Check if already attended
       final existingAttendance = await _supabase
           .from('absen_event')
-          .select('id_absen')
+          .select('id_user')
           .eq('id_event', eventId)
           .eq('id_user', userId)
           .maybeSingle();
@@ -76,13 +78,18 @@ class AttendanceService {
 
       // Record attendance
       final now = DateTime.now();
+      
+      print('DEBUG: Inserting event attendance to database...');
+      print('  - id_event: $eventId');
+      print('  - id_user: $userId');
+      print('  - status: hadir');
+      
       await _supabase.from('absen_event').insert({
         'id_event': eventId,
         'id_user': userId,
         'jam':
             '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
         'status': 'hadir',
-        'created_at': now.toIso8601String(),
       });
 
       print('✅ Attendance recorded successfully');
@@ -90,13 +97,14 @@ class AttendanceService {
       return {
         'success': true,
         'message': 'Berhasil absen di event "${eventResponse['nama_event']}"!',
-        'event_name': eventResponse['nama_event'],
+        'event_name': eventResponse['nama_event']?.toString() ?? 'Event',
         'event_id': eventId,
         'time':
             '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
       };
-    } catch (e) {
+    } catch (e, stackTrace) {
       print('❌ Error recording event attendance: $e');
+      print('Stack trace: $stackTrace');
       return {
         'success': false,
         'message': 'Gagal mencatat kehadiran: ${e.toString()}',
@@ -135,21 +143,28 @@ class AttendanceService {
       }
 
       // Check if user is member of the UKM
-      final ukmId = pertemuanResponse['id_ukm'];
-      final isMember = await _isUserMemberOfUkm(userId, ukmId);
+      final ukmId = pertemuanResponse['id_ukm']?.toString();
+      
+      if (ukmId == null || ukmId.isEmpty) {
+        print('WARNING: Data pertemuan tidak memiliki ID UKM. Melewati pengecekan anggota.');
+        // Allow to proceed even if UKM ID is missing (bypass membership check)
+      } else {
+        // Only check membership if UKM ID is available
+        final isMember = await _isUserMemberOfUkm(userId, ukmId);
 
-      if (!isMember) {
-        return {
-          'success': false,
-          'message':
-              'Anda bukan anggota UKM ini. Hanya anggota yang dapat absen.',
-        };
+        if (!isMember) {
+          return {
+            'success': false,
+            'message':
+                'Anda bukan anggota UKM ini. Hanya anggota yang dapat absen.',
+          };
+        }
       }
 
       // Check if already attended
       final existingAttendance = await _supabase
           .from('absen_pertemuan')
-          .select('id_absen')
+          .select('id_user')
           .eq('id_pertemuan', pertemuanId)
           .eq('id_user', userId)
           .maybeSingle();
@@ -164,13 +179,17 @@ class AttendanceService {
 
       // Record attendance
       final now = DateTime.now();
+      
+      print('DEBUG: Inserting pertemuan attendance to database...');
+      print('  - id_pertemuan: $pertemuanId');
+      print('  - id_user: $userId');
+      
       await _supabase.from('absen_pertemuan').insert({
         'id_pertemuan': pertemuanId,
         'id_user': userId,
         'jam':
             '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
         'status': 'hadir',
-        'created_at': now.toIso8601String(),
       });
 
       print('✅ Pertemuan attendance recorded successfully');
@@ -179,13 +198,14 @@ class AttendanceService {
         'success': true,
         'message':
             'Berhasil absen di pertemuan "${pertemuanResponse['topik']}"!',
-        'pertemuan_name': pertemuanResponse['topik'],
+        'pertemuan_name': pertemuanResponse['topik']?.toString() ?? 'Pertemuan',
         'pertemuan_id': pertemuanId,
         'time':
             '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
       };
-    } catch (e) {
+    } catch (e, stackTrace) {
       print('❌ Error recording pertemuan attendance: $e');
+      print('Stack trace: $stackTrace');
       return {
         'success': false,
         'message': 'Gagal mencatat kehadiran: ${e.toString()}',
@@ -222,25 +242,42 @@ class AttendanceService {
         return {'success': false, 'message': message, 'error_type': errorType};
       }
 
-      // QR code is valid, extract data
-      final type = validation['type'] as String;
-      final id = validation['id'] as String;
-      final ageSeconds = validation['age_seconds'] as int;
+      // QR code is valid, extract data with null safety
+      print('DEBUG: extracting validation data...');
+      final type = validation['type']?.toString() ?? '';
+      final id = validation['id']?.toString() ?? '';
+      final ageSeconds = (validation['age_seconds'] as int?) ?? 0;
+      
+      print('DEBUG: Extracted type: "$type", id: "$id"');
+
+      // Validate extracted values
+      if (type.isEmpty || id.isEmpty) {
+        print('DEBUG: Type or ID is empty!');
+        return {
+          'success': false,
+          'message': 'QR Code tidak mengandung data yang diperlukan.',
+          'error_type': 'INVALID_DATA',
+        };
+      }
 
       print('✅ QR Code valid - Type: $type, ID: $id, Age: ${ageSeconds}s');
 
       // Process based on type
       if (type.toUpperCase().contains('EVENT')) {
+        print('DEBUG: Processing EVENT attendance...');
         return await recordEventAttendance(eventId: id, qrCode: qrCode);
       } else if (type.toUpperCase().contains('PERTEMUAN') ||
           type.toUpperCase().contains('MEETING')) {
+        print('DEBUG: Processing PERTEMUAN attendance...');
         return await recordPertemuanAttendance(pertemuanId: id, qrCode: qrCode);
       } else {
         // Try to auto-detect
+        print('DEBUG: Processing AUTO-DETECT attendance...');
         return await _autoDetectAndRecordAttendance(qrCode, id);
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       print('❌ Error processing QR code: $e');
+      print('Stack trace: $stackTrace');
       return {
         'success': false,
         'message': 'Gagal memproses QR Code: ${e.toString()}',
@@ -283,7 +320,9 @@ class AttendanceService {
   }
 
   /// Check if user is member of UKM (active status only)
-  Future<bool> _isUserMemberOfUkm(String userId, String ukmId) async {
+  Future<bool> _isUserMemberOfUkm(String? userId, String? ukmId) async {
+    if (userId == null || ukmId == null) return false;
+    
     try {
       // Check for both 'aktif' and 'active' status values
       final response = await _supabase

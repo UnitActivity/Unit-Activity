@@ -2042,13 +2042,38 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: Text(
-                          item['title'],
-                          style: GoogleFonts.poppins(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey[800],
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                             // TYPE INDICATOR
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: (item['color'] as Color).withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                (item['type'] ?? 'Event').toString().toUpperCase(),
+                                style: GoogleFonts.inter(
+                                  fontSize: 8,
+                                  fontWeight: FontWeight.bold,
+                                  color: (item['color'] as Color),
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              item['title'],
+                              style: GoogleFonts.poppins(
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey[800],
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -2157,13 +2182,38 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: Text(
-                          item['title'],
-                          style: GoogleFonts.poppins(
-                            fontSize: 17,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey[800],
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: (item['color'] as Color).withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                (item['type'] ?? 'Event').toString().toUpperCase(),
+                                style: GoogleFonts.inter(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: (item['color'] as Color),
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              item['title'],
+                              style: GoogleFonts.poppins(
+                                fontSize: 17,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey[800],
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                         ),
                       ),
                     ],
