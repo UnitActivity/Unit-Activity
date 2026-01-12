@@ -142,13 +142,13 @@ class _DetailPertemuanUKMPageState extends State<DetailPertemuanUKMPage>
   }
 
   Future<void> _generateQRCode() async {
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final random = Random().nextInt(999999);
-    final token = '$timestamp-$random';
+    final qrCode = DynamicQRService.generatePertemuanQR(widget.pertemuan['id']);
 
     setState(() {
-      _currentQRCode = 'MEETING_ATTENDANCE:${widget.pertemuan['id']}:$token';
-      _qrExpiresAt = DateTime.now().add(const Duration(seconds: 10));
+      _currentQRCode = qrCode;
+      _qrExpiresAt = DateTime.now().add(
+        Duration(seconds: DynamicQRService.validityWindow),
+      );
       _isQRActive = true;
     });
   }
