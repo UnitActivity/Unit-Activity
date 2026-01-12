@@ -158,6 +158,97 @@ class DashboardService {
     }
   }
 
+  /// Get event leaderboard with participant counts (filterable by period)
+  Future<Map<String, dynamic>> getEventLeaderboard([
+    String period = '6_bulan',
+  ]) async {
+    try {
+      final now = DateTime.now();
+      DateTime? startDate;
+
+      // Calculate start date based on period
+      switch (period) {
+        case 'hari_ini':
+          startDate = DateTime(now.year, now.month, now.day);
+          break;
+        case 'minggu_ini':
+          startDate = now.subtract(Duration(days: now.weekday - 1));
+          startDate = DateTime(startDate.year, startDate.month, startDate.day);
+          break;
+        case 'bulan_ini':
+          startDate = DateTime(now.year, now.month, 1);
+          break;
+        case '3_bulan':
+          startDate = DateTime(now.year, now.month - 3, 1);
+          break;
+        case '6_bulan':
+          startDate = DateTime(now.year, now.month - 6, 1);
+          break;
+        case 'tahun_ini':
+          startDate = DateTime(now.year, 1, 1);
+          break;
+        default:
+          startDate = null; // No filter - all events
+      }
+
+      // Fetch events with UKM info (with optional date filter)
+      var query = _supabase
+          .from('events')
+          .select('id_events, nama_event, tanggal_mulai, id_ukm, ukm(nama_ukm)')
+          .eq('status', true);
+
+      if (startDate != null) {
+        query = query.gte('tanggal_mulai', startDate.toIso8601String());
+      }
+
+      final eventsResponse = await query
+          .order('tanggal_mulai', ascending: false)
+          .limit(50);
+
+      // Fetch participant counts from absen_event
+      final absenResponse = await _supabase
+          .from('absen_event')
+          .select('id_event');
+
+      // Count participants per event
+      final participantCounts = <String, int>{};
+      for (var absen in (absenResponse as List)) {
+        final eventId = absen['id_event'] as String?;
+        if (eventId != null) {
+          participantCounts[eventId] = (participantCounts[eventId] ?? 0) + 1;
+        }
+      }
+
+      // Build leaderboard data
+      final leaderboard = <Map<String, dynamic>>[];
+      for (var event in (eventsResponse as List)) {
+        final eventId = event['id_events'] as String;
+        final participants = participantCounts[eventId] ?? 0;
+
+        leaderboard.add({
+          'id_events': eventId,
+          'nama_event': event['nama_event'] ?? '-',
+          'nama_ukm': event['ukm']?['nama_ukm'] ?? '-',
+          'participants': participants,
+        });
+      }
+
+      // Sort by participants descending
+      leaderboard.sort(
+        (a, b) =>
+            (b['participants'] as int).compareTo(a['participants'] as int),
+      );
+
+      // Take top 10
+      final topLeaderboard = leaderboard.take(10).toList();
+
+      return {'success': true, 'data': topLeaderboard};
+    } catch (e) {
+      print('Error fetching event leaderboard: $e');
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
   /// Get UKM ranking by member count
   Future<Map<String, dynamic>> getUkmRanking() async {
     try {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:unit_activity/widgets/admin_sidebar.dart';
 import 'package:unit_activity/widgets/admin_header.dart';
 import 'package:unit_activity/admin/pengguna.dart';
@@ -36,6 +37,7 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
   List<dynamic>? _recentActivities;
   List<dynamic>? _upcomingEvents;
   List<dynamic>? _alerts;
+  List<dynamic>? _eventLeaderboard;
 
   // Filter states
   String _eventTrendPeriod = 'hari_ini';
@@ -62,6 +64,7 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
       _dashboardService.getRecentActivities(),
       _dashboardService.getUpcomingEvents(),
       _dashboardService.getAlerts(),
+      _dashboardService.getEventLeaderboard(_eventTrendPeriod),
     ]);
 
     if (mounted) {
@@ -101,16 +104,23 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
           _alerts = results[6]['data'];
         }
 
+        // Event leaderboard
+        if (results[7]['success'] == true) {
+          _eventLeaderboard = results[7]['data'];
+        }
+
         _isLoadingStats = false;
       });
     }
   }
 
   Future<void> _reloadEventTrend() async {
-    final result = await _dashboardService.getEventsByMonth(_eventTrendPeriod);
+    final result = await _dashboardService.getEventLeaderboard(
+      _eventTrendPeriod,
+    );
     if (mounted && result['success'] == true) {
       setState(() {
-        _eventsByMonth = result['data'];
+        _eventLeaderboard = result['data'];
       });
     }
   }
@@ -1266,12 +1276,9 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
   }
 
   Widget _buildEventChart(bool isMobile) {
-    if (_eventsByMonth == null || _eventsByMonth!.isEmpty) {
+    if (_eventLeaderboard == null || _eventLeaderboard!.isEmpty) {
       return _buildEmptyCard('Tidak ada data event', isMobile);
     }
-
-    final sortedEntries = _eventsByMonth!.entries.toList()
-      ..sort((a, b) => a.key.compareTo(b.key));
 
     return Container(
       padding: EdgeInsets.all(isMobile ? 12 : 16),
@@ -1280,62 +1287,187 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Column(
-        children: sortedEntries.map((entry) {
-          final month = entry.key;
-          final count = entry.value as int;
-          final maxCount = sortedEntries
-              .map((e) => e.value as int)
-              .reduce((a, b) => a > b ? a : b);
-          final percentage = maxCount > 0 ? count / maxCount : 0.0;
-
-          return Padding(
-            padding: EdgeInsets.only(bottom: isMobile ? 8 : 10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Table Header
+          Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: isMobile ? 8 : 12,
+              vertical: isMobile ? 8 : 10,
+            ),
+            decoration: BoxDecoration(
+              color: const Color(0xFF4169E1).withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      month,
-                      style: GoogleFonts.inter(
-                        fontSize: isMobile ? 12 : 13,
-                        color: Colors.grey[700],
-                      ),
+                SizedBox(
+                  width: isMobile ? 35 : 45,
+                  child: Text(
+                    'No',
+                    style: GoogleFonts.inter(
+                      fontSize: isMobile ? 11 : 12,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF4169E1),
                     ),
-                    Text(
-                      '$count events',
-                      style: GoogleFonts.inter(
-                        fontSize: isMobile ? 12 : 13,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87,
-                      ),
-                    ),
-                  ],
+                    textAlign: TextAlign.center,
+                  ),
                 ),
-                const SizedBox(height: 4),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: percentage,
-                    backgroundColor: Colors.grey[200],
-                    valueColor: const AlwaysStoppedAnimation<Color>(
-                      Color(0xFF4169E1),
+                Expanded(
+                  flex: 2,
+                  child: Text(
+                    'Nama UKM',
+                    style: GoogleFonts.inter(
+                      fontSize: isMobile ? 11 : 12,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF4169E1),
                     ),
-                    minHeight: 8,
+                  ),
+                ),
+                Expanded(
+                  flex: 3,
+                  child: Text(
+                    'Nama Event',
+                    style: GoogleFonts.inter(
+                      fontSize: isMobile ? 11 : 12,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF4169E1),
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: isMobile ? 60 : 80,
+                  child: Text(
+                    'Peserta',
+                    style: GoogleFonts.inter(
+                      fontSize: isMobile ? 11 : 12,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF4169E1),
+                    ),
+                    textAlign: TextAlign.center,
                   ),
                 ),
               ],
             ),
-          );
-        }).toList(),
+          ),
+          const SizedBox(height: 8),
+          // Table Rows
+          ..._eventLeaderboard!.asMap().entries.map((entry) {
+            final index = entry.key;
+            final event = entry.value;
+            final rank = index + 1;
+
+            // Ranking badge colors for top 3
+            Color? badgeColor;
+            if (rank == 1) badgeColor = const Color(0xFFFFD700); // Gold
+            if (rank == 2) badgeColor = const Color(0xFFC0C0C0); // Silver
+            if (rank == 3) badgeColor = const Color(0xFFCD7F32); // Bronze
+
+            return Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: isMobile ? 8 : 12,
+                vertical: isMobile ? 10 : 12,
+              ),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(color: Colors.grey[200]!, width: 1),
+                ),
+              ),
+              child: Row(
+                children: [
+                  // Rank number with badge for top 3
+                  SizedBox(
+                    width: isMobile ? 35 : 45,
+                    child: badgeColor != null
+                        ? Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: badgeColor,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Text(
+                              '$rank',
+                              style: GoogleFonts.inter(
+                                fontSize: isMobile ? 11 : 12,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          )
+                        : Text(
+                            '$rank',
+                            style: GoogleFonts.inter(
+                              fontSize: isMobile ? 12 : 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[700],
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                  ),
+                  // UKM Name
+                  Expanded(
+                    flex: 2,
+                    child: Text(
+                      event['nama_ukm'] ?? '-',
+                      style: GoogleFonts.inter(
+                        fontSize: isMobile ? 11 : 12,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey[700],
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  // Event Name
+                  Expanded(
+                    flex: 3,
+                    child: Text(
+                      event['nama_event'] ?? '-',
+                      style: GoogleFonts.inter(
+                        fontSize: isMobile ? 11 : 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  // Participants count
+                  SizedBox(
+                    width: isMobile ? 60 : 80,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF4169E1).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${event['participants'] ?? 0}',
+                        style: GoogleFonts.inter(
+                          fontSize: isMobile ? 11 : 12,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF4169E1),
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
       ),
     );
   }
@@ -1437,6 +1569,16 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
     final sortedEntries = _followerTrend!.entries.toList()
       ..sort((a, b) => a.key.compareTo(b.key));
 
+    // Prepare data for fl_chart LineChart
+    final spots = <FlSpot>[];
+    double maxY = 0;
+
+    for (int i = 0; i < sortedEntries.length; i++) {
+      final count = (sortedEntries[i].value as int).toDouble();
+      if (count > maxY) maxY = count;
+      spots.add(FlSpot(i.toDouble(), count));
+    }
+
     return Container(
       padding: EdgeInsets.all(isMobile ? 12 : 16),
       decoration: BoxDecoration(
@@ -1444,62 +1586,157 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Column(
-        children: sortedEntries.map((entry) {
-          final month = entry.key;
-          final count = entry.value as int;
-          final maxCount = sortedEntries
-              .map((e) => e.value as int)
-              .reduce((a, b) => a > b ? a : b);
-          final percentage = maxCount > 0 ? count / maxCount : 0.0;
-
-          return Padding(
-            padding: EdgeInsets.only(bottom: isMobile ? 8 : 10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      month,
-                      style: GoogleFonts.inter(
-                        fontSize: isMobile ? 12 : 13,
-                        color: Colors.grey[700],
-                      ),
-                    ),
-                    Text(
-                      '$count anggota',
-                      style: GoogleFonts.inter(
-                        fontSize: isMobile ? 12 : 13,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87,
-                      ),
-                    ),
-                  ],
+        children: [
+          SizedBox(
+            height: isMobile ? 180 : 220,
+            child: LineChart(
+              LineChartData(
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  horizontalInterval: maxY > 0 ? maxY / 4 : 1,
+                  getDrawingHorizontalLine: (value) {
+                    return FlLine(color: Colors.grey[200]!, strokeWidth: 1);
+                  },
                 ),
-                const SizedBox(height: 4),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: percentage,
-                    backgroundColor: Colors.grey[200],
-                    valueColor: const AlwaysStoppedAnimation<Color>(
-                      Color(0xFF4169E1),
+                titlesData: FlTitlesData(
+                  show: true,
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      getTitlesWidget: (value, meta) {
+                        if (value.toInt() >= sortedEntries.length ||
+                            value.toInt() < 0) {
+                          return const SizedBox.shrink();
+                        }
+                        final month = sortedEntries[value.toInt()].key;
+                        // Format month label
+                        String label = month;
+                        if (month.contains('-')) {
+                          final parts = month.split('-');
+                          if (parts.length >= 2) {
+                            final monthNum = int.tryParse(parts[1]) ?? 1;
+                            const monthNames = [
+                              'Jan',
+                              'Feb',
+                              'Mar',
+                              'Apr',
+                              'May',
+                              'Jun',
+                              'Jul',
+                              'Aug',
+                              'Sep',
+                              'Oct',
+                              'Nov',
+                              'Dec',
+                            ];
+                            label = monthNames[(monthNum - 1).clamp(0, 11)];
+                          }
+                        }
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            label,
+                            style: GoogleFonts.inter(
+                              fontSize: isMobile ? 10 : 11,
+                              color: Colors.grey[600],
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        );
+                      },
+                      reservedSize: 30,
                     ),
-                    minHeight: 8,
+                  ),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 35,
+                      getTitlesWidget: (value, meta) {
+                        return Text(
+                          value.toInt().toString(),
+                          style: GoogleFonts.inter(
+                            fontSize: 10,
+                            color: Colors.grey[500],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
                   ),
                 ),
-              ],
+                borderData: FlBorderData(show: false),
+                minX: 0,
+                maxX: (sortedEntries.length - 1).toDouble(),
+                minY: 0,
+                maxY: maxY + (maxY * 0.2),
+                lineTouchData: LineTouchData(
+                  enabled: true,
+                  touchTooltipData: LineTouchTooltipData(
+                    getTooltipItems: (touchedSpots) {
+                      return touchedSpots.map((spot) {
+                        final month = sortedEntries[spot.x.toInt()].key;
+                        return LineTooltipItem(
+                          '$month\n${spot.y.toInt()} anggota',
+                          GoogleFonts.inter(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                          ),
+                        );
+                      }).toList();
+                    },
+                  ),
+                ),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: spots,
+                    isCurved: true,
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF4169E1), Color(0xFF5B7FE8)],
+                    ),
+                    barWidth: 3,
+                    isStrokeCapRound: true,
+                    dotData: FlDotData(
+                      show: true,
+                      getDotPainter: (spot, percent, barData, index) {
+                        return FlDotCirclePainter(
+                          radius: 4,
+                          color: Colors.white,
+                          strokeWidth: 2,
+                          strokeColor: const Color(0xFF4169E1),
+                        );
+                      },
+                    ),
+                    belowBarData: BarAreaData(
+                      show: true,
+                      gradient: LinearGradient(
+                        colors: [
+                          const Color(0xFF4169E1).withValues(alpha: 0.3),
+                          const Color(0xFF4169E1).withValues(alpha: 0.05),
+                        ],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          );
-        }).toList(),
+          ),
+        ],
       ),
     );
   }
