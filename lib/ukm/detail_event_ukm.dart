@@ -2693,26 +2693,34 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
     );
   }
 
+  // Default auto-regenerate to true
+  bool _autoRegenerateQR = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadEventDetails();
+    // No need to load current QR from DB as we generate dynamic ones on the fly
+  }
+
+  // ... (keep existing code)
+
   Future<void> _generateQRCode() async {
     try {
-      final result = await _eventService.generateAttendanceQR(widget.eventId);
+      // Use DynamicQRService to generate correct format: EVENT:ID:TIMESTAMP:SIG
+      final qrCode = DynamicQRService.generateEventQR(widget.eventId);
+      
       setState(() {
-        _currentQRCode = result['qr_code'];
-        _qrExpiresAt = DateTime.parse(result['expires_at']);
+        _currentQRCode = qrCode;
+        // Set expiry to validity window + grace period
+        _qrExpiresAt = DateTime.now().add(
+          Duration(seconds: DynamicQRService.validityWindow), 
+        );
         _isQRActive = true;
       });
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'QR Code berhasil di-generate',
-              style: GoogleFonts.inter(),
-            ),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
+      // Show small feedback if needed, but not a full snackbar on every regeneration
+      // to avoid spamming the user during auto-refresh
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
