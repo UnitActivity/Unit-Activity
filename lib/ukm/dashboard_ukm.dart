@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:unit_activity/components/ukm_sidebar.dart';
 import 'package:unit_activity/widgets/ukm_header.dart';
 import 'package:unit_activity/ukm/peserta_ukm.dart';
@@ -28,7 +29,17 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
   final CustomAuthService _authService = CustomAuthService();
   final EventService _eventService = EventService();
   final PageController _pageController = PageController();
+  final _supabase = Supabase.instance.client;
   Timer? _carouselTimer;
+
+  // Helper to get public URL for informasi image
+  String _getInformasiImageUrl(String? imagePath) {
+    if (imagePath == null || imagePath.isEmpty) return '';
+    // If it's already a full URL, return as is
+    if (imagePath.startsWith('http')) return imagePath;
+    // Otherwise, get public URL from informasi-images bucket
+    return _supabase.storage.from('informasi-images').getPublicUrl(imagePath);
+  }
 
   // Dashboard data
   String _ukmName = 'UKM Dashboard';
@@ -41,6 +52,7 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
   List<dynamic> _informasiList = [];
   List<dynamic> _upcomingEventsList = [];
   List<Map<String, dynamic>> _eventTrendData = [];
+  List<dynamic>? _alerts;
   bool _isLoadingStats = true;
   bool _isLoadingInformasi = true;
   String? _errorMessage;
@@ -130,6 +142,7 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
         ),
         _loadUpcomingEvents(),
         _loadEventTrendData(),
+        _dashboardService.getAlerts(_ukmId!),
       ]);
 
       if (mounted) {
@@ -146,6 +159,11 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
             if (_informasiList.length > 1) {
               _startCarouselAutoPlay();
             }
+          }
+          
+          // Update alerts
+          if (results[4]['success'] == true) {
+            _alerts = results[4]['data'];
           }
 
           _isLoadingStats = false;
@@ -169,6 +187,11 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
     _carouselTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
       if (_informasiList.isEmpty || !mounted) {
         timer.cancel();
+        return;
+      }
+
+      // Check if PageController is attached before animating
+      if (!_pageController.hasClients) {
         return;
       }
 
@@ -590,23 +613,29 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
   }
 
   Widget _buildAlertsSection(bool isDesktop) {
-    final totalPeserta = _dashboardStats?['totalPeserta'] ?? 0;
+    // Collect all alerts
+    final allAlerts = <Map<String, dynamic>>[];
+    
+    // Add API alerts
+    if (_alerts != null && _alerts!.isNotEmpty) {
+      allAlerts.addAll(_alerts!.cast<Map<String, dynamic>>());
+    }
+
+    // Add static guides if empty
     final totalEvent = _dashboardStats?['totalEvent'] ?? 0;
-
-    // Create sample alerts based on data
-    final alerts = <Map<String, dynamic>>[];
-
+    final totalPeserta = _dashboardStats?['totalPeserta'] ?? 0;
+    
     if (totalEvent == 0) {
-      alerts.add({
-        'type': 'warning',
-        'title': 'Event Tanpa Proposal',
-        'message': 'Belum ada event aktif yang memiliki proposal',
+      allAlerts.add({
+        'type': 'info',
+        'title': 'Belum Ada Event',
+        'message': 'Buat event pertama untuk UKM Anda',
         'count': 0,
       });
     }
 
     if (totalPeserta < 10) {
-      alerts.add({
+      allAlerts.add({
         'type': 'info',
         'title': 'Rekrutmen Anggota',
         'message': 'Tambah anggota baru untuk memperkuat UKM',
@@ -614,7 +643,7 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
       });
     }
 
-    if (alerts.isEmpty) return const SizedBox.shrink();
+    if (allAlerts.isEmpty) return const SizedBox.shrink();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -634,7 +663,7 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
           ],
         ),
         const SizedBox(height: 16),
-        ...alerts.map((alert) => _buildAlertCard(alert)),
+        ...allAlerts.map((alert) => _buildAlertCard(alert)),
       ],
     );
   }
@@ -1305,7 +1334,7 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
             // Image or placeholder
             if (info['gambar'] != null && info['gambar'].toString().isNotEmpty)
               Image.network(
-                info['gambar'],
+                _getInformasiImageUrl(info['gambar']?.toString()),
                 width: double.infinity,
                 height: double.infinity,
                 fit: BoxFit.cover,

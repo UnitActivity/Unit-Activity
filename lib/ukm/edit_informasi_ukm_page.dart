@@ -21,6 +21,15 @@ class _EditInformasiUKMPageState extends State<EditInformasiUKMPage> {
   final UkmDashboardService _dashboardService = UkmDashboardService();
   final FileUploadService _fileUploadService = FileUploadService();
 
+  // Helper to get public URL for informasi image
+  String _getImageUrl(String? imagePath) {
+    if (imagePath == null || imagePath.isEmpty) return '';
+    // If it's already a full URL, return as is
+    if (imagePath.startsWith('http')) return imagePath;
+    // Otherwise, get public URL from informasi-images bucket
+    return _supabase.storage.from('informasi-images').getPublicUrl(imagePath);
+  }
+
   late final TextEditingController _judulController;
   late final TextEditingController _deskripsiController;
 
@@ -438,7 +447,7 @@ class _EditInformasiUKMPageState extends State<EditInformasiUKMPage> {
                 ClipRRect(
                   borderRadius: BorderRadius.circular(6),
                   child: Image.network(
-                    _existingGambar!,
+                    _getImageUrl(_existingGambar),
                     width: 60,
                     height: 60,
                     fit: BoxFit.cover,

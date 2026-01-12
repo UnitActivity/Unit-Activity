@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:unit_activity/services/event_service_new.dart';
 import 'package:unit_activity/services/ukm_dashboard_service.dart';
 import 'package:unit_activity/ukm/add_event_page.dart';
@@ -16,6 +17,16 @@ class EventUKMPage extends StatefulWidget {
 class _EventUKMPageState extends State<EventUKMPage> {
   final EventService _eventService = EventService();
   final UkmDashboardService _dashboardService = UkmDashboardService();
+  final _supabase = Supabase.instance.client;
+
+  // Helper to get public URL for event image
+  String _getEventImageUrl(String? imagePath) {
+    if (imagePath == null || imagePath.isEmpty) return '';
+    // If it's already a full URL, return as is
+    if (imagePath.startsWith('http')) return imagePath;
+    // Otherwise, get public URL from event-images bucket
+    return _supabase.storage.from('event-images').getPublicUrl(imagePath);
+  }
 
   List<Map<String, dynamic>> _eventList = [];
   List<Map<String, dynamic>> _filteredEventList = [];
@@ -595,7 +606,7 @@ class _EventUKMPageState extends State<EventUKMPage> {
                         topRight: Radius.circular(16),
                       ),
                       child: Image.network(
-                        event['gambar'],
+                        _getEventImageUrl(event['gambar']?.toString()),
                         width: double.infinity,
                         height: 180,
                         fit: BoxFit.cover,

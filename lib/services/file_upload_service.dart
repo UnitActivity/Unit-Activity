@@ -124,8 +124,8 @@ class FileUploadService {
     final cleanFileName = fileName.replaceAll(' ', '_');
     
     // For informasi, use informasi-images bucket with simple filename
-    // For events, use event-proposals bucket
-    final bucket = folder == 'informasi' ? 'informasi-images' : 'event-proposals';
+    // For events, use event-images bucket
+    final bucket = folder == 'informasi' ? 'informasi-images' : 'event-images';
     final filePath = '${timestamp}_$cleanFileName';
 
     final fullUrl = await uploadFileFromBytes(
