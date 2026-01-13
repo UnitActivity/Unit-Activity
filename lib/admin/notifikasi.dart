@@ -16,7 +16,16 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
 
   List<Map<String, dynamic>> _allNotifications = [];
   bool _isLoading = true;
-  String _filterStatus = 'Semua'; // Semua, Belum Dibaca, Sudah Dibaca
+  String _filterStatus = 'Semua'; // Semua, Broadcast, Individual
+
+  // Pagination
+  int _currentPage = 1;
+  final int _itemsPerPage = 10;
+  int _totalNotifications = 0;
+  int _totalPages = 1;
+
+  // Hidden notifications (visual delete - not from database)
+  final Set<String> _hiddenNotifications = {};
 
   @override
   void initState() {
@@ -28,32 +37,109 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
     setState(() => _isLoading = true);
 
     try {
-      // For admin view: show all notifications including broadcast
-      // Broadcast notifications have is_broadcast = true
+      // First, get total count for pagination
+      dynamic countQuery = _supabase
+          .from('notification_preference')
+          .select('id_notification_pref');
+
+      // Apply filter
+      if (_filterStatus == 'Broadcast') {
+        countQuery = countQuery.eq('is_broadcast', true);
+      } else if (_filterStatus == 'Individual') {
+        countQuery = countQuery.eq('is_broadcast', false);
+      }
+
+      final countResponse = await countQuery;
+      _totalNotifications = (countResponse as List).length;
+      _totalPages = (_totalNotifications / _itemsPerPage).ceil();
+      if (_totalPages < 1) _totalPages = 1;
+      if (_currentPage > _totalPages) _currentPage = _totalPages;
+
+      // Calculate range for pagination
+      final startIndex = (_currentPage - 1) * _itemsPerPage;
+      final endIndex = startIndex + _itemsPerPage - 1;
+
+      // Fetch notifications with pagination
       dynamic query = _supabase.from('notification_preference').select();
 
       // Apply filter
-      if (_filterStatus == 'Belum Dibaca') {
-        query = query.eq('is_read', false);
-      } else if (_filterStatus == 'Sudah Dibaca') {
-        query = query.eq('is_read', true);
+      if (_filterStatus == 'Broadcast') {
+        query = query.eq('is_broadcast', true);
+      } else if (_filterStatus == 'Individual') {
+        query = query.eq('is_broadcast', false);
       }
 
-      // Apply order after filter
-      query = query.order('create_at', ascending: false);
+      // Apply order and pagination
+      query = query
+          .order('create_at', ascending: false)
+          .range(startIndex, endIndex);
 
       final response = await query;
+      final notifications = List<Map<String, dynamic>>.from(response);
 
-      // For admin: we show all notifications
-      // Broadcast notifications will only have 1 record
+      // For broadcast notifications, fetch read counts from notification_read_status
+      for (var notification in notifications) {
+        if (notification['is_broadcast'] == true) {
+          final notifId = notification['id_notification_pref'];
+          final readCountResponse = await _supabase
+              .from('notification_read_status')
+              .select('id')
+              .eq('id_notification_pref', notifId)
+              .eq('is_read', true);
+          notification['read_count'] = (readCountResponse as List).length;
+
+          // Also get total recipients count
+          final totalRecipientsResponse = await _supabase
+              .from('notification_read_status')
+              .select('id')
+              .eq('id_notification_pref', notifId);
+          notification['total_recipients'] =
+              (totalRecipientsResponse as List).length;
+        }
+      }
+
+      // Filter out hidden notifications
+      final visibleNotifications = notifications
+          .where(
+            (n) => !_hiddenNotifications.contains(n['id_notification_pref']),
+          )
+          .toList();
+
       setState(() {
-        _allNotifications = List<Map<String, dynamic>>.from(response);
+        _allNotifications = visibleNotifications;
         _isLoading = false;
       });
     } catch (e) {
       print('Error loading notifications: $e');
       setState(() => _isLoading = false);
     }
+  }
+
+  // Hide notification from view (visual delete)
+  void _hideNotification(String notificationId) {
+    setState(() {
+      _hiddenNotifications.add(notificationId);
+      _allNotifications.removeWhere(
+        (n) => n['id_notification_pref'] == notificationId,
+      );
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Notifikasi disembunyikan'),
+        backgroundColor: Colors.grey[700],
+        action: SnackBarAction(
+          label: 'Batalkan',
+          textColor: Colors.white,
+          onPressed: () {
+            setState(() {
+              _hiddenNotifications.remove(notificationId);
+            });
+            _loadNotifications();
+          },
+        ),
+      ),
+    );
   }
 
   Future<void> _markAsRead(String notificationId) async {
@@ -119,9 +205,9 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 600;
     final isDesktop = MediaQuery.of(context).size.width >= 768;
-    final unreadCount = _allNotifications
-        .where((n) => n['is_read'] == false)
-        .length;
+
+    // For admin, show total sent count instead of unread
+    final totalSent = _totalNotifications;
 
     return SingleChildScrollView(
       child: Column(
@@ -130,7 +216,7 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
           SizedBox(height: isMobile ? 24 : 24),
 
           // Modern Header with Gradient
-          _buildModernHeader(isMobile, isDesktop, unreadCount),
+          _buildModernHeader(isMobile, isDesktop, totalSent),
           SizedBox(height: isMobile ? 16 : 24),
 
           // Filter Tabs
@@ -157,6 +243,14 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
                 return _buildNotificationCard(notification, isMobile);
               },
             ),
+
+          // Pagination
+          if (!_isLoading && _allNotifications.isNotEmpty)
+            Padding(
+              padding: EdgeInsets.only(top: isMobile ? 16 : 24),
+              child: _buildPagination(),
+            ),
+
           const SizedBox(height: 24),
         ],
       ),
@@ -242,31 +336,27 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
                         const SizedBox(height: 4),
                         Row(
                           children: [
-                            if (unreadCount > 0) ...[
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.red,
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Text(
-                                  '$unreadCount',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white,
-                                  ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                '$unreadCount',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
                                 ),
                               ),
-                              const SizedBox(width: 8),
-                            ],
+                            ),
+                            const SizedBox(width: 8),
                             Text(
-                              unreadCount > 0
-                                  ? 'Notifikasi belum dibaca'
-                                  : 'Semua notifikasi sudah dibaca',
+                              'Total notifikasi terkirim',
                               style: GoogleFonts.inter(
                                 fontSize: isDesktop ? 16 : 14,
                                 fontWeight: FontWeight.w500,
@@ -283,32 +373,7 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
               SizedBox(height: isMobile ? 12 : 20),
               Row(
                 children: [
-                  if (unreadCount > 0)
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: _markAllAsRead,
-                        icon: Icon(Icons.done_all, size: isMobile ? 16 : 18),
-                        label: Text(
-                          'Tandai Semua Dibaca',
-                          style: GoogleFonts.inter(
-                            fontSize: isMobile ? 12 : 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: const Color(0xFF4169E1),
-                          padding: EdgeInsets.symmetric(
-                            vertical: isMobile ? 10 : 14,
-                          ),
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                      ),
-                    ),
-                  if (unreadCount > 0) SizedBox(width: isMobile ? 8 : 12),
+                  // Only show "Kirim Notifikasi" button for admin
                   Expanded(
                     child: ElevatedButton.icon(
                       onPressed: () async {
@@ -370,9 +435,9 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
         children: [
           _buildFilterTab('Semua', isMobile),
           SizedBox(width: isMobile ? 6 : 8),
-          _buildFilterTab('Belum Dibaca', isMobile),
+          _buildFilterTab('Broadcast', isMobile),
           SizedBox(width: isMobile ? 6 : 8),
-          _buildFilterTab('Sudah Dibaca', isMobile),
+          _buildFilterTab('Individual', isMobile),
         ],
       ),
     );
@@ -749,31 +814,105 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
                         ),
                       ),
                       SizedBox(height: isMobile ? 8 : 12),
-                      Container(
-                        padding: EdgeInsets.all(isMobile ? 8 : 10),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[100],
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.access_time_rounded,
-                              size: isMobile ? 12 : 14,
-                              color: Colors.grey[600],
+                      // Time and read count row
+                      Row(
+                        children: [
+                          // Time badge
+                          Container(
+                            padding: EdgeInsets.all(isMobile ? 8 : 10),
+                            decoration: BoxDecoration(
+                              color: Colors.grey[100],
+                              borderRadius: BorderRadius.circular(8),
                             ),
-                            SizedBox(width: isMobile ? 4 : 6),
-                            Text(
-                              _formatDateTime(notification['create_at']),
-                              style: GoogleFonts.inter(
-                                fontSize: isMobile ? 10 : 12,
-                                fontWeight: FontWeight.w500,
-                                color: Colors.grey[700],
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.access_time_rounded,
+                                  size: isMobile ? 12 : 14,
+                                  color: Colors.grey[600],
+                                ),
+                                SizedBox(width: isMobile ? 4 : 6),
+                                Text(
+                                  _formatDateTime(notification['create_at']),
+                                  style: GoogleFonts.inter(
+                                    fontSize: isMobile ? 10 : 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.grey[700],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          // Read count badge (for broadcast notifications)
+                          if (notification['is_broadcast'] == true)
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: isMobile ? 8 : 10,
+                                vertical: isMobile ? 6 : 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.visibility_rounded,
+                                    size: isMobile ? 12 : 14,
+                                    color: const Color(0xFF4169E1),
+                                  ),
+                                  SizedBox(width: isMobile ? 4 : 6),
+                                  Text(
+                                    'Dibaca ${notification['read_count'] ?? 0}/${notification['total_recipients'] ?? 0}',
+                                    style: GoogleFonts.inter(
+                                      fontSize: isMobile ? 10 : 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: const Color(0xFF4169E1),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                          ],
-                        ),
+                          const Spacer(),
+                          // Hide button
+                          InkWell(
+                            onTap: () => _hideNotification(
+                              notification['id_notification_pref'].toString(),
+                            ),
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              padding: EdgeInsets.all(isMobile ? 6 : 8),
+                              decoration: BoxDecoration(
+                                color: Colors.grey[100],
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.visibility_off_rounded,
+                                    size: isMobile ? 14 : 16,
+                                    color: Colors.grey[600],
+                                  ),
+                                  if (!isMobile) ...[
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Sembunyikan',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w500,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -920,5 +1059,193 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
     } catch (e) {
       return dateStr;
     }
+  }
+
+  Widget _buildPagination() {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
+    return Container(
+      padding: EdgeInsets.all(isMobile ? 12 : 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: isMobile
+          ? Column(
+              children: [
+                Text(
+                  'Halaman $_currentPage dari $_totalPages',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey[700],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _buildPageButton(
+                      icon: Icons.chevron_left_rounded,
+                      enabled: _currentPage > 1,
+                      onPressed: () {
+                        setState(() => _currentPage--);
+                        _loadNotifications();
+                      },
+                    ),
+                    const SizedBox(width: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            const Color(0xFF4169E1).withValues(alpha: 0.1),
+                            const Color(0xFF4169E1).withValues(alpha: 0.05),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: const Color(0xFF4169E1).withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Text(
+                        '$_currentPage / $_totalPages',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF4169E1),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    _buildPageButton(
+                      icon: Icons.chevron_right_rounded,
+                      enabled: _currentPage < _totalPages,
+                      onPressed: () {
+                        setState(() => _currentPage++);
+                        _loadNotifications();
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${(_currentPage - 1) * _itemsPerPage + 1}-${(_currentPage * _itemsPerPage) > _totalNotifications ? _totalNotifications : (_currentPage * _itemsPerPage)} dari $_totalNotifications',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            )
+          : Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Menampilkan ${(_currentPage - 1) * _itemsPerPage + 1} - ${(_currentPage * _itemsPerPage) > _totalNotifications ? _totalNotifications : (_currentPage * _itemsPerPage)} dari $_totalNotifications notifikasi',
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey[700],
+                  ),
+                ),
+                Row(
+                  children: [
+                    _buildPageButton(
+                      icon: Icons.chevron_left_rounded,
+                      enabled: _currentPage > 1,
+                      onPressed: () {
+                        setState(() => _currentPage--);
+                        _loadNotifications();
+                      },
+                    ),
+                    const SizedBox(width: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            const Color(0xFF4169E1).withValues(alpha: 0.1),
+                            const Color(0xFF4169E1).withValues(alpha: 0.05),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: const Color(0xFF4169E1).withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Text(
+                        '$_currentPage / $_totalPages',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF4169E1),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    _buildPageButton(
+                      icon: Icons.chevron_right_rounded,
+                      enabled: _currentPage < _totalPages,
+                      onPressed: () {
+                        setState(() => _currentPage++);
+                        _loadNotifications();
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildPageButton({
+    required IconData icon,
+    required bool enabled,
+    required VoidCallback onPressed,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: enabled ? const Color(0xFF4169E1) : Colors.grey[300],
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: enabled
+            ? [
+                BoxShadow(
+                  color: const Color(0xFF4169E1).withValues(alpha: 0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ]
+            : null,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: enabled ? onPressed : null,
+          borderRadius: BorderRadius.circular(10),
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Icon(
+              icon,
+              color: enabled ? Colors.white : Colors.grey[500],
+              size: 20,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
