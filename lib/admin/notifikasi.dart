@@ -115,7 +115,7 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
     }
   }
 
-  // Hide notification from view (visual delete)
+  // Hapus satu notifikasi dari tampilan visual (tidak hapus dari database)
   void _hideNotification(String notificationId) {
     setState(() {
       _hiddenNotifications.add(notificationId);
@@ -126,8 +126,9 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: const Text('Notifikasi disembunyikan'),
+        content: const Text('Notifikasi dihapus dari tampilan'),
         backgroundColor: Colors.grey[700],
+        behavior: SnackBarBehavior.floating,
         action: SnackBarAction(
           label: 'Batalkan',
           textColor: Colors.white,
@@ -142,43 +143,38 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
     );
   }
 
-  Future<void> _markAsRead(String notificationId) async {
-    try {
-      await _supabase
-          .from('notification_preference')
-          .update({
-            'is_read': true,
-            'read_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id_notification_pref', notificationId);
+  // Hapus SEMUA notifikasi dari tampilan visual (clear history view)
+  void _clearAllVisualNotifications() {
+    if (_allNotifications.isEmpty) return;
 
-      _loadNotifications();
-    } catch (e) {
-      print('Error marking notification as read: $e');
-    }
-  }
+    // Simpan semua ID untuk undo
+    final allIds = _allNotifications
+        .map((n) => n['id_notification_pref'].toString())
+        .toList();
 
-  Future<void> _markAllAsRead() async {
-    try {
-      await _supabase
-          .from('notification_preference')
-          .update({
-            'is_read': true,
-            'read_at': DateTime.now().toIso8601String(),
-          })
-          .eq('is_read', false);
+    setState(() {
+      _hiddenNotifications.addAll(allIds);
+      _allNotifications.clear();
+    });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Semua notifikasi ditandai sudah dibaca'),
-          backgroundColor: Colors.green,
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Semua notifikasi dihapus dari tampilan'),
+        backgroundColor: const Color(0xFF4169E1),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 4),
+        action: SnackBarAction(
+          label: 'Batalkan',
+          textColor: Colors.white,
+          onPressed: () {
+            setState(() {
+              _hiddenNotifications.removeAll(allIds);
+            });
+            _loadNotifications();
+          },
         ),
-      );
-
-      _loadNotifications();
-    } catch (e) {
-      print('Error marking all as read: $e');
-    }
+      ),
+    );
   }
 
   Future<void> _deleteNotification(String notificationId) async {
@@ -373,7 +369,7 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
               SizedBox(height: isMobile ? 12 : 20),
               Row(
                 children: [
-                  // Only show "Kirim Notifikasi" button for admin
+                  // Tombol Kirim Notifikasi
                   Expanded(
                     child: ElevatedButton.icon(
                       onPressed: () async {
@@ -404,6 +400,39 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
                         elevation: 0,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // Tombol Hapus Semua Visual
+                  ElevatedButton.icon(
+                    onPressed: _allNotifications.isEmpty
+                        ? null
+                        : _clearAllVisualNotifications,
+                    icon: Icon(
+                      Icons.delete_sweep_rounded,
+                      size: isMobile ? 16 : 18,
+                    ),
+                    label: Text(
+                      isMobile ? 'Hapus' : 'Hapus Semua',
+                      style: GoogleFonts.inter(
+                        fontSize: isMobile ? 12 : 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white.withValues(alpha: 0.2),
+                      foregroundColor: Colors.white,
+                      padding: EdgeInsets.symmetric(
+                        vertical: isMobile ? 10 : 14,
+                        horizontal: isMobile ? 12 : 16,
+                      ),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        side: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.3),
                         ),
                       ),
                     ),
@@ -487,9 +516,9 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
               Icon(
                 label == 'Semua'
                     ? Icons.notifications_rounded
-                    : label == 'Belum Dibaca'
-                    ? Icons.mark_email_unread_rounded
-                    : Icons.mark_email_read_rounded,
+                    : label == 'Broadcast'
+                    ? Icons.campaign_rounded
+                    : Icons.person_rounded,
                 size: isMobile ? 18 : 22,
                 color: isSelected ? Colors.white : Colors.grey[600],
               ),
@@ -523,7 +552,7 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
     Map<String, dynamic> notification,
     bool isMobile,
   ) {
-    final isRead = notification['is_read'] ?? false;
+    // Admin adalah PENGIRIM, bukan penerima - jadi tidak ada logika is_read
     final type = notification['type'] ?? 'info';
 
     return Dismissible(
@@ -587,7 +616,7 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
               ],
             ),
             content: Text(
-              'Apakah Anda yakin ingin menghapus notifikasi ini?',
+              'Apakah Anda yakin ingin menghapus notifikasi ini dari database?',
               style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[700]),
             ),
             actions: [
@@ -623,302 +652,246 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
       child: Container(
         margin: EdgeInsets.only(bottom: isMobile ? 8 : 12),
         decoration: BoxDecoration(
-          gradient: isRead
-              ? LinearGradient(
-                  colors: [Colors.white, Colors.grey[50]!],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                )
-              : LinearGradient(
-                  colors: [
-                    const Color(0xFF4169E1).withValues(alpha: 0.08),
-                    const Color(0xFF4169E1).withValues(alpha: 0.03),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isRead
-                ? Colors.grey[200]!
-                : const Color(0xFF4169E1).withValues(alpha: 0.3),
-            width: isRead ? 1 : 2,
+          // Style yang sama untuk semua notifikasi (admin adalah pengirim)
+          gradient: LinearGradient(
+            colors: [Colors.white, Colors.grey[50]!],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey[200]!, width: 1),
           boxShadow: [
             BoxShadow(
-              color: isRead
-                  ? Colors.black.withValues(alpha: 0.03)
-                  : const Color(0xFF4169E1).withValues(alpha: 0.1),
+              color: Colors.black.withValues(alpha: 0.03),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
           ],
         ),
-        child: InkWell(
-          onTap: () {
-            if (!isRead) {
-              _markAsRead(notification['id_notification_pref'].toString());
-            }
-          },
-          borderRadius: BorderRadius.circular(12),
-          child: Padding(
-            padding: EdgeInsets.all(isMobile ? 12 : 18),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Icon with gradient background
-                Container(
-                  padding: EdgeInsets.all(isMobile ? 10 : 14),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        _getNotificationColor(type),
-                        _getNotificationColor(type).withValues(alpha: 0.7),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: _getNotificationColor(
-                          type,
-                        ).withValues(alpha: 0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 4),
-                      ),
+        child: Padding(
+          padding: EdgeInsets.all(isMobile ? 12 : 18),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Icon with gradient background
+              Container(
+                padding: EdgeInsets.all(isMobile ? 10 : 14),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      _getNotificationColor(type),
+                      _getNotificationColor(type).withValues(alpha: 0.7),
                     ],
                   ),
-                  child: Icon(
-                    _getNotificationIcon(type),
-                    color: Colors.white,
-                    size: isMobile ? 20 : 26,
-                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: _getNotificationColor(type).withValues(alpha: 0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
-                SizedBox(width: isMobile ? 10 : 16),
+                child: Icon(
+                  _getNotificationIcon(type),
+                  color: Colors.white,
+                  size: isMobile ? 20 : 26,
+                ),
+              ),
+              SizedBox(width: isMobile ? 10 : 16),
 
-                // Content
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              notification['judul'] ?? 'Notifikasi',
-                              style: GoogleFonts.inter(
-                                fontSize: isMobile ? 14 : 16,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.black87,
-                              ),
+              // Content
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Title row - tanpa badge "BARU" karena admin adalah pengirim
+                    Text(
+                      notification['judul'] ?? 'Notifikasi',
+                      style: GoogleFonts.inter(
+                        fontSize: isMobile ? 14 : 16,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    SizedBox(height: isMobile ? 6 : 8),
+                    Row(
+                      children: [
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isMobile ? 8 : 10,
+                            vertical: isMobile ? 3 : 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _getNotificationColor(
+                              type,
+                            ).withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            _getNotificationTypeName(type),
+                            style: GoogleFonts.inter(
+                              fontSize: isMobile ? 10 : 11,
+                              fontWeight: FontWeight.w700,
+                              color: _getNotificationColor(type),
+                              letterSpacing: 0.3,
                             ),
                           ),
-                          if (!isRead)
-                            Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: isMobile ? 8 : 10,
-                                vertical: isMobile ? 3 : 5,
-                              ),
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  colors: [
-                                    Color(0xFF4169E1),
-                                    Color(0xFF5B7FE8),
-                                  ],
-                                ),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                'BARU',
-                                style: GoogleFonts.inter(
-                                  fontSize: isMobile ? 8 : 10,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.white,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                      SizedBox(height: isMobile ? 6 : 8),
-                      Row(
-                        children: [
+                        ),
+                        const SizedBox(width: 8),
+                        // Show broadcast target badge
+                        if (notification['is_broadcast'] == true)
                           Container(
                             padding: EdgeInsets.symmetric(
                               horizontal: isMobile ? 8 : 10,
                               vertical: isMobile ? 3 : 5,
                             ),
                             decoration: BoxDecoration(
-                              color: _getNotificationColor(
-                                type,
-                              ).withValues(alpha: 0.1),
+                              color: Colors.green.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(6),
                             ),
-                            child: Text(
-                              _getNotificationTypeName(type),
-                              style: GoogleFonts.inter(
-                                fontSize: isMobile ? 10 : 11,
-                                fontWeight: FontWeight.w700,
-                                color: _getNotificationColor(type),
-                                letterSpacing: 0.3,
-                              ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.campaign_rounded,
+                                  size: isMobile ? 12 : 14,
+                                  color: Colors.green[700],
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  notification['target_audience'] == 'all_users'
+                                      ? 'SEMUA USER'
+                                      : notification['target_audience'] ==
+                                            'all_ukm'
+                                      ? 'SEMUA UKM'
+                                      : 'BROADCAST',
+                                  style: GoogleFonts.inter(
+                                    fontSize: isMobile ? 10 : 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.green[700],
+                                    letterSpacing: 0.3,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          // Show broadcast target badge
-                          if (notification['is_broadcast'] == true)
-                            Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: isMobile ? 8 : 10,
-                                vertical: isMobile ? 3 : 5,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.green.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.campaign_rounded,
-                                    size: isMobile ? 12 : 14,
-                                    color: Colors.green[700],
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    notification['target_audience'] ==
-                                            'all_users'
-                                        ? 'SEMUA USER'
-                                        : notification['target_audience'] ==
-                                              'all_ukm'
-                                        ? 'SEMUA UKM'
-                                        : 'BROADCAST',
-                                    style: GoogleFonts.inter(
-                                      fontSize: isMobile ? 10 : 11,
-                                      fontWeight: FontWeight.w700,
-                                      color: Colors.green[700],
-                                      letterSpacing: 0.3,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                        ],
+                      ],
+                    ),
+                    SizedBox(height: isMobile ? 8 : 10),
+                    Text(
+                      notification['pesan'] ?? '',
+                      style: GoogleFonts.inter(
+                        fontSize: isMobile ? 12 : 14,
+                        color: Colors.grey[700],
+                        height: 1.6,
                       ),
-                      SizedBox(height: isMobile ? 8 : 10),
-                      Text(
-                        notification['pesan'] ?? '',
-                        style: GoogleFonts.inter(
-                          fontSize: isMobile ? 12 : 14,
-                          color: Colors.grey[700],
-                          height: 1.6,
+                    ),
+                    SizedBox(height: isMobile ? 8 : 12),
+                    // Time and read count row
+                    Row(
+                      children: [
+                        // Time badge
+                        Container(
+                          padding: EdgeInsets.all(isMobile ? 8 : 10),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[100],
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.access_time_rounded,
+                                size: isMobile ? 12 : 14,
+                                color: Colors.grey[600],
+                              ),
+                              SizedBox(width: isMobile ? 4 : 6),
+                              Text(
+                                _formatDateTime(notification['create_at']),
+                                style: GoogleFonts.inter(
+                                  fontSize: isMobile ? 10 : 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.grey[700],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      SizedBox(height: isMobile ? 8 : 12),
-                      // Time and read count row
-                      Row(
-                        children: [
-                          // Time badge
+                        const SizedBox(width: 8),
+                        // Read count badge (for broadcast notifications)
+                        if (notification['is_broadcast'] == true)
                           Container(
-                            padding: EdgeInsets.all(isMobile ? 8 : 10),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: isMobile ? 8 : 10,
+                              vertical: isMobile ? 6 : 8,
+                            ),
                             decoration: BoxDecoration(
-                              color: Colors.grey[100],
+                              color: Colors.blue.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(
-                                  Icons.access_time_rounded,
+                                  Icons.visibility_rounded,
                                   size: isMobile ? 12 : 14,
-                                  color: Colors.grey[600],
+                                  color: const Color(0xFF4169E1),
                                 ),
                                 SizedBox(width: isMobile ? 4 : 6),
                                 Text(
-                                  _formatDateTime(notification['create_at']),
+                                  'Dibaca ${notification['read_count'] ?? 0}/${notification['total_recipients'] ?? 0}',
                                   style: GoogleFonts.inter(
                                     fontSize: isMobile ? 10 : 12,
-                                    fontWeight: FontWeight.w500,
-                                    color: Colors.grey[700],
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF4169E1),
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          // Read count badge (for broadcast notifications)
-                          if (notification['is_broadcast'] == true)
-                            Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: isMobile ? 8 : 10,
-                                vertical: isMobile ? 6 : 8,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.blue.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.visibility_rounded,
-                                    size: isMobile ? 12 : 14,
-                                    color: const Color(0xFF4169E1),
-                                  ),
-                                  SizedBox(width: isMobile ? 4 : 6),
+                        const Spacer(),
+                        // Hide button - hapus dari tampilan visual
+                        InkWell(
+                          onTap: () => _hideNotification(
+                            notification['id_notification_pref'].toString(),
+                          ),
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: EdgeInsets.all(isMobile ? 6 : 8),
+                            decoration: BoxDecoration(
+                              color: Colors.red.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.close_rounded,
+                                  size: isMobile ? 14 : 16,
+                                  color: Colors.red[600],
+                                ),
+                                if (!isMobile) ...[
+                                  const SizedBox(width: 4),
                                   Text(
-                                    'Dibaca ${notification['read_count'] ?? 0}/${notification['total_recipients'] ?? 0}',
+                                    'Hapus',
                                     style: GoogleFonts.inter(
-                                      fontSize: isMobile ? 10 : 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: const Color(0xFF4169E1),
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.red[600],
                                     ),
                                   ),
                                 ],
-                              ),
-                            ),
-                          const Spacer(),
-                          // Hide button
-                          InkWell(
-                            onTap: () => _hideNotification(
-                              notification['id_notification_pref'].toString(),
-                            ),
-                            borderRadius: BorderRadius.circular(8),
-                            child: Container(
-                              padding: EdgeInsets.all(isMobile ? 6 : 8),
-                              decoration: BoxDecoration(
-                                color: Colors.grey[100],
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.visibility_off_rounded,
-                                    size: isMobile ? 14 : 16,
-                                    color: Colors.grey[600],
-                                  ),
-                                  if (!isMobile) ...[
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      'Sembunyikan',
-                                      style: GoogleFonts.inter(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w500,
-                                        color: Colors.grey[600],
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
+                              ],
                             ),
                           ),
-                        ],
-                      ),
-                    ],
-                  ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:ui';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:unit_activity/services/custom_auth_service.dart';
+import 'package:unit_activity/services/profile_image_service.dart';
 
-class AdminHeader extends StatelessWidget {
+class AdminHeader extends StatefulWidget {
   final VoidCallback? onMenuPressed;
   final VoidCallback? onLogout;
   final Function(String)? onProfilePressed;
@@ -15,6 +18,92 @@ class AdminHeader extends StatelessWidget {
   });
 
   @override
+  State<AdminHeader> createState() => _AdminHeaderState();
+}
+
+class _AdminHeaderState extends State<AdminHeader> {
+  final SupabaseClient _supabase = Supabase.instance.client;
+  final CustomAuthService _authService = CustomAuthService();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      final userId = _authService.currentUserId;
+      if (userId == null) {
+        await _authService.initialize();
+      }
+
+      final currentUser = _authService.currentUser;
+      final currentUserId = _authService.currentUserId;
+      final role = _authService.currentUserRole ?? 'admin';
+
+      String currentName = 'Admin';
+      if (currentUser != null) {
+        currentName =
+            currentUser['name'] ?? currentUser['username_admin'] ?? 'Admin';
+        ProfileImageService.instance.updateUserName(currentName);
+      }
+
+      if (currentUserId != null) {
+        // Coba load username dari table jika belum ada di session
+        if (currentName == 'Admin' && (role == 'admin' || role == 'ukm')) {
+          final adminData = await _supabase
+              .from('admin')
+              .select('username_admin')
+              .eq('id_admin', currentUserId)
+              .maybeSingle();
+
+          if (adminData != null) {
+            currentName = adminData['username_admin'];
+            ProfileImageService.instance.updateUserName(currentName);
+          }
+        }
+
+        await _loadProfileImage(currentName, role);
+      }
+    } catch (e) {
+      print('Error loading header data: $e');
+    }
+  }
+
+  Future<void> _loadProfileImage(String username, String role) async {
+    try {
+      bool found = false;
+      for (final format in ['jpg', 'jpeg', 'png', 'webp']) {
+        try {
+          final fileName = '$role-$username.$format';
+
+          final List<FileObject> objects = await _supabase.storage
+              .from('profile')
+              .list(searchOptions: SearchOptions(limit: 1, search: fileName));
+
+          if (objects.isNotEmpty) {
+            final publicUrl = _supabase.storage
+                .from('profile')
+                .getPublicUrl(fileName);
+
+            ProfileImageService.instance.updateProfileImage(publicUrl);
+            found = true;
+            return;
+          }
+        } catch (e) {
+          continue;
+        }
+      }
+
+      // Jika tidak ketemu file apapun (found == false), ProfileImageService tetap null
+      // yang akan memicu fallback ke asset default di UI.
+    } catch (e) {
+      print('Error checking profile image: $e');
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final isDesktop = MediaQuery.of(context).size.width >= 768;
 
@@ -24,7 +113,7 @@ class AdminHeader extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 20,
             offset: const Offset(0, 4),
           ),
@@ -37,10 +126,10 @@ class AdminHeader extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.7),
+              color: Colors.white.withValues(alpha: 0.7),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: Colors.white.withOpacity(0.3),
+                color: Colors.white.withValues(alpha: 0.3),
                 width: 1.5,
               ),
             ),
@@ -52,7 +141,7 @@ class AdminHeader extends StatelessWidget {
                 else
                   IconButton(
                     icon: const Icon(Icons.menu, color: Colors.black87),
-                    onPressed: onMenuPressed,
+                    onPressed: widget.onMenuPressed,
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
                   ),
@@ -71,20 +160,25 @@ class AdminHeader extends StatelessWidget {
   }
 
   Widget _buildWelcomeText() {
-    return RichText(
-      text: TextSpan(
-        text: 'Welcome, ',
-        style: GoogleFonts.inter(fontSize: 16, color: Colors.black87),
-        children: [
-          TextSpan(
-            text: 'Admin',
-            style: GoogleFonts.inter(
-              fontWeight: FontWeight.bold,
-              color: Colors.black,
-            ),
+    return ValueListenableBuilder<String?>(
+      valueListenable: ProfileImageService.instance.userName,
+      builder: (context, name, _) {
+        return RichText(
+          text: TextSpan(
+            text: 'Welcome, ',
+            style: GoogleFonts.inter(fontSize: 16, color: Colors.black87),
+            children: [
+              TextSpan(
+                text: name ?? 'Admin',
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -92,10 +186,30 @@ class AdminHeader extends StatelessWidget {
     return PopupMenuButton<String>(
       offset: const Offset(0, 50),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: CircleAvatar(
-        radius: 20,
-        backgroundColor: const Color(0xFF4169E1).withOpacity(0.2),
-        child: const Icon(Icons.person, color: Color(0xFF4169E1), size: 24),
+      child: Container(
+        padding: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: const Color(0xFF4169E1), width: 2),
+        ),
+        child: ValueListenableBuilder<String?>(
+          valueListenable: ProfileImageService.instance.profileImageUrl,
+          builder: (context, imageUrl, _) {
+            return CircleAvatar(
+              radius: 20,
+              backgroundColor: Colors.transparent,
+              backgroundImage: imageUrl != null && imageUrl.isNotEmpty
+                  ? NetworkImage(imageUrl)
+                  : const AssetImage('assets/ua.webp') as ImageProvider,
+              onBackgroundImageError: (_, __) {
+                // Fallback handled by ImageProvider logic usually
+              },
+              child: imageUrl == null
+                  ? null // Gambar asset akan muncul
+                  : null,
+            );
+          },
+        ),
       ),
       itemBuilder: (context) => [
         PopupMenuItem<String>(
@@ -131,11 +245,11 @@ class AdminHeader extends StatelessWidget {
         ),
       ],
       onSelected: (value) {
-        if (value == 'logout' && onLogout != null) {
-          onLogout!();
+        if (value == 'logout' && widget.onLogout != null) {
+          widget.onLogout!();
         } else if (value == 'profile') {
-          if (onProfilePressed != null) {
-            onProfilePressed!('profile');
+          if (widget.onProfilePressed != null) {
+            widget.onProfilePressed!('profile');
           }
         }
       },

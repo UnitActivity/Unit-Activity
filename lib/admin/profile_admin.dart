@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:unit_activity/services/custom_auth_service.dart';
+import 'package:unit_activity/services/profile_image_service.dart';
 
 class ProfileAdminPage extends StatefulWidget {
   const ProfileAdminPage({super.key});
@@ -18,19 +20,17 @@ class _ProfileAdminPageState extends State<ProfileAdminPage> {
   bool _isLoading = true;
   bool _isEditMode = false;
   bool _isSaving = false;
+  bool _isUploadingPhoto = false;
   bool _changePassword = false;
 
-  // User data
   Map<String, dynamic>? _userData;
 
-  // Controllers for edit mode
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
       TextEditingController();
 
-  // Password visibility
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
 
@@ -50,177 +50,203 @@ class _ProfileAdminPageState extends State<ProfileAdminPage> {
   }
 
   Future<void> _loadUserProfile() async {
-    print('=== Loading User Profile ===');
     setState(() => _isLoading = true);
 
     try {
-      // Get user data from CustomAuthService
       final userData = _authService.currentUser;
       final userId = _authService.currentUserId;
       final userRole = _authService.currentUserRole;
 
-      print('Current user from auth service: $userData');
-      print('User ID: $userId, Role: $userRole');
-
       if (userId == null || userData == null) {
-        print('User is not logged in');
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-            _userData = null;
-          });
+        await _authService.initialize();
+        final restoredUserId = _authService.currentUserId;
+        final restoredUserData = _authService.currentUser;
+        final restoredRole = _authService.currentUserRole;
+
+        if (restoredUserId == null || restoredUserData == null) {
+          if (mounted)
+            setState(() {
+              _isLoading = false;
+              _userData = null;
+            });
+          return;
         }
+        await _loadProfileFromDatabase(
+          restoredUserId,
+          restoredRole ?? 'admin',
+          restoredUserData,
+        );
         return;
       }
 
-      // Load full profile data from database based on role
+      await _loadProfileFromDatabase(userId, userRole ?? 'admin', userData);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal memuat profil: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _loadProfileFromDatabase(
+    String userId,
+    String userRole,
+    Map<String, dynamic> authData,
+  ) async {
+    try {
       if (userRole == 'admin' || userRole == 'ukm') {
-        print('Loading admin profile for ID: $userId');
         final adminData = await _supabase
             .from('admin')
             .select(
               'id_admin, username_admin, email_admin, role, status, create_at',
             )
             .eq('id_admin', userId)
-            .maybeSingle()
-            .timeout(
-              const Duration(seconds: 10),
-              onTimeout: () {
-                print('Admin query timeout');
-                return null;
-              },
-            );
-
-        print('Admin data from DB: $adminData');
-
-        print('Admin data: $adminData');
-
-        print('Admin data from DB: $adminData');
+            .maybeSingle();
 
         if (adminData != null) {
-          print('Admin profile loaded from DB');
-          setState(() {
-            _userData = {
-              'id': adminData['id_admin'],
-              'username': adminData['username_admin'],
-              'email': adminData['email_admin'],
-              'role': adminData['role'],
-              'status': adminData['status'],
-              'created_at': adminData['create_at'],
-            };
-            _usernameController.text = _userData!['username'] ?? '';
-            _emailController.text = _userData!['email'] ?? '';
-            _isLoading = false;
-          });
-          print('Admin profile loaded successfully');
+          await _loadProfileImage(userId, userRole);
+          if (mounted) {
+            setState(() {
+              _userData = {
+                'id': adminData['id_admin'],
+                'username': adminData['username_admin'],
+                'email': adminData['email_admin'],
+                'role': adminData['role'] ?? 'admin',
+                'status': adminData['status'] ?? 'aktif',
+                'created_at': adminData['create_at'],
+              };
+              _usernameController.text = _userData!['username'] ?? '';
+              _emailController.text = _userData!['email'] ?? '';
+              _isLoading = false;
+            });
+          }
         } else {
-          // Use auth service data as fallback
-          print('Admin data not in DB, using auth service data');
-          setState(() {
-            _userData = {
-              'id': userId,
-              'username': userData['name'] ?? 'Admin',
-              'email': userData['email'] ?? '',
-              'role': userRole,
-              'status': userData['status'] ?? 'aktif',
-              'created_at': DateTime.now().toIso8601String(),
-              'is_fallback': true,
-            };
-            _usernameController.text = _userData!['username'] ?? '';
-            _emailController.text = _userData!['email'] ?? '';
-            _isLoading = false;
-          });
-        }
-      } else {
-        // Load user profile
-        print('Loading user profile for ID: $userId');
-        final userDataFromDb = await _supabase
-            .from('users')
-            .select('id_user, username, email, nim, picture, create_at')
-            .eq('id_user', userId)
-            .maybeSingle()
-            .timeout(
-              const Duration(seconds: 10),
-              onTimeout: () {
-                print('Users query timeout');
-                return null;
-              },
-            );
-
-        print('User data from DB: $userDataFromDb');
-
-        print('User data: $userData');
-
-        print('User data from DB: $userDataFromDb');
-
-        if (userDataFromDb != null) {
-          print('User profile loaded from DB');
-          final data = userDataFromDb;
-          setState(() {
-            _userData = {
-              'id': data['id_user'],
-              'username': data['username'],
-              'email': data['email'],
-              'nim': data['nim'],
-              'picture': data['picture'],
-              'role': 'user',
-              'created_at': data['create_at'],
-            };
-            _usernameController.text = _userData!['username'] ?? '';
-            _emailController.text = _userData!['email'] ?? '';
-            _isLoading = false;
-          });
-          print('User profile loaded successfully');
-        } else {
-          // Use auth service data as fallback
-          print('User data not in DB, using auth service data');
-          setState(() {
-            _userData = {
-              'id': userId,
-              'username': userData['name'] ?? 'User',
-              'email': userData['email'] ?? '',
-              'nim': userData['nim'] ?? '',
-              'role': 'user',
-              'created_at': DateTime.now().toIso8601String(),
-              'is_fallback': true,
-            };
-            _usernameController.text = _userData!['username'] ?? '';
-            _emailController.text = _userData!['email'] ?? '';
-            _isLoading = false;
-          });
+          if (mounted) {
+            setState(() {
+              _userData = {
+                'id': userId,
+                'username': authData['name'] ?? 'Admin',
+                'email': authData['email'] ?? '',
+                'role': userRole,
+                'status': 'aktif',
+                'created_at': DateTime.now().toIso8601String(),
+              };
+              _usernameController.text = _userData!['username'] ?? '';
+              _emailController.text = _userData!['email'] ?? '';
+              _isLoading = false;
+            });
+          }
         }
       }
     } catch (e) {
-      print('Error loading profile: $e');
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _loadProfileImage(String userId, String role) async {
+    try {
+      final username = _userData?['username'] ?? 'admin';
+      for (final format in ['jpg', 'jpeg', 'png', 'webp']) {
+        try {
+          final fileName = '$role-$username.$format';
+
+          final List<FileObject> objects = await _supabase.storage
+              .from('profile')
+              .list(searchOptions: SearchOptions(limit: 1, search: fileName));
+
+          if (objects.isNotEmpty) {
+            final publicUrl = _supabase.storage
+                .from('profile')
+                .getPublicUrl(fileName);
+
+            ProfileImageService.instance.updateProfileImage(publicUrl);
+            return;
+          }
+        } catch (e) {
+          continue;
+        }
+      }
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  Future<void> _pickAndUploadImage() async {
+    if (_userData == null) return;
+
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
+      );
+
+      if (image == null) return;
+
+      setState(() => _isUploadingPhoto = true);
+
+      final String role = _userData!['role'] ?? 'admin';
+      final String username = _userData!['username'] ?? 'admin';
+
+      // Hapus foto lama dengan format apapun untuk menghindari duplikasi/konflik
+      for (final format in ['jpg', 'jpeg', 'png', 'webp']) {
+        try {
+          await _supabase.storage.from('profile').remove([
+            '$role-$username.$format',
+          ]);
+        } catch (_) {}
+      }
+
+      final String extension = image.path.split('.').last.toLowerCase();
+      final String fileName = '$role-$username.$extension';
+      final bytes = await image.readAsBytes();
+
+      await _supabase.storage
+          .from('profile')
+          .uploadBinary(
+            fileName,
+            bytes,
+            fileOptions: FileOptions(
+              cacheControl: '3600',
+              upsert: true,
+              contentType: 'image/$extension',
+            ),
+          );
+
+      final publicUrl = _supabase.storage
+          .from('profile')
+          .getPublicUrl(fileName);
+
+      setState(() => _isUploadingPhoto = false);
+
+      ProfileImageService.instance.updateProfileImage(publicUrl);
+
       if (mounted) {
-        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Foto profil berhasil diupload!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() => _isUploadingPhoto = false);
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Gagal memuat profil: ${e.toString()}'),
+            content: Text('Gagal upload foto: $e'),
             backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
           ),
         );
       }
     }
-    print('=== Profile Loading Complete ===');
-  }
-
-  String? _validatePassword(String password) {
-    if (password.isEmpty) return null;
-    if (password.length < 8) {
-      return 'Password minimal 8 karakter';
-    }
-    if (!RegExp(r'[A-Z]').hasMatch(password)) {
-      return 'Password harus mengandung huruf besar';
-    }
-    if (!RegExp(r'[a-z]').hasMatch(password)) {
-      return 'Password harus mengandung huruf kecil';
-    }
-    if (!RegExp(r'[0-9]').hasMatch(password)) {
-      return 'Password harus mengandung angka';
-    }
-    return null;
   }
 
   Future<void> _saveChanges() async {
@@ -235,7 +261,6 @@ class _ProfileAdminPageState extends State<ProfileAdminPage> {
       return;
     }
 
-    // Validate password if changing
     if (_changePassword) {
       if (_passwordController.text.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -246,19 +271,19 @@ class _ProfileAdminPageState extends State<ProfileAdminPage> {
         );
         return;
       }
-
-      final passwordError = _validatePassword(_passwordController.text);
-      if (passwordError != null) {
+      if (_passwordController.text.length < 8) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(passwordError), backgroundColor: Colors.red),
+          const SnackBar(
+            content: Text('Password minimal 8 karakter'),
+            backgroundColor: Colors.red,
+          ),
         );
         return;
       }
-
       if (_passwordController.text != _confirmPasswordController.text) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Password dan konfirmasi password tidak sama'),
+            content: Text('Password tidak sama'),
             backgroundColor: Colors.red,
           ),
         );
@@ -269,71 +294,23 @@ class _ProfileAdminPageState extends State<ProfileAdminPage> {
     setState(() => _isSaving = true);
 
     try {
-      // Check if this is fallback data (not in database yet)
-      if (_userData!['is_fallback'] == true) {
-        // Insert new record instead of update
-        final user = _supabase.auth.currentUser;
-        if (user != null) {
-          await _supabase.from('users').insert({
-            'id_user': user.id,
-            'username': _usernameController.text.trim(),
-            'email': _emailController.text.trim(),
-            'create_at': DateTime.now().toIso8601String(),
-          });
+      if (_userData!['role'] == 'admin' || _userData!['role'] == 'ukm') {
+        await _supabase
+            .from('admin')
+            .update({
+              'username_admin': _usernameController.text.trim(),
+              'email_admin': _emailController.text.trim(),
+            })
+            .eq('id_admin', _userData!['id']);
 
-          // Remove fallback flag
-          _userData!.remove('is_fallback');
-        }
-      } else {
-        // Normal update
-        final updateData = {
-          if (_userData!['role'] == 'admin' || _userData!['role'] == 'ukm')
-            'username_admin': _usernameController.text.trim()
-          else
-            'username': _usernameController.text.trim(),
-          if (_userData!['role'] == 'admin' || _userData!['role'] == 'ukm')
-            'email_admin': _emailController.text.trim()
-          else
-            'email': _emailController.text.trim(),
-        };
-
-        // Update based on role
-        if (_userData!['role'] == 'admin' || _userData!['role'] == 'ukm') {
+        if (_changePassword && _passwordController.text.isNotEmpty) {
           await _supabase
               .from('admin')
-              .update(updateData)
+              .update({'password': _passwordController.text})
               .eq('id_admin', _userData!['id']);
-        } else {
-          await _supabase
-              .from('users')
-              .update(updateData)
-              .eq('id_user', _userData!['id']);
         }
       }
 
-      // Update password if changed
-      if (_changePassword && _passwordController.text.isNotEmpty) {
-        // Update password in database (hashed)
-        if (_userData!['role'] == 'admin' || _userData!['role'] == 'ukm') {
-          await _supabase
-              .from('admin')
-              .update({
-                'password_hash':
-                    _passwordController.text, // Will be hashed by trigger
-              })
-              .eq('id_admin', _userData!['id']);
-        } else {
-          await _supabase
-              .from('users')
-              .update({
-                'password_hash':
-                    _passwordController.text, // Will be hashed by trigger
-              })
-              .eq('id_user', _userData!['id']);
-        }
-      }
-
-      // Update local data
       _userData!['username'] = _usernameController.text.trim();
       _userData!['email'] = _emailController.text.trim();
 
@@ -348,7 +325,6 @@ class _ProfileAdminPageState extends State<ProfileAdminPage> {
             backgroundColor: Colors.green,
           ),
         );
-
         setState(() {
           _isEditMode = false;
           _changePassword = false;
@@ -357,56 +333,55 @@ class _ProfileAdminPageState extends State<ProfileAdminPage> {
         });
       }
     } catch (e) {
-      print('Error updating profile: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Gagal memperbarui data: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Gagal: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
-      if (mounted) {
-        setState(() => _isSaving = false);
-      }
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
-  void _cancelEdit() {
-    setState(() {
-      _isEditMode = false;
-      _changePassword = false;
-      _usernameController.text = _userData!['username'] ?? '';
-      _emailController.text = _userData!['email'] ?? '';
-      _passwordController.clear();
-      _confirmPasswordController.clear();
-    });
+  String _formatDate(String? dateStr) {
+    if (dateStr == null) return '-';
+    try {
+      return DateFormat('d MMM yyyy', 'id_ID').format(DateTime.parse(dateStr));
+    } catch (e) {
+      return dateStr;
+    }
+  }
+
+  Color _getRoleColor(String? role) {
+    switch (role) {
+      case 'admin':
+        return const Color(0xFF4169E1);
+      case 'ukm':
+        return Colors.green;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _getRoleLabel(String? role) {
+    switch (role) {
+      case 'admin':
+        return 'Administrator';
+      case 'ukm':
+        return 'UKM Manager';
+      default:
+        return role ?? '-';
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isMobile = MediaQuery.of(context).size.width < 768;
-    final isDesktop = MediaQuery.of(context).size.width >= 768;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isDesktop = screenWidth >= 900;
 
     if (_isLoading) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4169E1)),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Memuat profil...',
-              style: GoogleFonts.inter(
-                fontSize: isMobile ? 14 : 16,
-                color: Colors.grey[600],
-              ),
-            ),
-          ],
-        ),
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFF4169E1)),
       );
     }
 
@@ -415,17 +390,17 @@ class _ProfileAdminPageState extends State<ProfileAdminPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.error_outline, size: 64, color: Colors.grey),
+            Icon(Icons.person_off_outlined, size: 80, color: Colors.grey[400]),
             const SizedBox(height: 16),
             Text(
               'Data profil tidak ditemukan',
-              style: GoogleFonts.inter(fontSize: 16, color: Colors.grey[600]),
+              style: GoogleFonts.inter(fontSize: 18, color: Colors.grey[600]),
             ),
             const SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: _loadUserProfile,
               icon: const Icon(Icons.refresh),
-              label: const Text('Muat Ulang'),
+              label: const Text('Coba Lagi'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF4169E1),
                 foregroundColor: Colors.white,
@@ -437,363 +412,324 @@ class _ProfileAdminPageState extends State<ProfileAdminPage> {
     }
 
     return SingleChildScrollView(
-      padding: EdgeInsets.all(isMobile ? 12 : 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Warning banner for fallback data
-          if (_userData!['is_fallback'] == true)
-            Container(
-              margin: EdgeInsets.only(bottom: isMobile ? 12 : 16),
-              padding: EdgeInsets.all(isMobile ? 12 : 16),
-              decoration: BoxDecoration(
-                color: Colors.orange[50],
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.orange[300]!),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.warning_amber_rounded,
-                    color: Colors.orange[700],
-                    size: isMobile ? 20 : 24,
-                  ),
-                  SizedBox(width: isMobile ? 8 : 12),
-                  Expanded(
-                    child: Text(
-                      'Data profil belum tersimpan di database. Silakan edit dan simpan untuk melengkapi profil Anda.',
-                      style: GoogleFonts.inter(
-                        fontSize: isMobile ? 12 : 13,
-                        color: Colors.orange[900],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+      padding: EdgeInsets.all(isDesktop ? 32 : 16),
+      child: isDesktop ? _buildDesktopLayout() : _buildMobileLayout(),
+    );
+  }
 
-          // Header
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  Widget _buildDesktopLayout() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Left - Profile Card
+        SizedBox(width: 320, child: _buildProfileCard()),
+        const SizedBox(width: 24),
+        // Right - Details
+        Expanded(
+          child: Column(
             children: [
-              Text(
-                'Profil Saya',
-                style: GoogleFonts.inter(
-                  fontSize: isDesktop ? 24 : 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-              ),
-              if (!_isEditMode && !_isSaving)
-                ElevatedButton.icon(
-                  onPressed: () {
-                    setState(() => _isEditMode = true);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4169E1),
-                    foregroundColor: Colors.white,
-                    padding: EdgeInsets.symmetric(
-                      horizontal: isMobile ? 12 : 16,
-                      vertical: isMobile ? 8 : 12,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    elevation: 0,
-                  ),
-                  icon: Icon(Icons.edit, size: isMobile ? 18 : 20),
-                  label: Text(
-                    'Edit Profil',
-                    style: GoogleFonts.inter(
-                      fontSize: isMobile ? 13 : 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
+              _buildInfoCard(),
+              const SizedBox(height: 24),
+              _buildSecurityCard(),
             ],
           ),
-          SizedBox(height: isMobile ? 16 : 24),
+        ),
+      ],
+    );
+  }
 
-          // Profile Card
-          Container(
-            padding: EdgeInsets.all(isMobile ? 16 : 24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
-                // Avatar
-                CircleAvatar(
-                  radius: isMobile ? 50 : 60,
-                  backgroundColor: const Color(0xFF4169E1).withOpacity(0.1),
-                  child:
-                      _userData!['picture'] != null &&
-                          _userData!['picture'].toString().isNotEmpty
-                      ? ClipOval(
-                          child: Image.network(
-                            _userData!['picture'],
-                            width: isMobile ? 100 : 120,
-                            height: isMobile ? 100 : 120,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Icon(
-                                Icons.person,
-                                size: isMobile ? 50 : 60,
-                                color: const Color(0xFF4169E1),
-                              );
+  Widget _buildMobileLayout() {
+    return Column(
+      children: [
+        _buildProfileCard(),
+        const SizedBox(height: 16),
+        _buildInfoCard(),
+        const SizedBox(height: 16),
+        _buildSecurityCard(),
+      ],
+    );
+  }
+
+  Widget _buildProfileCard() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Avatar
+          Stack(
+            children: [
+              GestureDetector(
+                onTap: _isUploadingPhoto ? null : _pickAndUploadImage,
+                child: Container(
+                  width: 120,
+                  height: 120,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: const Color(0xFF4169E1),
+                      width: 3,
+                    ),
+                  ),
+                  child: ClipOval(
+                    child: _isUploadingPhoto
+                        ? const Center(
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : ValueListenableBuilder<String?>(
+                            valueListenable:
+                                ProfileImageService.instance.profileImageUrl,
+                            builder: (context, imageUrl, _) {
+                              return imageUrl != null
+                                  ? Image.network(
+                                      imageUrl,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) =>
+                                          _buildDefaultAvatar(),
+                                    )
+                                  : _buildDefaultAvatar();
                             },
                           ),
-                        )
-                      : Icon(
-                          Icons.person,
-                          size: isMobile ? 50 : 60,
-                          color: const Color(0xFF4169E1),
-                        ),
+                  ),
                 ),
-                SizedBox(height: isMobile ? 16 : 24),
-
-                // Role Badge
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _getRoleColor(_userData!['role']).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: _getRoleColor(_userData!['role']),
-                      width: 1,
+              ),
+              Positioned(
+                bottom: 0,
+                right: 0,
+                child: GestureDetector(
+                  onTap: _pickAndUploadImage,
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF4169E1),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
                     ),
-                  ),
-                  child: Text(
-                    _getRoleLabel(_userData!['role']),
-                    style: GoogleFonts.inter(
-                      fontSize: isMobile ? 11 : 12,
-                      fontWeight: FontWeight.w600,
-                      color: _getRoleColor(_userData!['role']),
+                    child: const Icon(
+                      Icons.camera_alt,
+                      color: Colors.white,
+                      size: 16,
                     ),
                   ),
                 ),
-                SizedBox(height: isMobile ? 20 : 24),
-
-                // Form Fields
-                _buildProfileField(
-                  label: 'Username',
-                  controller: _usernameController,
-                  icon: Icons.person_outline,
-                  enabled: _isEditMode,
-                  isMobile: isMobile,
-                ),
-                SizedBox(height: isMobile ? 12 : 16),
-
-                _buildProfileField(
-                  label: 'Email',
-                  controller: _emailController,
-                  icon: Icons.email_outlined,
-                  enabled: _isEditMode,
-                  isMobile: isMobile,
-                ),
-                SizedBox(height: isMobile ? 12 : 16),
-
-                // NIM (only for users)
-                if (_userData!['nim'] != null)
-                  Column(
-                    children: [
-                      _buildInfoField(
-                        label: 'NIM',
-                        value: _userData!['nim'] ?? '-',
-                        icon: Icons.badge_outlined,
-                        isMobile: isMobile,
-                      ),
-                      SizedBox(height: isMobile ? 12 : 16),
-                    ],
-                  ),
-
-                // Role
-                _buildInfoField(
-                  label: 'Role',
-                  value: _getRoleLabel(_userData!['role']),
-                  icon: Icons.admin_panel_settings_outlined,
-                  isMobile: isMobile,
-                ),
-                SizedBox(height: isMobile ? 12 : 16),
-
-                // Status (only for admin)
-                if (_userData!['status'] != null)
-                  Column(
-                    children: [
-                      _buildInfoField(
-                        label: 'Status',
-                        value: _userData!['status'] ?? '-',
-                        icon: Icons.check_circle_outline,
-                        isMobile: isMobile,
-                      ),
-                      SizedBox(height: isMobile ? 12 : 16),
-                    ],
-                  ),
-
-                // Created At
-                _buildInfoField(
-                  label: 'Terdaftar Sejak',
-                  value: _formatDate(_userData!['created_at']),
-                  icon: Icons.calendar_today_outlined,
-                  isMobile: isMobile,
-                ),
-
-                // Change Password Section (only in edit mode)
-                if (_isEditMode) ...[
-                  SizedBox(height: isMobile ? 16 : 20),
-                  const Divider(),
-                  SizedBox(height: isMobile ? 16 : 20),
-
-                  CheckboxListTile(
-                    title: Text(
-                      'Ubah Password',
-                      style: GoogleFonts.inter(
-                        fontSize: isMobile ? 13 : 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    value: _changePassword,
-                    onChanged: (value) {
-                      setState(() {
-                        _changePassword = value ?? false;
-                        if (!_changePassword) {
-                          _passwordController.clear();
-                          _confirmPasswordController.clear();
-                        }
-                      });
-                    },
-                    activeColor: const Color(0xFF4169E1),
-                    contentPadding: EdgeInsets.zero,
-                  ),
-
-                  if (_changePassword) ...[
-                    SizedBox(height: isMobile ? 12 : 16),
-                    _buildPasswordField(
-                      label: 'Password Baru',
-                      controller: _passwordController,
-                      obscureText: _obscurePassword,
-                      onToggleVisibility: () {
-                        setState(() => _obscurePassword = !_obscurePassword);
-                      },
-                      isMobile: isMobile,
-                    ),
-                    SizedBox(height: isMobile ? 12 : 16),
-                    _buildPasswordField(
-                      label: 'Konfirmasi Password',
-                      controller: _confirmPasswordController,
-                      obscureText: _obscureConfirmPassword,
-                      onToggleVisibility: () {
-                        setState(
-                          () => _obscureConfirmPassword =
-                              !_obscureConfirmPassword,
-                        );
-                      },
-                      isMobile: isMobile,
-                    ),
-                  ],
-                ],
-
-                // Action Buttons (in edit mode)
-                if (_isEditMode) ...[
-                  SizedBox(height: isMobile ? 20 : 24),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: _isSaving ? null : _cancelEdit,
-                          style: OutlinedButton.styleFrom(
-                            padding: EdgeInsets.symmetric(
-                              vertical: isMobile ? 12 : 14,
-                            ),
-                            side: BorderSide(
-                              color: Colors.grey[400]!,
-                              width: 1,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                          child: Text(
-                            'Batal',
-                            style: GoogleFonts.inter(
-                              fontSize: isMobile ? 13 : 14,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey[700],
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: _isSaving ? null : _saveChanges,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF4169E1),
-                            foregroundColor: Colors.white,
-                            padding: EdgeInsets.symmetric(
-                              vertical: isMobile ? 12 : 14,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            elevation: 0,
-                          ),
-                          child: _isSaving
-                              ? SizedBox(
-                                  height: isMobile ? 16 : 20,
-                                  width: isMobile ? 16 : 20,
-                                  child: const CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                      Colors.white,
-                                    ),
-                                  ),
-                                )
-                              : Text(
-                                  'Simpan',
-                                  style: GoogleFonts.inter(
-                                    fontSize: isMobile ? 13 : 14,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          // Name
+          Text(
+            _userData!['username'] ?? 'Admin',
+            style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w700),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            _userData!['email'] ?? '',
+            style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          // Role Badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: _getRoleColor(_userData!['role']).withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(20),
             ),
+            child: Text(
+              _getRoleLabel(_userData!['role']),
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: _getRoleColor(_userData!['role']),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Divider(),
+          const SizedBox(height: 16),
+          // Stats
+          _buildStat(
+            Icons.verified_user,
+            'Status',
+            _userData!['status'] ?? 'Aktif',
+            Colors.green,
+          ),
+          const SizedBox(height: 12),
+          _buildStat(
+            Icons.calendar_today,
+            'Bergabung',
+            _formatDate(_userData!['created_at']),
+            Colors.orange,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildProfileField({
-    required String label,
-    required TextEditingController controller,
-    required IconData icon,
-    required bool enabled,
-    required bool isMobile,
-  }) {
+  Widget _buildDefaultAvatar() {
+    return Image.asset(
+      'assets/ua.webp',
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => Container(
+        color: const Color(0xFF4169E1).withValues(alpha: 0.1),
+        child: const Icon(Icons.person, size: 50, color: Color(0xFF4169E1)),
+      ),
+    );
+  }
+
+  Widget _buildStat(IconData icon, String label, String value, Color color) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: color, size: 18),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600]),
+              ),
+              Text(
+                value,
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInfoCard() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Informasi Akun',
+                style: GoogleFonts.inter(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              if (!_isEditMode)
+                TextButton.icon(
+                  onPressed: () => setState(() => _isEditMode = true),
+                  icon: const Icon(Icons.edit, size: 18),
+                  label: const Text('Edit'),
+                ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          _buildTextField(
+            'Username',
+            _usernameController,
+            Icons.person_outline,
+            _isEditMode,
+          ),
+          const SizedBox(height: 16),
+          _buildTextField(
+            'Email',
+            _emailController,
+            Icons.email_outlined,
+            _isEditMode,
+          ),
+          if (_isEditMode) ...[
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => setState(() {
+                      _isEditMode = false;
+                      _usernameController.text = _userData!['username'] ?? '';
+                      _emailController.text = _userData!['email'] ?? '';
+                    }),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: const Text('Batal'),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _isSaving ? null : _saveChanges,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF4169E1),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: _isSaving
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text('Simpan'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTextField(
+    String label,
+    TextEditingController controller,
+    IconData icon,
+    bool enabled,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
           style: GoogleFonts.inter(
-            fontSize: isMobile ? 12 : 13,
+            fontSize: 13,
             fontWeight: FontWeight.w600,
             color: Colors.grey[700],
           ),
@@ -802,106 +738,162 @@ class _ProfileAdminPageState extends State<ProfileAdminPage> {
         TextFormField(
           controller: controller,
           enabled: enabled,
-          style: GoogleFonts.inter(
-            fontSize: isMobile ? 13 : 14,
-            color: enabled ? Colors.black87 : Colors.grey[600],
-          ),
           decoration: InputDecoration(
-            prefixIcon: Icon(
-              icon,
-              size: isMobile ? 18 : 20,
-              color: Colors.grey[600],
-            ),
+            prefixIcon: Icon(icon, size: 20),
             filled: true,
             fillColor: enabled ? Colors.grey[50] : Colors.grey[100],
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(10),
               borderSide: BorderSide(color: Colors.grey[300]!),
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(10),
               borderSide: BorderSide(color: Colors.grey[300]!),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(10),
               borderSide: const BorderSide(color: Color(0xFF4169E1), width: 2),
             ),
             disabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(10),
               borderSide: BorderSide(color: Colors.grey[200]!),
             ),
-            contentPadding: EdgeInsets.symmetric(
-              horizontal: isMobile ? 12 : 14,
-              vertical: isMobile ? 12 : 14,
-            ),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildInfoField({
-    required String label,
-    required String value,
-    required IconData icon,
-    required bool isMobile,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.inter(
-            fontSize: isMobile ? 12 : 13,
-            fontWeight: FontWeight.w600,
-            color: Colors.grey[700],
+  Widget _buildSecurityCard() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: isMobile ? 12 : 14,
-            vertical: isMobile ? 12 : 14,
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Keamanan',
+            style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700),
           ),
-          decoration: BoxDecoration(
-            color: Colors.grey[100],
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.grey[200]!),
-          ),
-          child: Row(
-            children: [
-              Icon(icon, size: isMobile ? 18 : 20, color: Colors.grey[600]),
-              SizedBox(width: isMobile ? 10 : 12),
-              Expanded(
-                child: Text(
-                  value,
-                  style: GoogleFonts.inter(
-                    fontSize: isMobile ? 13 : 14,
-                    color: Colors.grey[600],
-                  ),
+          const SizedBox(height: 20),
+          InkWell(
+            onTap: () => setState(() {
+              _changePassword = !_changePassword;
+              if (!_changePassword) {
+                _passwordController.clear();
+                _confirmPasswordController.clear();
+              }
+            }),
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: _changePassword
+                    ? const Color(0xFF4169E1).withValues(alpha: 0.05)
+                    : Colors.grey[50],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: _changePassword
+                      ? const Color(0xFF4169E1).withValues(alpha: 0.3)
+                      : Colors.grey[200]!,
                 ),
               ),
-            ],
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.lock_outline,
+                    color: _changePassword
+                        ? const Color(0xFF4169E1)
+                        : Colors.grey[600],
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Ubah Password',
+                      style: GoogleFonts.inter(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    _changePassword
+                        ? Icons.keyboard_arrow_up
+                        : Icons.keyboard_arrow_down,
+                    color: Colors.grey,
+                  ),
+                ],
+              ),
+            ),
           ),
-        ),
-      ],
+          if (_changePassword) ...[
+            const SizedBox(height: 20),
+            _buildPasswordField(
+              'Password Baru',
+              _passwordController,
+              _obscurePassword,
+              () => setState(() => _obscurePassword = !_obscurePassword),
+            ),
+            const SizedBox(height: 16),
+            _buildPasswordField(
+              'Konfirmasi Password',
+              _confirmPasswordController,
+              _obscureConfirmPassword,
+              () => setState(
+                () => _obscureConfirmPassword = !_obscureConfirmPassword,
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _isSaving ? null : _saveChanges,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF4169E1),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                child: _isSaving
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text('Simpan Password'),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
-  Widget _buildPasswordField({
-    required String label,
-    required TextEditingController controller,
-    required bool obscureText,
-    required VoidCallback onToggleVisibility,
-    required bool isMobile,
-  }) {
+  Widget _buildPasswordField(
+    String label,
+    TextEditingController controller,
+    bool obscure,
+    VoidCallback toggle,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
           style: GoogleFonts.inter(
-            fontSize: isMobile ? 12 : 13,
+            fontSize: 13,
             fontWeight: FontWeight.w600,
             color: Colors.grey[700],
           ),
@@ -909,81 +901,30 @@ class _ProfileAdminPageState extends State<ProfileAdminPage> {
         const SizedBox(height: 8),
         TextFormField(
           controller: controller,
-          obscureText: obscureText,
-          style: GoogleFonts.inter(fontSize: isMobile ? 13 : 14),
+          obscureText: obscure,
           decoration: InputDecoration(
-            prefixIcon: Icon(
-              Icons.lock_outline,
-              size: isMobile ? 18 : 20,
-              color: Colors.grey[600],
-            ),
+            prefixIcon: const Icon(Icons.lock_outline, size: 20),
             suffixIcon: IconButton(
               icon: Icon(
-                obscureText
-                    ? Icons.visibility_outlined
-                    : Icons.visibility_off_outlined,
-                size: isMobile ? 18 : 20,
-                color: Colors.grey[600],
+                obscure ? Icons.visibility : Icons.visibility_off,
+                size: 20,
               ),
-              onPressed: onToggleVisibility,
+              onPressed: toggle,
             ),
             filled: true,
             fillColor: Colors.grey[50],
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(10),
               borderSide: BorderSide(color: Colors.grey[300]!),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(10),
               borderSide: const BorderSide(color: Color(0xFF4169E1), width: 2),
-            ),
-            contentPadding: EdgeInsets.symmetric(
-              horizontal: isMobile ? 12 : 14,
-              vertical: isMobile ? 12 : 14,
             ),
           ),
         ),
       ],
     );
-  }
-
-  Color _getRoleColor(String? role) {
-    switch (role?.toLowerCase()) {
-      case 'admin':
-        return const Color(0xFFDC2626); // Red
-      case 'ukm':
-        return const Color(0xFF9333EA); // Purple
-      case 'user':
-        return const Color(0xFF4169E1); // Blue
-      default:
-        return Colors.grey;
-    }
-  }
-
-  String _getRoleLabel(String? role) {
-    switch (role?.toLowerCase()) {
-      case 'admin':
-        return 'Administrator';
-      case 'ukm':
-        return 'UKM Admin';
-      case 'user':
-        return 'Pengguna';
-      default:
-        return role ?? 'Unknown';
-    }
-  }
-
-  String _formatDate(String? dateStr) {
-    if (dateStr == null || dateStr.isEmpty) return '-';
-    try {
-      final date = DateTime.parse(dateStr);
-      return DateFormat('dd MMMM yyyy', 'id_ID').format(date);
-    } catch (e) {
-      return dateStr;
-    }
   }
 }

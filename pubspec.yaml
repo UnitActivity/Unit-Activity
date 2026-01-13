@@ -60,6 +60,8 @@ dependencies:
   flutter_local_notifications: ^18.0.1
   fl_chart: ^0.69.0
   syncfusion_flutter_pdfviewer: ^32.1.22
+  lottie: ^3.1.0
+  connectivity_plus: ^6.0.3
 
 
 
@@ -89,7 +91,7 @@ flutter:
   assets:
     - .env
     - assets/images/
-    - assets/images/slider/
+    - assets/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
@@ -116,3 +118,36 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# Flutter Launcher Icons Configuration
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/ua.webp"
+  
+  # Android adaptive icon
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/images/ua.webp"
+  
+  # Windows
+  windows:
+    generate: true
+    image_path: "assets/images/ua.webp"
+    icon_size: 256
+  
+  # Web
+  web:
+    generate: true
+    image_path: "assets/images/ua.webp"
+    background_color: "#FFFFFF"
+    theme_color: "#4169E1"
+  
+  # macOS
+  macos:
+    generate: true
+    image_path: "assets/images/ua.webp"
+  
+  # Linux
+  linux:
+    generate: true
+    image_path: "assets/images/ua.webp"

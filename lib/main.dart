@@ -13,6 +13,8 @@ import 'package:unit_activity/ukm/dashboard_ukm.dart';
 import 'package:unit_activity/user/dashboard_user.dart';
 import 'package:unit_activity/config/config.dart';
 import 'package:unit_activity/services/custom_auth_service.dart';
+import 'package:unit_activity/services/connectivity_service.dart';
+import 'package:unit_activity/widgets/lost_connection_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -49,6 +51,14 @@ Future<void> main() async {
       'Current user: ${authService.currentUserRole} - ${authService.currentUser?['name']}',
     );
   }
+
+  // Initialize Connectivity Service untuk memantau koneksi internet
+  print('========== INITIALIZING CONNECTIVITY SERVICE ==========');
+  final connectivityService = ConnectivityService();
+  await connectivityService.initialize();
+  print(
+    'Connectivity service initialized. Connected: ${connectivityService.isConnected}',
+  );
 
   // Disable DevicePreview in release mode for better performance
   final enableDevicePreview = !kReleaseMode;
@@ -88,7 +98,11 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       // Konfigurasi untuk Device Preview
       locale: DevicePreview.locale(context),
-      builder: DevicePreview.appBuilder,
+      builder: (context, child) {
+        // Wrap dengan DevicePreview dan GlobalConnectivityWrapper
+        Widget app = DevicePreview.appBuilder(context, child);
+        return GlobalConnectivityWrapper(child: app);
+      },
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF4169E1)),
         useMaterial3: true,
@@ -106,6 +120,77 @@ class MyApp extends StatelessWidget {
         '/user': (context) => const DashboardUser(),
         '/user/dashboard': (context) => const DashboardUser(),
       },
+    );
+  }
+}
+
+/// Global wrapper untuk memantau koneksi internet di seluruh aplikasi
+/// Widget ini akan menampilkan halaman lost connection sebagai overlay
+/// ketika koneksi internet terputus
+class GlobalConnectivityWrapper extends StatefulWidget {
+  final Widget child;
+
+  const GlobalConnectivityWrapper({super.key, required this.child});
+
+  @override
+  State<GlobalConnectivityWrapper> createState() =>
+      _GlobalConnectivityWrapperState();
+}
+
+class _GlobalConnectivityWrapperState extends State<GlobalConnectivityWrapper> {
+  final ConnectivityService _connectivityService = ConnectivityService();
+  late Stream<bool> _connectionStream;
+  bool _isConnected = true;
+  bool _hasCheckedInitial = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _connectionStream = _connectivityService.connectionStream;
+    _isConnected = _connectivityService.isConnected;
+
+    // Subscribe ke connection stream
+    _connectionStream.listen((isConnected) {
+      if (mounted && _hasCheckedInitial) {
+        setState(() {
+          _isConnected = isConnected;
+        });
+      }
+    });
+
+    // Delay sedikit untuk memastikan UI sudah ready
+    // sebelum menampilkan lost connection page
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) {
+        setState(() {
+          _hasCheckedInitial = true;
+          _isConnected = _connectivityService.isConnected;
+        });
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        // Main app content
+        widget.child,
+
+        // Lost connection overlay
+        if (_hasCheckedInitial && !_isConnected)
+          Positioned.fill(
+            child: Material(
+              child: LostConnectionPage(
+                onReconnected: () {
+                  setState(() {
+                    _isConnected = true;
+                  });
+                },
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
