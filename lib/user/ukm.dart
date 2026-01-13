@@ -75,88 +75,95 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
     });
 
     try {
-      // Load current periode
+      // 1. Load basic data
       _currentPeriode = await _getCurrentPeriode();
-      final currentPeriodeId = _currentPeriode?['id_periode'];
+      
+      // 2. Load User's Attendance (Global List of Consistently Attended Meeting IDs)
+      final userId = _authService.currentUserId;
+      final Set<String> attendedMeetingIds = {};
+      final Set<String> registeredUKMIds = {};
 
-      // Get UKMs from database
-      final response = await _supabase
-          .from('ukm')
-          .select('id_ukm, nama_ukm, email, logo');
-
-      // Load user's registered UKMs
-      final registeredUKMIds = <String>{};
-      final Map<String, int> attendanceMap = {};
-      final Map<String, int> totalMeetingsMap = {};
-
-      // 1. Get Total Meetings for each UKM in current period
-      if (currentPeriodeId != null) {
+      if (userId != null) {
+        // A. Attendance
         try {
-          // Fetch distinct meeting counts per UKM for current period
-          final meetingsResponse = await _supabase
-              .from('pertemuan')
-              .select('id_ukm, id_pertemuan')
-              .eq('id_periode', currentPeriodeId);
-          
-          final meetingsList = meetingsResponse as List;
-          for (var meeting in meetingsList) {
-            final ukmId = meeting['id_ukm'].toString();
-            totalMeetingsMap[ukmId] = (totalMeetingsMap[ukmId] ?? 0) + 1;
+          // Fetch attendance records with status
+          final attendanceRes = await _supabase
+              .from('absen_pertemuan')
+              .select('id_pertemuan, status')
+              .eq('id_user', userId);
+              
+          for (var row in (attendanceRes as List)) {
+            final status = (row['status'] as String?)?.toLowerCase() ?? '';
+            // Check for 'hadir' status (case insensitive)
+            if (status.contains('hadir')) {
+               attendedMeetingIds.add(row['id_pertemuan']?.toString() ?? '');
+            }
           }
+          print('DEBUG: User has ${attendedMeetingIds.length} attended meetings (status=hadir)');
         } catch (e) {
-          debugPrint('Error loading total meetings: $e');
+          print('Error loading attendance: $e');
         }
-      }
 
-      // 2. Get User Registration & Attendance
-      try {
-        final userId = _authService.currentUserId;
-        print('DEBUG _loadUKMs: userId from authService = $userId');
-        
-        if (userId != null && userId.isNotEmpty) {
-          // Get all registered UKMs - Independent of period
-          final userUKMResponse = await _supabase
+        // B. Registered UKMs
+        try {
+          final regRes = await _supabase
               .from('user_halaman_ukm')
               .select('id_ukm')
               .eq('id_user', userId)
-              .or('status.eq.aktif,status.eq.active')
-              .order('created_at', ascending: false);
-
-          for (var item in userUKMResponse) {
-            registeredUKMIds.add(item['id_ukm']?.toString() ?? '');
-          }
+              .or('status.eq.aktif,status.eq.active');
           
-          // Get user's attendance - Dependent on period
-          if (currentPeriodeId != null) {
-            final attendanceResponse = await _supabase
-                .from('absen_pertemuan')
-                .select('id_pertemuan, pertemuan!inner(id_ukm, id_periode)')
-                .eq('id_user', userId)
-                .eq('status', 'Hadir')
-                .eq('pertemuan.id_periode', currentPeriodeId);
-                
-            final attendanceList = attendanceResponse as List;
-            for (var record in attendanceList) {
-              final ukmId = record['pertemuan']['id_ukm'].toString();
-              attendanceMap[ukmId] = (attendanceMap[ukmId] ?? 0) + 1;
-            }
+          for (var row in (regRes as List)) {
+            registeredUKMIds.add(row['id_ukm']?.toString() ?? '');
           }
+        } catch (e) {
+          print('Error loading registrations: $e');
         }
-      } catch (e) {
-        debugPrint('Error loading user UKMs/attendance: $e');
       }
 
-      final List<dynamic> data = response as List;
+      // 3. Load UKMs
+      final ukmRes = await _supabase
+          .from('ukm')
+          .select('id_ukm, nama_ukm, email, logo');
+      
+      final List<dynamic> ukmList = ukmRes as List;
+      final List<Map<String, dynamic>> processedUKMs = [];
 
-      if (!mounted) return;
+      // 4. Process each UKM
+      for (var ukm in ukmList) {
+        final ukmId = ukm['id_ukm']?.toString() ?? '';
+        final isReg = registeredUKMIds.contains(ukmId);
+        
+        int totalMeetings = 0;
+        int attendedCount = 0;
 
-      setState(() {
-        _allUKMs = data.map((ukm) {
-          final ukmId = ukm['id_ukm']?.toString() ?? '';
-          final isReg = registeredUKMIds.contains(ukmId);
-          
-          return {
-            'id': ukm['id_ukm']?.toString() ?? '',
+        if (ukmId.isNotEmpty) {
+           // Fetch meetings for this specific UKM
+           // REMOVED PERIOD FILTER: To ensure we show ALL meetings if standardizing on "Total Meetings of UKM"
+           // This fixes "0/0" if meetings don't have period attached.
+           try {
+             final meetingsRes = await _supabase
+                 .from('pertemuan')
+                 .select('id_pertemuan')
+                 .eq('id_ukm', ukmId);
+             
+             final meetings = meetingsRes as List;
+             totalMeetings = meetings.length;
+             
+             // Calculate how many of *these* meetings the user attended
+             for (var m in meetings) {
+               final mId = m['id_pertemuan']?.toString();
+               if (mId != null && attendedMeetingIds.contains(mId)) {
+                 attendedCount++;
+               }
+             }
+             print('DEBUG: UKM ${ukm['nama_ukm']}: $attendedCount / $totalMeetings meetings');
+           } catch (e) {
+             print('Error loading meetings for UKM $ukmId: $e');
+           }
+        }
+
+        processedUKMs.add({
+            'id': ukmId,
             'name': ukm['nama_ukm'] ?? 'UKM',
             'logo': ukm['logo'],
             'email': ukm['email'] ?? '',
@@ -169,14 +176,20 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
             ],
             'isRegistered': isReg,
             'status': isReg ? 'Sudah Terdaftar' : 'Belum Terdaftar',
-            'attendance': attendanceMap[ukmId] ?? 0,
-            'totalMeetings': totalMeetingsMap[ukmId] ?? 0,
-          };
-        }).toList();
+            'attendance': attendedCount,
+            'totalMeetings': totalMeetings,
+        });
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        _allUKMs = processedUKMs;
         _isLoading = false;
       });
+      
     } catch (e, stackTrace) {
-      print('Error loading UKMs: $e');
+      print('❌ Error loading UKMs: $e');
       print('Stack trace: $stackTrace');
       setState(() {
         _isLoading = false;
@@ -407,7 +420,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
           ''')
           // Removing strict status check to ensure we find the latest period
           // The logic in _showRegisterDialog will determine if it's open based on dates
-          .order('create_at', ascending: false)
+          .order('tanggal_awal', ascending: false)
           .limit(1)
           .maybeSingle();
 

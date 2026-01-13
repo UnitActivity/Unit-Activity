@@ -9,6 +9,7 @@ import 'package:unit_activity/services/dynamic_qr_service.dart';
 import 'package:unit_activity/ukm/detail_document_ukm_page.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:unit_activity/services/dynamic_qr_service.dart';
 
 class DetailEventUkmPage extends StatefulWidget {
   final String eventId;
@@ -2879,7 +2880,7 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
   }
 
   // Default auto-regenerate to true
-  // (Duplicate declarations removed; using the primary `_autoRegenerateQR` and `initState` above.)
+  bool _autoRegenerateQR = true;
 
   Future<void> _generateQRCode() async {
     try {

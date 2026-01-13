@@ -46,15 +46,23 @@ class _QRScannerDialogState extends State<QRScannerDialog> {
     });
   }
 
+  bool _isProcessingSource = false;
+
   void _handleDetection(BarcodeCapture capture) {
+    if (_isProcessingSource) return;
+
     final List<Barcode> barcodes = capture.barcodes;
     for (final barcode in barcodes) {
       final code = barcode.rawValue ?? '';
       if (code.isNotEmpty) {
+        setState(() {
+          _isProcessingSource = true;
+        });
         widget.onCodeScanned(code);
         if (mounted) {
           Navigator.pop(context);
         }
+        break; // Only process the first valid barcode
       }
     }
   }

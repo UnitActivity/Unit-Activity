@@ -44,15 +44,16 @@ class AttendanceService {
         return {'success': false, 'message': 'Event sudah tidak aktif.'};
       }
 
-      // CRITICAL: Check if user is registered in peserta_event table first
-      final registration = await _supabase
-          .from('peserta_event')
-          .select('id_peserta, status')
+      // Check registration and attendance status in absen_event
+      // User must have registered first (via Event page) before scanning QR
+      final attendanceRecord = await _supabase
+          .from('absen_event')
+          .select('id_absen_e, status')
           .eq('id_event', eventId)
           .eq('id_user', userId)
           .maybeSingle();
 
-      if (registration == null) {
+      if (attendanceRecord == null) {
         return {
           'success': false,
           'message':
@@ -60,15 +61,10 @@ class AttendanceService {
         };
       }
 
-      // Check if already attended
-      final existingAttendance = await _supabase
-          .from('absen_event')
-          .select('id_absen_e')
-          .eq('id_event', eventId)
-          .eq('id_user', userId)
-          .maybeSingle();
-
-      if (existingAttendance != null) {
+      // Check if already marked as 'hadir' (attended)
+      final currentStatus = (attendanceRecord['status'] as String?)?.toLowerCase() ?? '';
+      
+      if (currentStatus == 'hadir') {
         return {
           'success': false,
           'message':
@@ -76,31 +72,28 @@ class AttendanceService {
         };
       }
 
-      // Record attendance
+      // Update status from 'terdaftar' to 'hadir'
       final now = DateTime.now();
+      final timeString = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
       
-      print('DEBUG: Inserting event attendance to database...');
+      print('DEBUG: Updating event attendance to hadir...');
       print('  - id_event: $eventId');
       print('  - id_user: $userId');
-      print('  - status: hadir');
+      print('  - previous_status: $currentStatus');
       
-      await _supabase.from('absen_event').insert({
-        'id_event': eventId,
-        'id_user': userId,
-        'jam':
-            '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
+      await _supabase.from('absen_event').update({
         'status': 'hadir',
-      });
+        'jam': timeString,
+      }).eq('id_absen_e', attendanceRecord['id_absen_e']);
 
-      print('✅ Attendance recorded successfully');
+      print('✅ Attendance updated successfully');
 
       return {
         'success': true,
         'message': 'Berhasil absen di event "${eventResponse['nama_event']}"!',
         'event_name': eventResponse['nama_event']?.toString() ?? 'Event',
         'event_id': eventId,
-        'time':
-            '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
+        'time': timeString,
       };
     } catch (e, stackTrace) {
       print('❌ Error recording event attendance: $e');

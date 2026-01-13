@@ -736,7 +736,7 @@ class _UserEventPageState extends State<UserEventPage>
               : (MediaQuery.of(context).size.width < 1200 ? 2 : 3),
           mainAxisSpacing: isMobile ? 12 : 16,
           crossAxisSpacing: isMobile ? 12 : 16,
-          childAspectRatio: isMobile ? 1.4 : 1.3,
+          childAspectRatio: isMobile ? 1.15 : 1.3,
         ),
         itemCount: events.length,
         itemBuilder: (context, index) {

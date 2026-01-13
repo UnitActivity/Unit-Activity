@@ -11,6 +11,7 @@ import 'package:unit_activity/user/ukm.dart';
 import 'package:unit_activity/user/history.dart';
 import 'package:unit_activity/services/user_dashboard_service.dart';
 import 'package:unit_activity/services/attendance_service.dart';
+import 'package:unit_activity/services/custom_auth_service.dart';
 import 'dart:async';
 import 'dart:ui';
 
@@ -63,11 +64,21 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
   @override
   void initState() {
     super.initState();
+    _initializeAndLoad();
+    _startAutoSlide();
+    _setupRealtimeSubscription();
+  }
+
+  /// Initialize auth and then load all data
+  Future<void> _initializeAndLoad() async {
+    // Ensure auth service is initialized (restores session from SharedPreferences)
+    await CustomAuthService().initialize();
+    print('DEBUG: Auth initialized, userId: ${_dashboardService.currentUserId}');
+    
+    // Now load data that depends on userId
     _loadSliderEvents();
     _loadStatisticsData();
     _loadScheduleData();
-    _startAutoSlide();
-    _setupRealtimeSubscription();
   }
 
   @override
@@ -405,117 +416,150 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
 
   Future<void> _loadStatisticsData() async {
     try {
-      print('========== LOADING STATISTICS DATA ==========');
+      print('========== LOADING STATISTICS DATA (ATTENDANCE BASED) ==========');
 
-      // Get current user's joined UKMs first, fallback to top 2 UKMs
-      final userId = _supabase.auth.currentUser?.id;
-      List<dynamic> ukmList = [];
-
-      if (userId != null) {
-        // Try to get user's joined UKMs first
-        final userUkms = await _supabase
-            .from('user_halaman_ukm')
-            .select('ukm(id_ukm, nama_ukm)')
-            .eq('id_user', userId)
-            .eq('status', 'active')
-            .limit(2);
-
-        if (userUkms.isNotEmpty) {
-          ukmList = (userUkms as List)
-              .map((e) => e['ukm'])
-              .where((e) => e != null)
-              .toList();
-          print('✅ Using user joined UKMs: ${ukmList.length}');
-        }
-      }
-
-      // Fallback to any 2 UKMs if user hasn't joined any
-      if (ukmList.isEmpty) {
-        ukmList = await _supabase
-            .from('ukm')
-            .select('id_ukm, nama_ukm')
-            .limit(2);
-        print('ℹ️ Using fallback UKMs: ${ukmList.length}');
-      }
-
-      if (ukmList.isEmpty) {
-        print('⚠️ No UKMs found');
+      // Use the dashboard service's currentUserId (from CustomAuthService)
+      // NOT _supabase.auth.currentUser?.id which is null for custom auth
+      final userId = _dashboardService.currentUserId;
+      print('DEBUG: Dashboard userId from service: $userId');
+      
+      if (userId == null || userId.isEmpty) {
+        print('⚠️ No user logged in (userId is null or empty)');
         if (mounted) {
           setState(() {
             _statistikData1 = List.generate(12, (_) => 0);
             _statistikData2 = List.generate(12, (_) => 0);
-            _statistikLabel1 = 'Tidak ada data';
-            _statistikLabel2 = 'Tidak ada data';
+            _statistikLabel1 = 'Belum login';
+            _statistikLabel2 = 'Belum login';
             _isLoadingStats = false;
           });
         }
         return;
       }
 
-      final currentYear = DateTime.now().year;
-      List<int> data1 = List.generate(12, (_) => 0);
-      List<int> data2 = List.generate(12, (_) => 0);
-
-      // Load meeting counts for first UKM - with real monthly data
-      if (ukmList.isNotEmpty) {
-        final ukm1Id = ukmList[0]['id_ukm'];
-        _statistikLabel1 = ukmList[0]['nama_ukm'] ?? 'UKM 1';
-
-        print('Loading pertemuan for UKM 1: $_statistikLabel1 (ID: $ukm1Id)');
-
-        final meetings1 = await _supabase
-            .from('pertemuan')
-            .select('id_pertemuan, tanggal')
-            .eq('id_ukm', ukm1Id);
-
-        print('  Found ${meetings1.length} meetings');
-
-        // Count meetings per month for current year
-        for (var meeting in meetings1) {
-          if (meeting['tanggal'] != null) {
-            try {
-              final date = DateTime.parse(meeting['tanggal']);
-              if (date.year == currentYear) {
-                data1[date.month - 1]++;
-              }
-            } catch (e) {
-              // Skip invalid dates
-            }
-          }
+      // 1. Get user's joined UKMs (aktif status)
+      List<Map<String, dynamic>> joinedUkms = [];
+      try {
+        final userUkmsRes = await _supabase
+            .from('user_halaman_ukm')
+            .select('id_ukm')
+            .eq('id_user', userId)
+            .or('status.eq.aktif,status.eq.active');
+        
+        final ukmIds = (userUkmsRes as List).map((e) => e['id_ukm']).toList();
+        
+        if (ukmIds.isNotEmpty) {
+          final ukmsRes = await _supabase
+              .from('ukm')
+              .select('id_ukm, nama_ukm')
+              .inFilter('id_ukm', ukmIds);
+          joinedUkms = List<Map<String, dynamic>>.from(ukmsRes);
         }
-        print('  Monthly data: $data1');
+        print('✅ User joined ${joinedUkms.length} UKMs');
+      } catch (e) {
+        print('Error fetching joined UKMs: $e');
       }
 
-      // Load meeting counts for second UKM
-      if (ukmList.length > 1) {
-        final ukm2Id = ukmList[1]['id_ukm'];
-        _statistikLabel2 = ukmList[1]['nama_ukm'] ?? 'UKM 2';
+      if (joinedUkms.isEmpty) {
+        print('⚠️ User has not joined any UKM');
+        if (mounted) {
+          setState(() {
+            _statistikData1 = List.generate(12, (_) => 0);
+            _statistikData2 = List.generate(12, (_) => 0);
+            _statistikLabel1 = 'Belum bergabung UKM';
+            _statistikLabel2 = 'Belum bergabung UKM';
+            _isLoadingStats = false;
+          });
+        }
+        return;
+      }
 
-        print('Loading pertemuan for UKM 2: $_statistikLabel2 (ID: $ukm2Id)');
+      // 2. Get user's meeting attendance from absen_pertemuan
+      // Fetch attendance records with meeting details
+      List<dynamic> attendanceRecords = [];
+      try {
+        attendanceRecords = await _supabase
+            .from('absen_pertemuan')
+            .select('id_pertemuan, status, create_at')
+            .eq('id_user', userId);
+        print('✅ Found ${attendanceRecords.length} attendance records');
+      } catch (e) {
+        print('Error fetching attendance: $e');
+      }
 
-        final meetings2 = await _supabase
-            .from('pertemuan')
-            .select('id_pertemuan, tanggal')
-            .eq('id_ukm', ukm2Id);
+      // Filter for 'hadir' status (case insensitive)
+      final attendedMeetingIds = <String>{};
+      for (var record in attendanceRecords) {
+        final status = (record['status'] as String?)?.toLowerCase() ?? '';
+        if (status.contains('hadir')) {
+          attendedMeetingIds.add(record['id_pertemuan']?.toString() ?? '');
+        }
+      }
+      print('✅ User attended ${attendedMeetingIds.length} meetings');
 
-        print('  Found ${meetings2.length} meetings');
+      // 3. Get meeting details (date and UKM) for attended meetings
+      Map<String, Map<String, dynamic>> meetingDetails = {};
+      if (attendedMeetingIds.isNotEmpty) {
+        try {
+          final meetingsRes = await _supabase
+              .from('pertemuan')
+              .select('id_pertemuan, tanggal, id_ukm')
+              .inFilter('id_pertemuan', attendedMeetingIds.toList());
+          
+          for (var m in meetingsRes) {
+            meetingDetails[m['id_pertemuan'].toString()] = m;
+          }
+        } catch (e) {
+          print('Error fetching meeting details: $e');
+        }
+      }
 
-        // Count meetings per month for current year
-        for (var meeting in meetings2) {
-          if (meeting['tanggal'] != null) {
-            try {
-              final date = DateTime.parse(meeting['tanggal']);
-              if (date.year == currentYear) {
-                data2[date.month - 1]++;
-              }
-            } catch (e) {
-              // Skip invalid dates
+      // 4. Count attended meetings per month per UKM
+      final currentYear = DateTime.now().year;
+      final Map<String, List<int>> ukmMonthlyAttendance = {};
+      
+      // Initialize for all joined UKMs
+      for (var ukm in joinedUkms) {
+        ukmMonthlyAttendance[ukm['id_ukm'].toString()] = List.generate(12, (_) => 0);
+      }
+
+      // Count attendance per month
+      for (var meetingId in attendedMeetingIds) {
+        final meeting = meetingDetails[meetingId];
+        if (meeting != null && meeting['tanggal'] != null) {
+          try {
+            final date = DateTime.parse(meeting['tanggal']);
+            final ukmId = meeting['id_ukm']?.toString() ?? '';
+            
+            if (date.year == currentYear && ukmMonthlyAttendance.containsKey(ukmId)) {
+              ukmMonthlyAttendance[ukmId]![date.month - 1]++;
             }
+          } catch (e) {
+            // Skip invalid dates
           }
         }
-        print('  Monthly data: $data2');
+      }
+
+      // 5. Set data for display (top 2 UKMs)
+      List<int> data1 = List.generate(12, (_) => 0);
+      List<int> data2 = List.generate(12, (_) => 0);
+      String label1 = 'Tidak ada data';
+      String label2 = 'Tidak ada data';
+
+      if (joinedUkms.isNotEmpty) {
+        final ukm1 = joinedUkms[0];
+        label1 = ukm1['nama_ukm'] ?? 'UKM 1';
+        data1 = ukmMonthlyAttendance[ukm1['id_ukm'].toString()] ?? data1;
+        print('📊 UKM 1 ($_statistikLabel1): $data1');
+      }
+
+      if (joinedUkms.length > 1) {
+        final ukm2 = joinedUkms[1];
+        label2 = ukm2['nama_ukm'] ?? 'UKM 2';
+        data2 = ukmMonthlyAttendance[ukm2['id_ukm'].toString()] ?? data2;
+        print('📊 UKM 2 ($_statistikLabel2): $data2');
       } else {
-        _statistikLabel2 = 'Tidak ada UKM lain';
+        label2 = 'Hanya 1 UKM';
       }
 
       print('==========================================');
@@ -524,6 +568,8 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
         setState(() {
           _statistikData1 = data1;
           _statistikData2 = data2;
+          _statistikLabel1 = label1;
+          _statistikLabel2 = label2;
           _isLoadingStats = false;
         });
       }

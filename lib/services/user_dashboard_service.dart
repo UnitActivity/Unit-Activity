@@ -761,20 +761,29 @@ class UserDashboardService {
       final allEventIds = eventsResponse.map((e) => e['id_events']).toList();
       Map<String, Map<String, dynamic>> attendanceMap = {};
 
-      if (allEventIds.isNotEmpty) {
-        final attendanceData = await _supabase
-            .from('absen_event')
-            .select('id_event, jam, created_at')
-            .eq('id_user', userId)
-            .inFilter('id_event', allEventIds);
+        if (allEventIds.isNotEmpty) {
+          final attendanceData = await _supabase
+              .from('absen_event')
+              .select('id_event, jam, status')
+              .eq('id_user', userId)
+              .inFilter('id_event', allEventIds); // Keep all records, filter in memory if needed
 
-        for (var item in attendanceData) {
-          attendanceMap[item['id_event']] = {
-            'attendance_time': item['jam'],
-            'attendance_date': item['created_at'],
-          };
+          for (var item in attendanceData) {
+            // Check status if we want to distinguish between 'terdaftar' and 'hadir'
+            // The item is considered 'attended' only if status is 'hadir' (case insensitive)
+            // But for History list, we might want to show all. 
+            // The UI uses 'is_attended' to show a badge? 
+            // Let's store the status so UI can decide or we decide here.
+            // If user wants "event yang telah kita hadiri... masuk history", we already fetched them in attendedEventsDetails.
+            // But we need to make sure the badge logic is correct.
+            
+            attendanceMap[item['id_event']] = {
+              'attendance_time': item['jam'],
+              'status': item['status'],
+              'is_hadir': (item['status'] as String?)?.toLowerCase() == 'hadir',
+            };
+          }
         }
-      }
 
       // Group by periode
       Map<String, List<Map<String, dynamic>>> groupedHistory = {};
@@ -805,8 +814,7 @@ class UserDashboardService {
           'image': event['gambar'],
           'ukm_name': event['ukm']?['nama_ukm'],
           'attendance_time': attendance?['attendance_time'],
-          'attendance_date': attendance?['attendance_date'],
-          'is_attended': attendance != null,
+          'is_attended': attendance?['is_hadir'] ?? false,
           'illustration': _getIllustration(event['nama_event']),
         });
       }
@@ -847,174 +855,154 @@ class UserDashboardService {
     }
   }
 
-  /// Get all pertemuan (meetings) from UKMs that user has joined
+  /// Get all pertemuan (meetings) for the user
+  /// Includes meetings from joined UKMs AND any meeting the user has attended
   Future<List<Map<String, dynamic>>> getUserPertemuan({
     bool upcomingOnly = false,
   }) async {
     try {
       final userId = currentUserId;
-      print('========== GET USER PERTEMUAN ==========');
-      print('User ID: $userId');
-      print('Upcoming only: $upcomingOnly');
+      print('========== GET USER PERTEMUAN (SAFE MODE) ==========');
+      
+      if (userId == null) return [];
 
-      if (userId == null) {
-        print('❌ No user logged in');
-        return [];
-      }
-
-      // Get user's joined UKMs
-      print('Fetching user joined UKMs...');
+      // 1. Get Joined UKMs
       final userUkms = await _supabase
           .from('user_halaman_ukm')
-          .select('id_ukm, ukm(id_ukm, nama_ukm, logo)')
+          .select('id_ukm')
           .eq('id_user', userId)
           .or('status.eq.aktif,status.eq.active');
 
-      print('✅ User joined UKMs: ${(userUkms as List).length}');
+      final joinedUkmIds = (userUkms as List).map((e) => e['id_ukm']).toSet();
 
-      if (userUkms.isEmpty) {
-        print('⚠️ User has not joined any UKM');
-        return [];
-      }
-
-      final ukmIds = userUkms.map((e) => e['id_ukm']).toList();
-      print('UKM IDs to filter: $ukmIds');
-
-      // Build query for pertemuan (Joined UKMs)
-      var query = _supabase
-          .from('pertemuan')
-          .select('''
-            id_pertemuan,
-            topik,
-            deskripsi,
-            tanggal,
-            jam_mulai,
-            jam_akhir,
-            lokasi,
-            created_at,
-            ukm(id_ukm, nama_ukm, logo)
-          ''')
-          .inFilter('id_ukm', ukmIds);
-
-      // Filter by date if upcomingOnly
-      if (upcomingOnly) {
-        final todayStr = DateTime.now().toIso8601String().split('T')[0];
-        query = query.gte('tanggal', todayStr);
-      }
-
-      final joinedPertemuanResponse = await query.order('tanggal', ascending: false);
-
-      // --- NEW: Also fetch meetings the user has explicitly attended ---
-      // This ensures realtime history even if not a member or logic changes
-      List<dynamic> attendedPertemuanDetails = [];
-      
-      // 1. Get attended pertemuan IDs
-      final attendedResponse = await _supabase
+      // 2. Get User Attendance
+      final attendanceResponse = await _supabase
           .from('absen_pertemuan')
-          .select('id_pertemuan')
+          .select('id_pertemuan, status, jam')
           .eq('id_user', userId);
-          
-      final attendedIds = (attendedResponse as List)
-          .map((e) => e['id_pertemuan'] as String)
-          .toSet() // Deduplicate locally
+
+      final attendanceMap = <String, Map<String, dynamic>>{};
+      final attendedMeetingIds = <String>{};
+
+      for (var item in attendanceResponse) {
+        final id = item['id_pertemuan'].toString();
+        attendedMeetingIds.add(id);
+        attendanceMap[id] = {
+          'status_hadir': (item['status'] as String?)?.toLowerCase(),
+          'waktu_absen': item['jam'],
+        };
+      }
+
+      // 3. Prepare Meeting Queries (No Joins yet)
+      List<dynamic> rawMeetings = [];
+
+      // A. Joined UKM Meetings
+      if (joinedUkmIds.isNotEmpty) {
+        var query = _supabase
+            .from('pertemuan')
+            .select('*') // Fetch everything, no join to UKM yet
+            .inFilter('id_ukm', joinedUkmIds.toList());
+
+        if (upcomingOnly) {
+          final todayStr = DateTime.now().toIso8601String().split('T')[0];
+          query = query.gte('tanggal', todayStr);
+        }
+        final res = await query;
+        rawMeetings.addAll(res as List);
+      }
+
+      // B. Attended Meetings
+      final idsToFetch = attendedMeetingIds
+          .where((id) => !rawMeetings.any((m) => m['id_pertemuan'].toString() == id))
           .toList();
 
-      if (attendedIds.isNotEmpty) {
-        // 2. Fetch details for these meetings
-        var attendedQuery = _supabase
-          .from('pertemuan')
-          .select('''
-            id_pertemuan,
-            topik,
-            deskripsi,
-            tanggal,
-            jam_mulai,
-            jam_akhir,
-            lokasi,
-            created_at,
-            ukm(id_ukm, nama_ukm, logo)
-          ''')
-          .inFilter('id_pertemuan', attendedIds);
-          
-        // Apply upcoming logic if needed (usually History wants all, but if upcomingOnly is true, we respect it)
+      if (idsToFetch.isNotEmpty) {
+        var query = _supabase
+            .from('pertemuan')
+            .select('*')
+            .inFilter('id_pertemuan', idsToFetch);
+
         if (upcomingOnly) {
            final todayStr = DateTime.now().toIso8601String().split('T')[0];
-           attendedQuery = attendedQuery.gte('tanggal', todayStr);
+           query = query.gte('tanggal', todayStr);
         }
-        
-        attendedPertemuanDetails = await attendedQuery.order('tanggal', ascending: false);
+        final res = await query;
+        rawMeetings.addAll(res as List);
       }
 
-      // --- MERGE & DEDUPLICATE ---
-      final Map<String, dynamic> mergedMap = {};
-      
-      // Add joined UKM meetings
-      for (var p in joinedPertemuanResponse) {
-        mergedMap[p['id_pertemuan']] = p;
-      }
-      
-      // Add/Overwrite with attended meetings (ensures they are present)
-      for (var p in attendedPertemuanDetails) {
-        mergedMap[p['id_pertemuan']] = p;
-      }
-      
-      final pertemuanResponse = mergedMap.values.toList()
-        ..sort((a, b) => (b['tanggal'] ?? '').compareTo(a['tanggal'] ?? '')); // Re-sort by date descending
-
-
-
-      print('✅ Found ${(pertemuanResponse as List).length} pertemuan');
-
-      // Get user's attendance records for these pertemuan
-      final pertemuanIds = pertemuanResponse
-          .map((p) => p['id_pertemuan'])
+      // 4. Manually Fetch and Map UKM Details
+      // Collect all UKM IDs from the fetched meetings
+      final allUkmIds = rawMeetings
+          .map((m) => m['id_ukm'])
+          .where((id) => id != null)
+          .toSet()
           .toList();
 
-      Map<String, Map<String, dynamic>> attendanceMap = {};
-      if (pertemuanIds.isNotEmpty) {
-        // Note: absen_pertemuan uses 'status' and 'jam' columns per SQL schema
-        final attendanceData = await _supabase
-            .from('absen_pertemuan')
-            .select('id_pertemuan, status, jam, created_at')
-            .eq('id_user', userId)
-            .inFilter('id_pertemuan', pertemuanIds);
-
-        for (var item in attendanceData) {
-          attendanceMap[item['id_pertemuan']] = {
-            'status_hadir':
-                item['status'], // Map 'status' to 'status_hadir' for UI
-            'waktu_absen': item['jam'] ?? item['created_at'],
-          };
+      Map<String, Map<String, dynamic>> ukmDetailsMap = {};
+      
+      if (allUkmIds.isNotEmpty) {
+        try {
+          final ukmRes = await _supabase
+              .from('ukm')
+              .select('id_ukm, nama_ukm, logo')
+              .inFilter('id_ukm', allUkmIds);
+          
+          for (var u in ukmRes) {
+            ukmDetailsMap[u['id_ukm'].toString()] = u;
+          }
+        } catch (e) {
+          print('Error fetching UKM details: $e');
         }
       }
 
-      // Transform data
-      List<Map<String, dynamic>> pertemuanList = [];
-      for (var pertemuan in pertemuanResponse) {
-        final attendance = attendanceMap[pertemuan['id_pertemuan']];
-        pertemuanList.add({
-          'id_pertemuan': pertemuan['id_pertemuan'],
-          'judul': pertemuan['topik'] ?? 'Pertemuan',
-          'topik': pertemuan['topik'],
-          'deskripsi': pertemuan['deskripsi'],
-          'tanggal': pertemuan['tanggal'],
-          'waktu_mulai': pertemuan['jam_mulai'],
-          'waktu_selesai': pertemuan['jam_akhir'],
-          'lokasi': pertemuan['lokasi'],
-          'status': pertemuan['status'],
-          'ukm_name': pertemuan['ukm']?['nama_ukm'] ?? '',
-          'ukm_logo': pertemuan['ukm']?['logo'],
-          'id_ukm': pertemuan['ukm']?['id_ukm'],
+      // 5. Merge and Sort
+      final Map<String, dynamic> uniqueMeetings = {};
+      
+      for (var m in rawMeetings) {
+        uniqueMeetings[m['id_pertemuan'].toString()] = m;
+      }
+      
+      final sortedMeetings = uniqueMeetings.values.toList();
+      
+      if (upcomingOnly) {
+         sortedMeetings.sort((a, b) => (a['tanggal'] ?? '').compareTo(b['tanggal'] ?? ''));
+      } else {
+         sortedMeetings.sort((a, b) => (b['tanggal'] ?? '').compareTo(a['tanggal'] ?? ''));
+      }
+
+      // 6. Transform
+      List<Map<String, dynamic>> resultList = [];
+      
+      for (var m in sortedMeetings) {
+        final id = m['id_pertemuan'].toString();
+        final ukmId = m['id_ukm']?.toString();
+        final attendance = attendanceMap[id];
+        final ukm = ukmDetailsMap[ukmId];
+        
+        resultList.add({
+          'id_pertemuan': id,
+          'judul': m['topik'] ?? 'Pertemuan',
+          'topik': m['topik'],
+          'deskripsi': m['deskripsi'] ?? 'Tidak ada deskripsi',
+          'tanggal': m['tanggal'],
+          'waktu_mulai': m['jam_mulai'],
+          'waktu_selesai': m['jam_akhir'],
+          'lokasi': m['lokasi'],
+          'status': m['status'],
+          'ukm_name': ukm?['nama_ukm'] ?? '',
+          'ukm_logo': ukm?['logo'],
+          'id_ukm': ukmId,
           'user_status_hadir': attendance?['status_hadir'],
           'user_waktu_absen': attendance?['waktu_absen'],
           'is_attended': attendance != null,
         });
       }
 
-      print('=========================================');
-      return pertemuanList;
+      print('✅ Fetched ${resultList.length} meetings (Safe Mode)');
+      return resultList;
+
     } catch (e) {
-      print('Error loading user pertemuan: $e');
+      print('❌ Error loading user pertemuan: $e');
       return [];
     }
   }

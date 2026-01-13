@@ -90,6 +90,7 @@ class _HistoryPageState extends State<HistoryPage>
             'ukm_name': event['ukm_name'] ?? '',
             'status': event['status'] ?? 'selesai',
             'logbook_url': event['logbook'] ?? event['logbook_url'],
+            'is_attended': event['is_attended'] ?? false,
             'illustration':
                 event['illustration'] ?? _getIllustrationByType(null),
           });
@@ -788,24 +789,32 @@ class _HistoryPageState extends State<HistoryPage>
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.green[50],
+                      color: (activity['is_attended'] == true) 
+                          ? Colors.green[50] 
+                          : Colors.grey[100],
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          Icons.check_circle,
+                          (activity['is_attended'] == true) 
+                              ? Icons.check_circle 
+                              : Icons.schedule,
                           size: 12,
-                          color: Colors.green[700],
+                          color: (activity['is_attended'] == true) 
+                              ? Colors.green[700] 
+                              : Colors.grey[600],
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          'Selesai',
+                          (activity['is_attended'] == true) ? 'Hadir' : 'Selesai',
                           style: GoogleFonts.poppins(
                             fontSize: 10,
                             fontWeight: FontWeight.w500,
-                            color: Colors.green[700],
+                            color: (activity['is_attended'] == true) 
+                                ? Colors.green[700] 
+                                : Colors.grey[600],
                           ),
                         ),
                       ],
@@ -857,7 +866,8 @@ class _HistoryPageState extends State<HistoryPage>
 
       // Refresh data after successful attendance
       if (result['success']) {
-        _loadHistoryData();
+        await _loadHistoryData();
+        await _loadPertemuanData();
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1958,17 +1968,17 @@ class _HistoryDetailPageState extends State<HistoryDetailPage>
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: participant['hadir'] == true
+                  color: (participant['status']?.toString().toLowerCase() == 'hadir')
                       ? Colors.green[50]
                       : Colors.orange[50],
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
-                  participant['hadir'] == true ? 'Hadir' : 'Terdaftar',
+                  (participant['status']?.toString().toLowerCase() == 'hadir') ? 'Hadir' : 'Terdaftar',
                   style: GoogleFonts.poppins(
                     fontSize: 11,
                     fontWeight: FontWeight.w500,
-                    color: participant['hadir'] == true
+                    color: (participant['status']?.toString().toLowerCase() == 'hadir')
                         ? Colors.green[700]
                         : Colors.orange[700],
                   ),
@@ -1983,59 +1993,32 @@ class _HistoryDetailPageState extends State<HistoryDetailPage>
 
   // ==================== SIDEBAR ====================
   Widget _buildSidebar(BuildContext context) {
-    return Container(
-      width: 260,
-      color: Colors.white,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text(
-              'Unit Activity',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w900,
-                fontStyle: FontStyle.italic,
-                color: Colors.blue[700],
-              ),
-            ),
-          ),
-          _buildMenuItemDetail(
-            Icons.dashboard,
-            'Dashboard',
-            'dashboard',
+    return UserSidebar(
+      selectedMenu: 'histori',
+      onMenuSelected: (menu) {
+        if (menu == 'dashboard') {
+          Navigator.pushReplacement(
             context,
-          ),
-          _buildMenuItemDetail(Icons.event, 'Event', 'event', context),
-          _buildMenuItemDetail(Icons.groups, 'UKM', 'ukm', context),
-          _buildMenuItemDetail(Icons.history, 'Histori', 'history', context),
-          _buildMenuItemDetail(Icons.person, 'Profile', 'profile', context),
-          const Spacer(),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () => Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  '/login',
-                  (route) => false,
-                ),
-                icon: const Icon(Icons.logout, size: 18),
-                label: const Text('Log Out'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red[400],
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
+            MaterialPageRoute(builder: (context) => const DashboardUser()),
+          );
+        } else if (menu == 'event') {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const UserEventPage()),
+          );
+        } else if (menu == 'ukm') {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const UserUKMPage()),
+          );
+        } else if (menu == 'histori') {
+          Navigator.pop(context); // Go back to History page list
+        }
+      },
+      onLogout: () => Navigator.pushNamedAndRemoveUntil(
+        context,
+        '/login',
+        (route) => false,
       ),
     );
   }
