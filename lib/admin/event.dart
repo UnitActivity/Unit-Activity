@@ -21,10 +21,75 @@ class _EventPageState extends State<EventPage> {
   // Data from database
   List<Map<String, dynamic>> _allEvents = [];
 
+  // Realtime subscription
+  RealtimeChannel? _eventsChannel;
+  RealtimeChannel? _documentsChannel;
+
   @override
   void initState() {
     super.initState();
     _loadEvents();
+    _subscribeToRealtimeUpdates();
+  }
+
+  @override
+  void dispose() {
+    _eventsChannel?.unsubscribe();
+    _documentsChannel?.unsubscribe();
+    super.dispose();
+  }
+
+  /// Subscribe to realtime updates for events and documents
+  void _subscribeToRealtimeUpdates() {
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+
+    // Subscribe to event_documents changes
+    _documentsChannel = _supabase
+        .channel('event_documents_admin_$timestamp')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'event_documents',
+          callback: (payload) {
+            print('📄 Document change detected: ${payload.eventType}');
+            print('📄 Payload: ${payload.newRecord}');
+            // Reload events when document status changes
+            if (mounted) {
+              _loadEvents();
+            }
+          },
+        )
+        .subscribe((status, error) {
+          print('📄 Documents subscription status: $status');
+          if (error != null) {
+            print('📄 Documents subscription error: $error');
+          }
+        });
+
+    // Subscribe to events table changes
+    _eventsChannel = _supabase
+        .channel('events_admin_$timestamp')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'events',
+          callback: (payload) {
+            print('📅 Event change detected: ${payload.eventType}');
+            print('📅 Payload: ${payload.newRecord}');
+            // Reload events when event data changes
+            if (mounted) {
+              _loadEvents();
+            }
+          },
+        )
+        .subscribe((status, error) {
+          print('📅 Events subscription status: $status');
+          if (error != null) {
+            print('📅 Events subscription error: $error');
+          }
+        });
+
+    print('✅ Realtime subscriptions initiated for events and documents');
   }
 
   Future<void> _loadEvents() async {
@@ -32,7 +97,7 @@ class _EventPageState extends State<EventPage> {
     setState(() => _isLoading = true);
 
     try {
-      // Load events without periode_ukm (no FK constraint)
+      // Load events with related data
       final eventData = await _supabase
           .from('events')
           .select('*, ukm(nama_ukm), users(username)')
@@ -43,20 +108,62 @@ class _EventPageState extends State<EventPage> {
           .from('periode_ukm')
           .select('id_periode, nama_periode');
 
+      // Load all event documents to get actual document status
+      final documentsData = await _supabase
+          .from('event_documents')
+          .select('id_event, document_type, status');
+
       final periodeMap = <String, String>{};
       for (var p in periodeData) {
         periodeMap[p['id_periode']] = p['nama_periode'];
       }
 
-      // Manually attach periode data to events
+      // Create document status map: id_event -> {proposal: status, lpj: status}
+      final docStatusMap = <String, Map<String, String>>{};
+      for (var doc in (documentsData as List)) {
+        final eventId = doc['id_event'];
+        final docType = doc['document_type'];
+        final status = doc['status'] ?? 'menunggu';
+
+        if (eventId != null) {
+          docStatusMap[eventId] ??= {};
+          docStatusMap[eventId]![docType] = status;
+        }
+      }
+
+      // Manually attach periode and document status to events
       final events = List<Map<String, dynamic>>.from(eventData);
       for (var event in events) {
+        final eventId = event['id_events'];
+
+        // Attach periode
         if (event['id_periode'] != null &&
             periodeMap.containsKey(event['id_periode'])) {
           event['periode_ukm'] = {
             'nama_periode': periodeMap[event['id_periode']],
           };
         }
+
+        // Reconcile document status from event_documents table
+        // If document exists in event_documents, use that status
+        // Otherwise, use the status from events table (default: belum_ajukan)
+        if (docStatusMap.containsKey(eventId)) {
+          final docStatus = docStatusMap[eventId]!;
+
+          // Update proposal status if document exists
+          if (docStatus.containsKey('proposal')) {
+            event['status_proposal'] = docStatus['proposal'];
+          }
+
+          // Update LPJ status if document exists
+          if (docStatus.containsKey('lpj')) {
+            event['status_lpj'] = docStatus['lpj'];
+          }
+        }
+
+        // Ensure default values
+        event['status_proposal'] ??= 'belum_ajukan';
+        event['status_lpj'] ??= 'belum_ajukan';
       }
 
       if (mounted) {
@@ -66,11 +173,12 @@ class _EventPageState extends State<EventPage> {
         });
       }
     } catch (e) {
+      print('Error loading events: $e');
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Gagal memuat data event: \$e'),
+            content: Text('Gagal memuat data event: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -503,6 +611,113 @@ class _EventPageState extends State<EventPage> {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 8),
+
+          // Document Status Badges
+          Divider(color: Colors.grey[200], height: 1),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              // Proposal Status
+              Expanded(
+                child: _buildDocumentStatusBadge(
+                  label: 'Proposal',
+                  status: event['status_proposal'] ?? 'belum_ajukan',
+                ),
+              ),
+              const SizedBox(width: 8),
+              // LPJ Status
+              Expanded(
+                child: _buildDocumentStatusBadge(
+                  label: 'LPJ',
+                  status: event['status_lpj'] ?? 'belum_ajukan',
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDocumentStatusBadge({
+    required String label,
+    required String status,
+  }) {
+    Color bgColor;
+    Color textColor;
+    IconData icon;
+    String statusText;
+
+    switch (status) {
+      case 'disetujui':
+        bgColor = Colors.green.withValues(alpha: 0.1);
+        textColor = Colors.green[700]!;
+        icon = Icons.check_circle;
+        statusText = 'Disetujui';
+        break;
+      case 'menunggu':
+        bgColor = Colors.orange.withValues(alpha: 0.1);
+        textColor = Colors.orange[700]!;
+        icon = Icons.hourglass_empty;
+        statusText = 'Menunggu';
+        break;
+      case 'ditolak':
+        bgColor = Colors.red.withValues(alpha: 0.1);
+        textColor = Colors.red[700]!;
+        icon = Icons.cancel;
+        statusText = 'Ditolak';
+        break;
+      case 'revisi':
+        bgColor = Colors.purple.withValues(alpha: 0.1);
+        textColor = Colors.purple[700]!;
+        icon = Icons.edit;
+        statusText = 'Revisi';
+        break;
+      default: // belum_ajukan
+        bgColor = Colors.grey.withValues(alpha: 0.1);
+        textColor = Colors.grey[600]!;
+        icon = Icons.file_upload_outlined;
+        statusText = 'Belum Ajukan';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: textColor.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: textColor),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: GoogleFonts.inter(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w500,
+                    color: textColor.withValues(alpha: 0.7),
+                  ),
+                ),
+                Text(
+                  statusText,
+                  style: GoogleFonts.inter(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           ),
         ],
       ),

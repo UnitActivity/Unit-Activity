@@ -158,6 +158,97 @@ class DashboardService {
     }
   }
 
+  /// Get event leaderboard with participant counts (filterable by period)
+  Future<Map<String, dynamic>> getEventLeaderboard([
+    String period = '6_bulan',
+  ]) async {
+    try {
+      final now = DateTime.now();
+      DateTime? startDate;
+
+      // Calculate start date based on period
+      switch (period) {
+        case 'hari_ini':
+          startDate = DateTime(now.year, now.month, now.day);
+          break;
+        case 'minggu_ini':
+          startDate = now.subtract(Duration(days: now.weekday - 1));
+          startDate = DateTime(startDate.year, startDate.month, startDate.day);
+          break;
+        case 'bulan_ini':
+          startDate = DateTime(now.year, now.month, 1);
+          break;
+        case '3_bulan':
+          startDate = DateTime(now.year, now.month - 3, 1);
+          break;
+        case '6_bulan':
+          startDate = DateTime(now.year, now.month - 6, 1);
+          break;
+        case 'tahun_ini':
+          startDate = DateTime(now.year, 1, 1);
+          break;
+        default:
+          startDate = null; // No filter - all events
+      }
+
+      // Fetch events with UKM info (with optional date filter)
+      var query = _supabase
+          .from('events')
+          .select('id_events, nama_event, tanggal_mulai, id_ukm, ukm(nama_ukm)')
+          .eq('status', true);
+
+      if (startDate != null) {
+        query = query.gte('tanggal_mulai', startDate.toIso8601String());
+      }
+
+      final eventsResponse = await query
+          .order('tanggal_mulai', ascending: false)
+          .limit(50);
+
+      // Fetch participant counts from absen_event
+      final absenResponse = await _supabase
+          .from('absen_event')
+          .select('id_event');
+
+      // Count participants per event
+      final participantCounts = <String, int>{};
+      for (var absen in (absenResponse as List)) {
+        final eventId = absen['id_event'] as String?;
+        if (eventId != null) {
+          participantCounts[eventId] = (participantCounts[eventId] ?? 0) + 1;
+        }
+      }
+
+      // Build leaderboard data
+      final leaderboard = <Map<String, dynamic>>[];
+      for (var event in (eventsResponse as List)) {
+        final eventId = event['id_events'] as String;
+        final participants = participantCounts[eventId] ?? 0;
+
+        leaderboard.add({
+          'id_events': eventId,
+          'nama_event': event['nama_event'] ?? '-',
+          'nama_ukm': event['ukm']?['nama_ukm'] ?? '-',
+          'participants': participants,
+        });
+      }
+
+      // Sort by participants descending
+      leaderboard.sort(
+        (a, b) =>
+            (b['participants'] as int).compareTo(a['participants'] as int),
+      );
+
+      // Take top 10
+      final topLeaderboard = leaderboard.take(10).toList();
+
+      return {'success': true, 'data': topLeaderboard};
+    } catch (e) {
+      print('Error fetching event leaderboard: $e');
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
   /// Get UKM ranking by member count
   Future<Map<String, dynamic>> getUkmRanking() async {
     try {
@@ -292,7 +383,7 @@ class DashboardService {
     }
   }
 
-  /// Get alerts and warnings
+  /// Get alerts and warnings with event details for modal
   Future<Map<String, dynamic>> getAlerts() async {
     try {
       List<Map<String, dynamic>> alerts = [];
@@ -301,7 +392,7 @@ class DashboardService {
       try {
         final eventsNoProposal = await _supabase
             .from('events')
-            .select('id_events, nama_event')
+            .select('id_events, nama_event, id_ukm, ukm(nama_ukm)')
             .or('status_proposal.is.null,status_proposal.eq.belum_ajukan')
             .eq('status', true);
 
@@ -312,6 +403,8 @@ class DashboardService {
             'message':
                 '${eventsNoProposal.length} event aktif belum upload proposal',
             'count': eventsNoProposal.length,
+            'events': eventsNoProposal,
+            'alertId': 'no_proposal',
           });
         }
       } catch (e) {
@@ -323,7 +416,9 @@ class DashboardService {
         final now = DateTime.now();
         final overdueEvents = await _supabase
             .from('events')
-            .select('id_events, nama_event, tanggal_akhir')
+            .select(
+              'id_events, nama_event, tanggal_akhir, id_ukm, ukm(nama_ukm)',
+            )
             .lt('tanggal_akhir', now.toIso8601String())
             .or('status_lpj.is.null,status_lpj.eq.belum_ajukan');
 
@@ -334,6 +429,8 @@ class DashboardService {
             'message':
                 '${overdueEvents.length} event sudah selesai tapi belum upload LPJ',
             'count': overdueEvents.length,
+            'events': overdueEvents,
+            'alertId': 'overdue_lpj',
           });
         }
       } catch (e) {
@@ -344,14 +441,18 @@ class DashboardService {
       try {
         int pendingProposals = 0;
         int pendingLpj = 0;
+        List<dynamic> pendingDocs = [];
 
         try {
           final proposals = await _supabase
               .from('event_documents')
-              .select('id_document')
+              .select(
+                'id_document, document_type, id_event, events(id_events, nama_event, id_ukm, ukm(nama_ukm))',
+              )
               .eq('document_type', 'proposal')
               .eq('status', 'menunggu');
           pendingProposals = (proposals as List).length;
+          pendingDocs.addAll(proposals);
         } catch (e) {
           print('Error fetching pending proposals: $e');
         }
@@ -359,10 +460,13 @@ class DashboardService {
         try {
           final lpjs = await _supabase
               .from('event_documents')
-              .select('id_document')
+              .select(
+                'id_document, document_type, id_event, events(id_events, nama_event, id_ukm, ukm(nama_ukm))',
+              )
               .eq('document_type', 'lpj')
               .eq('status', 'menunggu');
           pendingLpj = (lpjs as List).length;
+          pendingDocs.addAll(lpjs);
         } catch (e) {
           print('Error fetching pending LPJs: $e');
         }
@@ -375,6 +479,8 @@ class DashboardService {
             'message':
                 '$pendingProposals proposal dan $pendingLpj LPJ perlu direview',
             'count': totalPending,
+            'documents': pendingDocs,
+            'alertId': 'pending_review',
           });
         }
       } catch (e) {

@@ -15,16 +15,48 @@ class DetailEventPage extends StatefulWidget {
 
 class _DetailEventPageState extends State<DetailEventPage> {
   final SupabaseClient _supabase = Supabase.instance.client;
-  // ignore: unused_field
   bool _isLoading = false;
   List<Map<String, dynamic>> _dokumenProposal = [];
   List<Map<String, dynamic>> _dokumenLpj = [];
   int _jumlahPeserta = 0;
 
+  // Realtime subscription
+  RealtimeChannel? _documentsChannel;
+
   @override
   void initState() {
     super.initState();
     _loadEventDetails();
+    _subscribeToRealtimeUpdates();
+  }
+
+  @override
+  void dispose() {
+    _documentsChannel?.unsubscribe();
+    super.dispose();
+  }
+
+  void _subscribeToRealtimeUpdates() {
+    final idEvent = widget.event['id_events'];
+    _documentsChannel = _supabase
+        .channel('detail_documents_$idEvent')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'event_documents',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id_event',
+            value: idEvent,
+          ),
+          callback: (payload) {
+            print(
+              '📄 Document change detected for event: ${payload.eventType}',
+            );
+            _loadEventDetails();
+          },
+        )
+        .subscribe();
   }
 
   Future<void> _loadEventDetails() async {
@@ -793,21 +825,30 @@ class _DetailEventPageState extends State<DetailEventPage> {
     Map<String, dynamic> doc,
     bool isMobile,
   ) {
-    final status = doc['status'] as String;
+    final status = (doc['status'] as String?)?.toLowerCase() ?? 'menunggu';
     Color statusColor;
+    String statusText;
     switch (status) {
-      case 'Disetujui':
+      case 'disetujui':
         statusColor = Colors.green;
+        statusText = 'Disetujui';
         break;
-      case 'Ditolak':
+      case 'ditolak':
         statusColor = Colors.red;
+        statusText = 'Ditolak';
         break;
-      case 'Revisi':
+      case 'revisi':
         statusColor = Colors.orange;
+        statusText = 'Perlu Revisi';
         break;
+      case 'menunggu':
       default:
         statusColor = Colors.blue;
+        statusText = 'Menunggu';
     }
+
+    // Store formatted status for display
+    doc['displayStatus'] = statusText;
 
     return InkWell(
       onTap: () {
@@ -915,7 +956,7 @@ class _DetailEventPageState extends State<DetailEventPage> {
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
-                              status,
+                              statusText,
                               style: GoogleFonts.inter(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
