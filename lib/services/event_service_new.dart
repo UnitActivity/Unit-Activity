@@ -192,6 +192,26 @@ class EventService {
       print('========== DELETE EVENT ==========');
       print('Event ID: $eventId');
 
+      // Delete related records first to avoid foreign key constraint errors
+      
+      // 1. Delete attendance records (absen_event)
+      await _supabase.from('absen_event').delete().eq('id_event', eventId);
+      print('✅ Deleted related absen_event records');
+      
+      // 2. Delete document records (event_documents)
+      await _supabase.from('event_documents').delete().eq('id_event', eventId);
+      print('✅ Deleted related event_documents records');
+      
+      // 3. Delete participant records (peserta_event) if exists
+      try {
+        await _supabase.from('peserta_event').delete().eq('id_event', eventId);
+        print('✅ Deleted related peserta_event records');
+      } catch (e) {
+        // Table might not exist or have no matching records, continue
+        print('ℹ️ No peserta_event records to delete or table not found');
+      }
+
+      // 4. Finally delete the event itself
       await _supabase.from('events').delete().eq('id_events', eventId);
 
       print('✅ Event deleted');

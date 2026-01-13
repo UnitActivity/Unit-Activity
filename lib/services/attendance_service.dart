@@ -63,7 +63,7 @@ class AttendanceService {
       // Check if already attended
       final existingAttendance = await _supabase
           .from('absen_event')
-          .select('id_user')
+          .select('id_absen_e')
           .eq('id_event', eventId)
           .eq('id_user', userId)
           .maybeSingle();
@@ -164,7 +164,7 @@ class AttendanceService {
       // Check if already attended
       final existingAttendance = await _supabase
           .from('absen_pertemuan')
-          .select('id_user')
+          .select('id_absen_p')
           .eq('id_pertemuan', pertemuanId)
           .eq('id_user', userId)
           .maybeSingle();
@@ -352,7 +352,7 @@ class AttendanceService {
       final eventAttendance = await _supabase
           .from('absen_event')
           .select('''
-            id_absen,
+            id_absen_e,
             jam,
             status,
             created_at,
@@ -364,7 +364,7 @@ class AttendanceService {
       for (var item in eventAttendance) {
         history.add({
           'type': 'event',
-          'id': item['id_absen'],
+          'id': item['id_absen_e'],
           'name': item['events']?['nama_event'] ?? 'Event',
           'location': item['events']?['lokasi'],
           'date': item['events']?['tanggal_mulai'],
@@ -378,7 +378,7 @@ class AttendanceService {
       final pertemuanAttendance = await _supabase
           .from('absen_pertemuan')
           .select('''
-            id_absen,
+            id_absen_p,
             jam,
             status,
             created_at,
@@ -390,7 +390,7 @@ class AttendanceService {
       for (var item in pertemuanAttendance) {
         history.add({
           'type': 'pertemuan',
-          'id': item['id_absen'],
+          'id': item['id_absen_p'],
           'name': item['pertemuan']?['topik'] ?? 'Pertemuan',
           'location': item['pertemuan']?['lokasi'],
           'date': item['pertemuan']?['tanggal'],
