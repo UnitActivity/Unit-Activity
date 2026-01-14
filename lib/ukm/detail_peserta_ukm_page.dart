@@ -44,8 +44,7 @@ class _DetailPesertaUKMPageState extends State<DetailPesertaUKMPage> {
       final totalPertemuanUKMResponse = await _supabase
           .from('pertemuan') // Pastikan nama tabel ini sesuai di DB Anda (misal 'pertemuans' atau 'pertemuan')
           .select('id_pertemuan')
-          .eq('id_ukm', widget.ukmId)
-          .eq('id_periode', widget.periodeId);
+          .eq('id_ukm', widget.ukmId);
 
       // Ambil total event UKM
       final totalEventUKMResponse = await _supabase
@@ -61,13 +60,15 @@ class _DetailPesertaUKMPageState extends State<DetailPesertaUKMPage> {
       
       final pertemuanResponse = await _supabase
           .from('absen_pertemuan')
-          .select('id_pertemuan, id_user, jam')
-          .eq('id_user', userId);
+          .select('id_pertemuan, id_user, jam, pertemuan!inner(id_ukm)')
+          .eq('id_user', userId)
+          .eq('pertemuan.id_ukm', widget.ukmId);
 
       final eventResponse = await _supabase
           .from('absen_event')
-          .select('id_event, id_user, jam')
-          .eq('id_user', userId);
+          .select('id_event, id_user, jam, events!inner(id_ukm)')
+          .eq('id_user', userId)
+          .eq('events.id_ukm', widget.ukmId);
 
       final List<Map<String, dynamic>> combinedHistory = [];
 
