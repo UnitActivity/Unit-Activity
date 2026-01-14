@@ -3,10 +3,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class EventService {
   final SupabaseClient _supabase = Supabase.instance.client;
 
-  /// Get events by UKM and periode
+  /// Get events by UKM and periode with pagination
   Future<List<Map<String, dynamic>>> getEventsByUkm({
     required String ukmId,
     String? periodeId,
+    int page = 1,
+    int limit = 5,
   }) async {
     try {
       print('========== GET EVENTS BY UKM ==========');
@@ -38,7 +40,12 @@ class EventService {
         query = query.eq('id_periode', periodeId);
       }
 
-      final response = await query.order('tanggal_mulai', ascending: false);
+      final from = (page - 1) * limit;
+      final to = from + limit - 1;
+
+      final response = await query
+          .order('tanggal_mulai', ascending: false)
+          .range(from, to);
 
       print('✅ Found ${response.length} events');
       return List<Map<String, dynamic>>.from(response);

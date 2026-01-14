@@ -21,18 +21,24 @@ class PertemuanService {
     }
   }
 
-  // Get all pertemuan for a specific UKM and periode
+  // Get all pertemuan for a specific UKM and periode with pagination
   Future<List<PertemuanModel>> getPertemuanByUkm(
     String idUkm,
-    String idPeriode,
-  ) async {
+    String idPeriode, {
+    int page = 1,
+    int limit = 5,
+  }) async {
     try {
+      final from = (page - 1) * limit;
+      final to = from + limit - 1;
+
       // Include pertemuan with matching id_ukm OR null id_ukm (legacy data)
       final response = await _supabase
           .from('pertemuan')
           .select()
           .or('id_ukm.eq.$idUkm,id_ukm.is.null')
-          .order('tanggal', ascending: false);
+          .order('tanggal', ascending: false)
+          .range(from, to);
 
       return (response as List)
           .map((json) => PertemuanModel.fromJson(json))

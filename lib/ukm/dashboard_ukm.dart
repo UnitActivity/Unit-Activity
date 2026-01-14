@@ -52,6 +52,7 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
   List<dynamic> _informasiList = [];
   List<dynamic> _upcomingEventsList = [];
   List<Map<String, dynamic>> _eventTrendData = [];
+  List<Map<String, dynamic>> _topMembers = [];
   List<dynamic>? _alerts;
   bool _isLoadingStats = true;
   bool _isLoadingInformasi = true;
@@ -143,27 +144,35 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
         _loadUpcomingEvents(),
         _loadEventTrendData(),
         _dashboardService.getAlerts(_ukmId!),
+        _dashboardService.getTopMembers(_ukmId!),
       ]);
 
       if (mounted) {
         setState(() {
-          // Update statistics
-          if (results[0]['success'] == true) {
-            _dashboardStats = results[0]['data'];
+          // Update statistics: results[0]
+          final statsResult = results[0] as Map<String, dynamic>;
+          if (statsResult['success'] == true) {
+            _dashboardStats = statsResult['data'];
           }
 
-          // Update informasi
-          if (results[1]['success'] == true) {
-            _informasiList = results[1]['data'] ?? [];
-            // Start carousel auto-play if there are multiple items
+          // Update informasi: results[1]
+          final infoResult = results[1] as Map<String, dynamic>;
+          if (infoResult['success'] == true) {
+            _informasiList = infoResult['data'] ?? [];
             if (_informasiList.length > 1) {
               _startCarouselAutoPlay();
             }
           }
           
-          // Update alerts
-          if (results[4]['success'] == true) {
-            _alerts = results[4]['data'];
+          // Update alerts: results[4]
+          final alertsResult = results[4] as Map<String, dynamic>;
+          if (alertsResult['success'] == true) {
+            _alerts = alertsResult['data'];
+          }
+
+          // Update Top Members: results[5]
+          if (results[5] is List) {
+            _topMembers = List<Map<String, dynamic>>.from(results[5] as List);
           }
 
           _isLoadingStats = false;
@@ -617,7 +626,7 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
     final allAlerts = <Map<String, dynamic>>[];
     
     // Add API alerts
-    if (_alerts != null && _alerts!.isNotEmpty) {
+    if (_alerts?.isNotEmpty ?? false) {
       allAlerts.addAll(_alerts!.cast<Map<String, dynamic>>());
     }
 
@@ -969,12 +978,131 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
             ],
           ),
           const SizedBox(height: 20),
-          Center(
-            child: Text(
-              'Belum ada data',
-              style: GoogleFonts.inter(color: Colors.grey[400]),
-            ),
-          ),
+          _topMembers.isEmpty
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 20),
+                    child: Text(
+                      'Belum ada data',
+                      style: GoogleFonts.inter(color: Colors.grey[400]),
+                    ),
+                  ),
+                )
+              : ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _topMembers.length,
+                  separatorBuilder: (context, index) =>
+                      Divider(color: Colors.grey[100]),
+                  itemBuilder: (context, index) {
+                    final member = _topMembers[index];
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Row(
+                        children: [
+                          // Rank
+                          Container(
+                            width: 24,
+                            height: 24,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: index == 0
+                                  ? Colors.amber
+                                  : index == 1
+                                      ? Colors.grey[400]
+                                      : index == 2
+                                          ? Colors.brown[300]
+                                          : Colors.grey[100],
+                              shape: BoxShape.circle,
+                            ),
+                            child: Text(
+                              '${index + 1}',
+                              style: GoogleFonts.inter(
+                                color: index < 3 ? Colors.white : Colors.grey[600],
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          // Avatar
+                          CircleAvatar(
+                            radius: 16,
+                            backgroundColor: Colors.blue[50],
+                            backgroundImage: member['picture'] != null
+                                ? NetworkImage(member['picture'])
+                                : null,
+                            child: member['picture'] == null
+                                ? Text(
+                                    (member['nama'] ?? 'U')[0].toUpperCase(),
+                                    style: GoogleFonts.inter(
+                                      color: Colors.blue[700],
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                    ),
+                                  )
+                                : null,
+                          ),
+                          const SizedBox(width: 12),
+                          // Name & NIM
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  member['nama'] ?? 'Unknown',
+                                  style: GoogleFonts.inter(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14,
+                                    color: Colors.black87,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                Text(
+                                  member['nim'] ?? '-',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    color: Colors.grey[500],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          // Attendance Count
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.green[50],
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.check_circle,
+                                  size: 14,
+                                  color: Colors.green[700],
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${member['kehadiran_count']}',
+                                  style: GoogleFonts.inter(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.green[700],
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
         ],
       ),
     );

@@ -49,30 +49,34 @@ class PesertaService {
     }
   }
 
-  // Get all members (peserta) for a specific UKM and periode
   Future<List<Map<String, dynamic>>> getPesertaByUkm(
     String idUkm,
-    String idPeriode,
-  ) async {
+    String idPeriode, {
+    int page = 1,
+    int limit = 5,
+    String? searchQuery,
+  }) async {
     try {
       print('=== getPesertaByUkm DEBUG ===');
       print('idUkm: $idUkm');
       print('idPeriode: $idPeriode');
+      print('page: $page, limit: $limit');
 
-      // First, let's see ALL data for this UKM (even inactive)
-      print('\n--- Checking ALL data for UKM (including inactive) ---');
-      final allDataResponse = await _supabase
-          .from('user_halaman_ukm')
-          .select('id_follow, id_user, id_ukm, id_periode, status, follow')
-          .eq('id_ukm', idUkm);
+      // Calculate range for pagination
+      final from = (page - 1) * limit;
+      final to = from + limit - 1;
 
-      print('Total records for UKM: ${(allDataResponse as List).length}');
-      for (var record in allDataResponse) {
-        print(
-          '  - id_follow: ${record['id_follow']}, id_user: ${record['id_user']}, '
-          'id_periode: ${record['id_periode']}, status: ${record['status']}',
-        );
-      }
+      // First, let's see ALL data for this UKM (even inactive) - DEBUG ONLY
+      // print('\n--- Checking ALL data for UKM (including inactive) ---');
+      // final allDataResponse = await _supabase
+      //     .from('user_halaman_ukm')
+      //     .select('id_follow, id_user, id_ukm, id_periode, status, follow')
+      //     .eq('id_ukm', idUkm);
+
+      // print('Total records for UKM: ${(allDataResponse as List).length}');
+
+
+
 
       // Now get active peserta list with user details
       print('\n--- Fetching ACTIVE peserta with details ---');
@@ -91,7 +95,8 @@ class PesertaService {
           .or(
             'status.eq.aktif,status.eq.active',
           ) // Accept both 'aktif' and 'active'
-          .order('follow', ascending: false);
+          .order('follow', ascending: false)
+          .range(from, to);
 
       print('Active peserta count: ${(response as List).length}');
 

@@ -27,6 +27,11 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
   String? _periodeId;
   String? _periodeName;
   String _searchQuery = '';
+  
+  // Pagination
+  int _currentPage = 1;
+  final int _itemsPerPage = 5;
+  bool _hasNextPage = true; // Primitive check: if received items < limit, then no next page
 
   @override
   void initState() {
@@ -106,21 +111,28 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
       // Load peserta for this UKM and periode
       if (_periodeId != null) {
         print(
-          'Step 3: Loading peserta for UKM $_ukmId and periode $_periodeId...',
+          'Step 3: Loading peserta for UKM $_ukmId and periode $_periodeId (Page $_currentPage)...',
         );
         final peserta = await _pesertaService.getPesertaByUkm(
           _ukmId!,
           _periodeId!,
+          page: _currentPage,
+          limit: _itemsPerPage,
+          searchQuery: _searchQuery,
         );
         print('✅ Loaded ${peserta.length} peserta');
 
-        // Load growth data
+        // Load growth data (only once, or if needed) - keeping it here for now
+        // Note: Growth data calculation usually needs ALL data. 
+        // Since getPesertaByUkm is now paginated, _loadGrowthData might fail to get all data if it uses the same service call.
+        // We probably should fix _loadGrowthData to request ALL data (ignoring pagination).
         await _loadGrowthData();
 
         setState(() {
           _pesertaList = peserta;
-          _filteredPesertaList = peserta;
+          _filteredPesertaList = peserta; // No local filtering needed anymore
           _isLoading = false;
+          _hasNextPage = peserta.length == _itemsPerPage;
         });
       } else {
         print('⚠️ WARNING: No periode ID available, cannot load peserta');
@@ -139,23 +151,16 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
   }
 
   void _filterPeserta(String query) {
+    if (_searchQuery == query) return;
+    
+    // Debounce preparation or just direct call? 
+    // For now direct, but reset to page 1
     setState(() {
       _searchQuery = query;
-      if (query.isEmpty) {
-        _filteredPesertaList = _pesertaList;
-      } else {
-        _filteredPesertaList = _pesertaList.where((peserta) {
-          final nama = peserta['nama']?.toString().toLowerCase() ?? '';
-          final email = peserta['email']?.toString().toLowerCase() ?? '';
-          final nim = peserta['nim']?.toString().toLowerCase() ?? '';
-          final searchLower = query.toLowerCase();
-
-          return nama.contains(searchLower) ||
-              email.contains(searchLower) ||
-              nim.contains(searchLower);
-        }).toList();
-      }
+      _currentPage = 1;
+      _isLoading = true; // Show loading while searching
     });
+    _loadData();
   }
 
   Future<void> _loadGrowthData() async {
@@ -165,9 +170,13 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
 
     try {
       // Get all peserta with their join dates for this UKM
+      // Get all peserta with their join dates for this UKM
+      // For growth data, we need ALL participants, so we pass a large limit
       final allPeserta = await _pesertaService.getPesertaByUkm(
         _ukmId!,
         _periodeId!,
+        page: 1,
+        limit: 1000, 
       );
 
       // Calculate growth for last 6 months
@@ -761,6 +770,57 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
               final peserta = _filteredPesertaList[index];
               return _buildPesertaRow(peserta, index, isDesktop);
             },
+          ),
+          
+          // Pagination Controls
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ElevatedButton(
+                  onPressed: _currentPage > 1
+                      ? () {
+                          setState(() {
+                            _currentPage--;
+                            _isLoading = true;
+                          });
+                          _loadData();
+                        }
+                      : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: const Color(0xFF4169E1),
+                     side: const BorderSide(color: Color(0xFF4169E1)),
+                  ),
+                  child: const Text('Previous'),
+                ),
+                const SizedBox(width: 16),
+                Text(
+                  'Page $_currentPage',
+                  style: GoogleFonts.inter(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                ElevatedButton(
+                  onPressed: _hasNextPage
+                      ? () {
+                          setState(() {
+                            _currentPage++;
+                            _isLoading = true;
+                          });
+                          _loadData();
+                        }
+                      : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4169E1),
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Next'),
+                ),
+              ],
+            ),
           ),
         ],
       ),

@@ -31,7 +31,7 @@ class _InformasiUKMPageState extends State<InformasiUKMPage> {
   String _filterStatus = 'Semua';
   String _searchQuery = '';
   int _currentPage = 1;
-  final int _itemsPerPage = 6;
+  final int _itemsPerPage = 5;
   bool _isLoading = true;
   String _viewMode = 'grid'; // 'grid' or 'list'
 
