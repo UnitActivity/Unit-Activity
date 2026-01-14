@@ -1711,6 +1711,14 @@ class _PenggunaPageState extends State<PenggunaPage> {
 
   Future<void> _performDelete(String userId) async {
     try {
+      // Manual cascade delete
+      // 1. Delete from user_halaman_ukm (memberships)
+      await _supabase.from('user_halaman_ukm').delete().eq('id_user', userId);
+
+      // 2. Delete from absen_event (event participation)
+      await _supabase.from('absen_event').delete().eq('id_user', userId);
+
+      // 3. Delete from users table
       await _supabase.from('users').delete().eq('id_user', userId);
 
       if (mounted) {
