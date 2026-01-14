@@ -40,7 +40,7 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
 
   Map<String, dynamic>? _event;
   List<Map<String, dynamic>> _dokumenProposal = [];
-  List<Map<String, dynamic>> _dokumenLpj = [];
+  List<Map<String, dynamic>> _dokumenLpj = []; // Single LPJ list (row can have laporan + keuangan)
   List<Map<String, dynamic>> _pesertaList = [];
   List<Map<String, dynamic>> _filteredPesertaList = [];
   List<Map<String, dynamic>> _pendingParticipants = [];
@@ -106,7 +106,7 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
           .eq('document_type', 'proposal');
       _dokumenProposal = List<Map<String, dynamic>>.from(proposalData);
 
-      // Load dokumen LPJ dari event_documents
+      // Load dokumen LPJ (single row can contain both laporan + keuangan)
       final lpjData = await _supabase
           .from('event_documents')
           .select('*, users(username)')
@@ -148,9 +148,12 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
     try {
       setState(() => _isUploadingFile = true);
 
-      if (documentType == 'lpj') {
-        // LPJ needs 2 files (laporan and keuangan)
-        await _uploadLPJFiles();
+      if (documentType == 'lpj_laporan') {
+        await _uploadLpjLaporan();
+      } else if (documentType == 'lpj_keuangan') {
+        await _uploadLpjKeuangan();
+      } else if (documentType == 'logbook') {
+        await _uploadLogbook();
       } else {
         // Proposal needs 1 file
         await _uploadProposalFile();
@@ -271,224 +274,210 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
     _loadEventDetails();
   }
 
-  Future<void> _uploadLPJFiles() async {
-    // Show dialog to inform user needs 2 files
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: const Color(0xFF4169E1).withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(
-                Icons.info_outline_rounded,
-                color: Color(0xFF4169E1),
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'Upload LPJ',
-                style: GoogleFonts.inter(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        ),
-        content: Text(
-          'LPJ memerlukan 2 dokumen:\n1. File Laporan\n2. File Keuangan\n\nAnda akan diminta untuk memilih kedua file.',
-          style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[700]),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(
-              'Batal',
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey[700],
-              ),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF4169E1),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              elevation: 0,
-            ),
-            child: Text(
-              'Lanjutkan',
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true) return;
-
-    // Pick laporan file
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Pilih File Laporan',
-            style: GoogleFonts.inter(fontWeight: FontWeight.w500),
-          ),
-          backgroundColor: const Color(0xFF4169E1),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
-
-    final laporanResult = await FilePicker.platform.pickFiles(
+  Future<void> _uploadLpjLaporan() async {
+    final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'doc', 'docx'],
       withData: true,
       allowMultiple: false,
     );
 
-    if (laporanResult == null || laporanResult.files.isEmpty) return;
+    if (result == null || result.files.isEmpty) return;
+    
+    final file = result.files.first;
+    if (file.bytes == null) return;
+    
+    final fileBytes = file.bytes!;
+    final fileName = file.name;
+    final fileSize = fileBytes.length;
 
-    // Pick keuangan file
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Pilih File Keuangan',
-            style: GoogleFonts.inter(fontWeight: FontWeight.w500),
-          ),
-          backgroundColor: const Color(0xFF4169E1),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
-
-    final keuanganResult = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf', 'doc', 'docx'],
-      withData: true,
-      allowMultiple: false,
-    );
-
-    if (keuanganResult == null || keuanganResult.files.isEmpty) return;
-
-    final laporanFile = laporanResult.files.first;
-    final keuanganFile = keuanganResult.files.first;
-
-    if (laporanFile.bytes == null || keuanganFile.bytes == null) return;
-
-    final laporanBytes = laporanFile.bytes!;
-    final keuanganBytes = keuanganFile.bytes!;
-    final laporanSize = laporanBytes.length;
-    final keuanganSize = keuanganBytes.length;
-
-    // Validate file sizes
-    if (laporanSize > 10 * 1024 * 1024 || keuanganSize > 10 * 1024 * 1024) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Ukuran file maksimal 10 MB'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+    if (fileSize > 10 * 1024 * 1024) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ukuran file maksimal 10 MB'), backgroundColor: Colors.red));
       return;
     }
 
-    // Generate unique filenames
     final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final laporanExt = laporanFile.name.split('.').last;
-    final keuanganExt = keuanganFile.name.split('.').last;
-    final laporanPath = '${widget.eventId}/lpj_laporan_$timestamp.$laporanExt';
-    final keuanganPath =
-        '${widget.eventId}/lpj_keuangan_$timestamp.$keuanganExt';
+    final fileExtension = fileName.split('.').last;
+    final storagePath = '${widget.eventId}/lpj_laporan_$timestamp.$fileExtension';
 
-    // Upload files to storage
-    await _supabase.storage
-        .from('event-lpj')
-        .uploadBinary(laporanPath, laporanBytes);
-    await _supabase.storage
-        .from('event-lpj')
-        .uploadBinary(keuanganPath, keuanganBytes);
+    // Upload to event-lpj bucket
+    await _supabase.storage.from('event-lpj').uploadBinary(storagePath, fileBytes);
 
-    // Get current user/admin ID from custom auth
-    // For UKM: this is id_admin (they login as admin with role 'ukm')
-    // For regular users: this would be id_user
     final userId = _authService.currentUserId;
-    if (userId == null) {
-      throw Exception('User not authenticated. Please login again.');
+    if (userId == null) throw Exception('User not authenticated');
+
+    // Check if LPJ row already exists for this event
+    final existingLpj = await _supabase
+        .from('event_documents')
+        .select('id_document')
+        .eq('id_event', widget.eventId)
+        .eq('document_type', 'lpj')
+        .maybeSingle();
+
+    if (existingLpj != null) {
+      // UPDATE existing row with laporan file
+      await _supabase.from('event_documents').update({
+        'file_laporan': storagePath,
+        'original_filename_laporan': fileName,
+        'file_size_laporan': fileSize,
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('id_document', existingLpj['id_document']);
+    } else {
+      // INSERT new row
+      final insertData = {
+        'document_type': 'lpj',
+        'id_event': widget.eventId,
+        'id_ukm': _event!['id_ukm'],
+        'file_laporan': storagePath,
+        'original_filename_laporan': fileName,
+        'file_size_laporan': fileSize,
+        'status': 'draft',
+      };
+      if (_authService.isUser) insertData['id_user'] = userId;
+      await _supabase.from('event_documents').insert(insertData);
     }
-
-    print('Current user ID: $userId');
-    print('Current user role: ${_authService.currentUserRole}');
-
-    // Insert to database (unified event_documents table)
-    // IMPORTANT: UKM login as admin, so their ID is in admin table, not users table
-    // Only include id_user if uploader is a regular user
-    final insertData = {
-      'document_type': 'lpj', // Unified table identifier
-      'id_event': widget.eventId,
-      'id_ukm': _event!['id_ukm'],
-      'file_laporan': laporanPath,
-      'file_keuangan': keuanganPath,
-      'original_filename_laporan': laporanFile.name,
-      'original_filename_keuangan': keuanganFile.name,
-      'file_size_laporan': laporanSize,
-      'file_size_keuangan': keuanganSize,
-      'status': 'draft', // Draft status - requires manual submission
-    };
-
-    // Only add id_user for regular users (not for UKM/admin)
-    // UKM are admins, their ID is in admin table, not users table
-    if (_authService.isUser) {
-      insertData['id_user'] = userId;
-    }
-
-    print('Inserting LPJ with data: $insertData');
-    await _supabase.from('event_documents').insert(insertData);
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.check_circle_rounded, color: Colors.white),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'LPJ berhasil diupload. Klik "Ajukan" untuk mengirim ke admin',
-                  style: GoogleFonts.inter(fontWeight: FontWeight.w500),
-                ),
-              ),
-            ],
-          ),
-          backgroundColor: Colors.green,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('LPJ Laporan berhasil diupload'), backgroundColor: Colors.green));
+    }
+    _loadEventDetails();
+  }
+
+  Future<void> _uploadLpjKeuangan() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf', 'doc', 'docx'],
+      withData: true,
+      allowMultiple: false,
+    );
+
+    if (result == null || result.files.isEmpty) return;
+    
+    final file = result.files.first;
+    if (file.bytes == null) return;
+    
+    final fileBytes = file.bytes!;
+    final fileName = file.name;
+    final fileSize = fileBytes.length;
+
+    if (fileSize > 10 * 1024 * 1024) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ukuran file maksimal 10 MB'), backgroundColor: Colors.red));
+      return;
     }
 
-    // Reload data
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final fileExtension = fileName.split('.').last;
+    final storagePath = '${widget.eventId}/lpj_keuangan_$timestamp.$fileExtension';
+
+    // Upload to event-lpj-keuangan bucket
+    await _supabase.storage.from('event-lpj-keuangan').uploadBinary(storagePath, fileBytes);
+
+    final userId = _authService.currentUserId;
+    if (userId == null) throw Exception('User not authenticated');
+
+    // Check if LPJ row already exists for this event
+    final existingLpj = await _supabase
+        .from('event_documents')
+        .select('id_document')
+        .eq('id_event', widget.eventId)
+        .eq('document_type', 'lpj')
+        .maybeSingle();
+
+    if (existingLpj != null) {
+      // UPDATE existing row with keuangan file
+      await _supabase.from('event_documents').update({
+        'file_keuangan': storagePath,
+        'original_filename_keuangan': fileName,
+        'file_size_keuangan': fileSize,
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('id_document', existingLpj['id_document']);
+    } else {
+      // INSERT new row
+      final insertData = {
+        'document_type': 'lpj',
+        'id_event': widget.eventId,
+        'id_ukm': _event!['id_ukm'],
+        'file_keuangan': storagePath,
+        'original_filename_keuangan': fileName,
+        'file_size_keuangan': fileSize,
+        'status': 'draft',
+      };
+      if (_authService.isUser) insertData['id_user'] = userId;
+      await _supabase.from('event_documents').insert(insertData);
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Laporan Keuangan berhasil diupload'), backgroundColor: Colors.green));
+    }
+    _loadEventDetails();
+  }
+
+  Future<void> _uploadLogbook() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf', 'doc', 'docx'],
+      withData: true,
+      allowMultiple: false,
+    );
+
+    if (result == null || result.files.isEmpty) return;
+    
+    final file = result.files.first;
+    if (file.bytes == null) return;
+    
+    final fileBytes = file.bytes!;
+    final fileName = file.name;
+    final fileSize = fileBytes.length;
+
+    if (fileSize > 10 * 1024 * 1024) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ukuran file maksimal 10 MB'), backgroundColor: Colors.red));
+      return;
+    }
+
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final fileExtension = fileName.split('.').last;
+    final storagePath = '${widget.eventId}/logbook_$timestamp.$fileExtension';
+
+    // Upload to event-logbook bucket
+    await _supabase.storage.from('event-logbook').uploadBinary(storagePath, fileBytes);
+
+    final userId = _authService.currentUserId;
+    if (userId == null) throw Exception('User not authenticated');
+
+    // Check if LPJ row already exists for this event
+    final existingLpj = await _supabase
+        .from('event_documents')
+        .select('id_document')
+        .eq('id_event', widget.eventId)
+        .eq('document_type', 'lpj')
+        .maybeSingle();
+
+    if (existingLpj != null) {
+      // UPDATE existing row with logbook file
+      await _supabase.from('event_documents').update({
+        'file_logbook': storagePath,
+        'original_filename_logbook': fileName,
+        'file_size_logbook': fileSize,
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('id_document', existingLpj['id_document']);
+    } else {
+      // INSERT new row
+      final insertData = {
+        'document_type': 'lpj',
+        'id_event': widget.eventId,
+        'id_ukm': _event!['id_ukm'],
+        'file_logbook': storagePath,
+        'original_filename_logbook': fileName,
+        'file_size_logbook': fileSize,
+        'status': 'draft',
+      };
+      if (_authService.isUser) insertData['id_user'] = userId;
+      await _supabase.from('event_documents').insert(insertData);
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Logbook berhasil diupload'), backgroundColor: Colors.green));
+    }
     _loadEventDetails();
   }
 
@@ -1986,6 +1975,13 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
     // Get status
     final statusProposal = _event!['status_proposal'] ?? 'belum_ajukan';
     final statusLpj = _event!['status_lpj'] ?? 'belum_ajukan';
+    
+    // Check if LPJ has both files uploaded
+    final hasLpjLaporan = _dokumenLpj.any((d) => d['file_laporan'] != null);
+    final hasLpjKeuangan = _dokumenLpj.any((d) => d['file_keuangan'] != null);
+    
+    // Logbook unlocked ONLY if Proposal AND LPJ are approved
+    final isLogbookUnlocked = statusProposal == 'disetujui' && statusLpj == 'disetujui';
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -2058,8 +2054,32 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
           ),
           const SizedBox(height: 20),
 
-          // LPJ Section
-          _buildDocumentSection('LPJ', _dokumenLpj, statusLpj, 'lpj'),
+          // LPJ Section (for file_laporan - Laporan Kegiatan)
+          _buildDocumentSection(
+            'LPJ', 
+            _dokumenLpj.where((d) => d['file_laporan'] != null).toList(), 
+            statusLpj, 
+            'lpj_laporan',
+          ),
+          const SizedBox(height: 20),
+
+          // Laporan Keuangan Section (for file_keuangan)
+          _buildDocumentSection(
+            'Laporan Keuangan', 
+            _dokumenLpj.where((d) => d['file_keuangan'] != null).toList(), 
+            statusLpj, 
+            'lpj_keuangan',
+          ),
+          const SizedBox(height: 20),
+
+          // Logbook Section (for file_logbook) - LOCKED until Proposal AND LPJ approved
+          _buildDocumentSection(
+            'Logbook', 
+            _dokumenLpj.where((d) => d['file_logbook'] != null).toList(), 
+            statusLpj, 
+            'logbook',
+            isEnabled: isLogbookUnlocked,
+          ),
         ],
       ),
     );
@@ -2069,8 +2089,9 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
     String title,
     List<Map<String, dynamic>> documents,
     String status,
-    String documentType,
-  ) {
+    String documentType, {
+    bool isEnabled = true,
+  }) {
     Color statusColor;
     String statusText;
     IconData statusIcon;
@@ -2153,7 +2174,7 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: _isUploadingFile
+              onPressed: !isEnabled || _isUploadingFile
                   ? null
                   : () => _pickAndUploadFile(documentType),
               icon: _isUploadingFile
@@ -2167,15 +2188,16 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
                     )
                   : const Icon(Icons.upload_file_rounded),
               label: Text(
-                _isUploadingFile ? 'Mengupload...' : 'Upload Dokumen',
+                _isUploadingFile ? 'Mengupload...' : (isEnabled ? 'Upload Dokumen' : 'Terkunci'),
                 style: GoogleFonts.inter(
                   fontWeight: FontWeight.w600,
                   fontSize: 14,
+                  color: !isEnabled ? Colors.grey : Colors.white,
                 ),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4169E1),
-                foregroundColor: Colors.white,
+                backgroundColor: !isEnabled ? Colors.grey[200] : const Color(0xFF4169E1),
+                foregroundColor: !isEnabled ? Colors.grey : Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -2252,8 +2274,14 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
     String filename = '';
     if (documentType == 'proposal') {
       filename = doc['original_filename_proposal'] ?? 'proposal.pdf';
+    } else if (documentType == 'logbook') {
+      filename = doc['original_filename_logbook'] ?? 'logbook.pdf';
+    } else if (documentType == 'lpj_laporan') {
+      filename = doc['original_filename_laporan'] ?? 'laporan.pdf';
+    } else if (documentType == 'lpj_keuangan') {
+      filename = doc['original_filename_keuangan'] ?? 'keuangan.pdf';
     } else {
-      filename = doc['original_filename_laporan'] ?? 'lpj_laporan.pdf';
+      filename = doc['original_filename_laporan'] ?? 'document.pdf';
     }
 
     // Check if document can be viewed (not draft)
