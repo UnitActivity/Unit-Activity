@@ -14,6 +14,7 @@ import 'package:unit_activity/services/ukm_dashboard_service.dart';
 import 'package:unit_activity/services/custom_auth_service.dart';
 import 'package:unit_activity/services/event_service_new.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:unit_activity/auth/login.dart';
 
 class DashboardUKMPage extends StatefulWidget {
   const DashboardUKMPage({super.key});
@@ -163,7 +164,7 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
               _startCarouselAutoPlay();
             }
           }
-          
+
           // Update alerts: results[4]
           final alertsResult = results[4] as Map<String, dynamic>;
           if (alertsResult['success'] == true) {
@@ -346,9 +347,15 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
             ),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              Navigator.pushReplacementNamed(context, '/login');
+              await _authService.logout();
+              if (mounted) {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => const LoginPage()),
+                );
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
@@ -517,7 +524,10 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
             if (isNotLoggedIn)
               ElevatedButton.icon(
                 onPressed: () {
-                  Navigator.pushReplacementNamed(context, '/login');
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (context) => const LoginPage()),
+                  );
                 },
                 icon: const Icon(Icons.login, size: 20),
                 label: Text(
@@ -624,7 +634,7 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
   Widget _buildAlertsSection(bool isDesktop) {
     // Collect all alerts
     final allAlerts = <Map<String, dynamic>>[];
-    
+
     // Add API alerts
     if (_alerts?.isNotEmpty ?? false) {
       allAlerts.addAll(_alerts!.cast<Map<String, dynamic>>());
@@ -633,7 +643,7 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
     // Add static guides if empty
     final totalEvent = _dashboardStats?['totalEvent'] ?? 0;
     final totalPeserta = _dashboardStats?['totalPeserta'] ?? 0;
-    
+
     if (totalEvent == 0) {
       allAlerts.add({
         'type': 'info',
@@ -1009,16 +1019,18 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
                               color: index == 0
                                   ? Colors.amber
                                   : index == 1
-                                      ? Colors.grey[400]
-                                      : index == 2
-                                          ? Colors.brown[300]
-                                          : Colors.grey[100],
+                                  ? Colors.grey[400]
+                                  : index == 2
+                                  ? Colors.brown[300]
+                                  : Colors.grey[100],
                               shape: BoxShape.circle,
                             ),
                             child: Text(
                               '${index + 1}',
                               style: GoogleFonts.inter(
-                                color: index < 3 ? Colors.white : Colors.grey[600],
+                                color: index < 3
+                                    ? Colors.white
+                                    : Colors.grey[600],
                                 fontWeight: FontWeight.bold,
                                 fontSize: 12,
                               ),

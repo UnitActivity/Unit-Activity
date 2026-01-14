@@ -39,7 +39,7 @@ class CustomAuthService {
       print('========== CUSTOM AUTH LOGIN ==========');
       print('Attempting login for: $email');
 
-      // 1. Try login as admin/ukm - direct query (admin table doesn't have password field)
+      // 1. Try login as admin/ukm - direct query (admin table uses email-only auth)
       print('Checking admin table...');
       try {
         final adminResult = await _supabase
@@ -50,9 +50,7 @@ class CustomAuthService {
 
         if (adminResult != null) {
           print('Admin found: ${adminResult['username_admin']}');
-          print(
-            '✅ Login successful as ${adminResult['role']} (admin table has no password validation)',
-          );
+          print('✅ Login successful as ${adminResult['role']}');
 
           _currentUserId = adminResult['id_admin'];
           _currentUserRole = adminResult['role'];
