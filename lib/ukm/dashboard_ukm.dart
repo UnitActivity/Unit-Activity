@@ -44,6 +44,7 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
 
   // Dashboard data
   String _ukmName = 'UKM Dashboard';
+  String? _ukmLogo;
   String _periode = '2025.1';
   String? _ukmId;
   String? _periodeId;
@@ -123,6 +124,19 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
       _ukmId = ukmDetailsResponse['id_ukm'];
       setState(() {
         _ukmName = ukmDetailsResponse['nama_ukm'] ?? 'UKM Dashboard';
+        
+        // Process logo URL
+        final String? rawLogo = ukmDetailsResponse['logo'];
+        if (rawLogo != null && rawLogo.isNotEmpty) {
+          if (rawLogo.startsWith('http')) {
+            _ukmLogo = rawLogo;
+          } else {
+            // Generate public URL for 'ukm-logos' bucket
+            _ukmLogo = _supabase.storage.from('ukm-logos').getPublicUrl(rawLogo);
+          }
+        } else {
+          _ukmLogo = null;
+        }
       });
 
       // Get current periode
@@ -319,6 +333,10 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
     if (_scaffoldKey.currentState?.isDrawerOpen ?? false) {
       Navigator.pop(context);
     }
+    // Reload dashboard data when navigating back to dashboard
+    if (menu == 'dashboard') {
+      _loadDashboardData();
+    }
   }
 
   void _handleLogout() {
@@ -429,6 +447,7 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
                     onLogout: _handleLogout,
                     onMenuSelected: _handleMenuSelected,
                     ukmName: _ukmName,
+                    ukmLogo: _ukmLogo,
                     periode: _periode,
                   ),
                 ),

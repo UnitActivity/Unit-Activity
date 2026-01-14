@@ -34,6 +34,13 @@ class ConnectivityService {
     if (_isInitialized) return;
     _isInitialized = true;
 
+    // Skip connectivity monitoring on web platform
+    // Web has CORS restrictions that cause errors when checking connectivity
+    if (kIsWeb) {
+      _isConnected = true; // Always assume connected on web
+      return;
+    }
+
     // Pastikan stream controller sudah ada
     _connectionStreamController ??= StreamController<bool>.broadcast();
 
@@ -50,33 +57,16 @@ class ConnectivityService {
         _updateConnectionStatus(hasInternet);
       }
     });
-
-    // Untuk web, connectivity_plus tidak selalu reliable
-    // Jadi kita tambahkan periodic check sebagai backup
-    if (kIsWeb) {
-      _startPeriodicCheck();
-    }
-  }
-
-  /// Start periodic check untuk platform web
-  void _startPeriodicCheck() {
-    _periodicCheckTimer?.cancel();
-    _periodicCheckTimer = Timer.periodic(
-      const Duration(seconds: 10),
-      (_) => checkConnection(),
-    );
   }
 
   /// Cek koneksi internet saat ini
   Future<bool> checkConnection() async {
-    try {
-      // Untuk web, langsung cek HTTP karena connectivity_plus kurang reliable
-      if (kIsWeb) {
-        final hasInternet = await _verifyInternetConnection();
-        _updateConnectionStatus(hasInternet);
-        return hasInternet;
-      }
+    // On web, always return true to avoid CORS errors
+    if (kIsWeb) {
+      return true;
+    }
 
+    try {
       // Untuk platform native, gunakan connectivity_plus terlebih dahulu
       final results = await _connectivity.checkConnectivity();
 

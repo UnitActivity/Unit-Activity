@@ -113,6 +113,19 @@ class _EventPageState extends State<EventPage> {
           .from('event_documents')
           .select('id_event, document_type, status');
 
+      // Load participant count from absen_event for each event
+      final absenData = await _supabase.from('absen_event').select('id_event');
+
+      // Create participant count map: id_event -> count
+      final participantCountMap = <String, int>{};
+      for (var absen in (absenData as List)) {
+        final eventId = absen['id_event']?.toString();
+        if (eventId != null) {
+          participantCountMap[eventId] =
+              (participantCountMap[eventId] ?? 0) + 1;
+        }
+      }
+
       final periodeMap = <String, String>{};
       for (var p in periodeData) {
         periodeMap[p['id_periode']] = p['nama_periode'];
@@ -160,6 +173,9 @@ class _EventPageState extends State<EventPage> {
             event['status_lpj'] = docStatus['lpj'];
           }
         }
+
+        // Attach participant count from absen_event
+        event['registered_count'] = participantCountMap[eventId] ?? 0;
 
         // Ensure default values
         event['status_proposal'] ??= 'belum_ajukan';
@@ -462,8 +478,10 @@ class _EventPageState extends State<EventPage> {
   }
 
   Widget _buildEventCard(Map<String, dynamic> event, bool isDesktop) {
+    // Get event image URL
+    final String? imageUrl = event['gambar'];
+
     return Container(
-      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -490,151 +508,232 @@ class _EventPageState extends State<EventPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Header with Icon and Title
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF4169E1), Color(0xFF5B7FE8)],
-                  ),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(
-                  Icons.event_rounded,
-                  color: Colors.white,
-                  size: 16,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      event['nama_event'] ?? '-',
-                      style: GoogleFonts.inter(
-                        fontSize: isDesktop ? 14 : 13,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.black87,
+          // Event Image
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+            child: AspectRatio(
+              aspectRatio: 16 / 9,
+              child: imageUrl != null && imageUrl.isNotEmpty
+                  ? Image.network(
+                      imageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          color: const Color(0xFF4169E1).withValues(alpha: 0.1),
+                          child: const Center(
+                            child: Icon(
+                              Icons.event_rounded,
+                              size: 48,
+                              color: Color(0xFF4169E1),
+                            ),
+                          ),
+                        );
+                      },
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return Container(
+                          color: Colors.grey[100],
+                          child: const Center(
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        );
+                      },
+                    )
+                  : Container(
+                      color: const Color(0xFF4169E1).withValues(alpha: 0.1),
+                      child: const Center(
+                        child: Icon(
+                          Icons.event_rounded,
+                          size: 48,
+                          color: Color(0xFF4169E1),
+                        ),
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 3),
+            ),
+          ),
+
+          // Content
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header with Icon and Title
+                Row(
+                  children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
+                      padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF4169E1).withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(6),
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF4169E1), Color(0xFF5B7FE8)],
+                        ),
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                      child: Text(
-                        event['tipevent'] ?? '-',
-                        style: GoogleFonts.inter(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF4169E1),
+                      child: const Icon(
+                        Icons.event_rounded,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            event['nama_event'] ?? '-',
+                            style: GoogleFonts.inter(
+                              fontSize: isDesktop ? 14 : 13,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.black87,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 3),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(
+                                0xFF4169E1,
+                              ).withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              event['tipevent'] ?? '-',
+                              style: GoogleFonts.inter(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFF4169E1),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // View Button
+                    IconButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => DetailEventPage(event: event),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.visibility_outlined),
+                      color: const Color(0xFF4169E1),
+                      tooltip: 'Lihat Detail',
+                      style: IconButton.styleFrom(
+                        backgroundColor: const Color(
+                          0xFF4169E1,
+                        ).withValues(alpha: 0.1),
+                        padding: const EdgeInsets.all(8),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Divider(color: Colors.grey[200], height: 1),
+                const SizedBox(height: 8),
+
+                // Event Details
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildInfoChip(
+                        icon: Icons.groups_rounded,
+                        label: 'UKM',
+                        value:
+                            (event['ukm']
+                                as Map<String, dynamic>?)?['nama_ukm'] ??
+                            '-',
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildInfoChip(
+                        icon: Icons.location_on_outlined,
+                        label: 'Lokasi',
+                        value: event['lokasi'] ?? '-',
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildInfoChip(
+                        icon: Icons.calendar_today_outlined,
+                        label: 'Tanggal',
+                        value: _formatDate(event['tanggal_mulai']),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildInfoChip(
+                        icon: Icons.access_time_rounded,
+                        label: 'Jam',
+                        value: _formatTimeRange(
+                          event['jam_mulai'],
+                          event['jam_akhir'],
                         ),
                       ),
                     ),
                   ],
                 ),
-              ),
-              // View Button
-              IconButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => DetailEventPage(event: event),
+                const SizedBox(height: 6),
+                // Participant Count Row
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildInfoChip(
+                        icon: Icons.people_rounded,
+                        label: 'Peserta',
+                        value:
+                            '${event['registered_count'] ?? 0}/${event['max_participant'] ?? '-'}',
+                      ),
                     ),
-                  );
-                },
-                icon: const Icon(Icons.visibility_outlined),
-                color: const Color(0xFF4169E1),
-                tooltip: 'Lihat Detail',
-                style: IconButton.styleFrom(
-                  backgroundColor: const Color(
-                    0xFF4169E1,
-                  ).withValues(alpha: 0.1),
-                  padding: const EdgeInsets.all(8),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildInfoChip(
+                        icon: Icons.category_outlined,
+                        label: 'Tipe Akses',
+                        value: event['tipe_akses'] ?? 'anggota',
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Divider(color: Colors.grey[200], height: 1),
-          const SizedBox(height: 8),
+                const SizedBox(height: 8),
 
-          // Event Details
-          Row(
-            children: [
-              Expanded(
-                child: _buildInfoChip(
-                  icon: Icons.groups_rounded,
-                  label: 'UKM',
-                  value:
-                      (event['ukm'] as Map<String, dynamic>?)?['nama_ukm'] ??
-                      '-',
+                // Document Status Badges
+                Divider(color: Colors.grey[200], height: 1),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    // Proposal Status
+                    Expanded(
+                      child: _buildDocumentStatusBadge(
+                        label: 'Proposal',
+                        status: event['status_proposal'] ?? 'belum_ajukan',
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // LPJ Status
+                    Expanded(
+                      child: _buildDocumentStatusBadge(
+                        label: 'LPJ',
+                        status: event['status_lpj'] ?? 'belum_ajukan',
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildInfoChip(
-                  icon: Icons.location_on_outlined,
-                  label: 'Lokasi',
-                  value: event['lokasi'] ?? '-',
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              Expanded(
-                child: _buildInfoChip(
-                  icon: Icons.calendar_today_outlined,
-                  label: 'Tanggal',
-                  value: _formatDate(event['tanggal_mulai']),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildInfoChip(
-                  icon: Icons.access_time_rounded,
-                  label: 'Jam',
-                  value: _formatTime(event['jam_mulai']),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-
-          // Document Status Badges
-          Divider(color: Colors.grey[200], height: 1),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              // Proposal Status
-              Expanded(
-                child: _buildDocumentStatusBadge(
-                  label: 'Proposal',
-                  status: event['status_proposal'] ?? 'belum_ajukan',
-                ),
-              ),
-              const SizedBox(width: 8),
-              // LPJ Status
-              Expanded(
-                child: _buildDocumentStatusBadge(
-                  label: 'LPJ',
-                  status: event['status_lpj'] ?? 'belum_ajukan',
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -770,8 +869,6 @@ class _EventPageState extends State<EventPage> {
   }
 
   Widget _buildModernPagination() {
-    if (_totalPages <= 1) return const SizedBox.shrink();
-
     final isMobile = MediaQuery.of(context).size.width < 600;
 
     return Container(
@@ -979,7 +1076,7 @@ class _EventPageState extends State<EventPage> {
   }
 
   String _formatTime(String? timeStr) {
-    if (timeStr == null) return '-';
+    if (timeStr == null || timeStr.isEmpty) return '00:00';
     try {
       // Check if it's a time string (HH:mm:ss format)
       if (timeStr.contains(':') && !timeStr.contains('T')) {
@@ -994,7 +1091,14 @@ class _EventPageState extends State<EventPage> {
       final date = DateTime.parse(timeStr);
       return DateFormat('HH:mm', 'id_ID').format(date);
     } catch (e) {
-      return '-';
+      return '00:00';
     }
+  }
+
+  /// Format time range (jam_mulai - jam_akhir)
+  String _formatTimeRange(String? startTime, String? endTime) {
+    final start = _formatTime(startTime);
+    final end = _formatTime(endTime);
+    return '$start - $end';
   }
 }

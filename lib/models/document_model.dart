@@ -297,6 +297,7 @@ class DocumentProposal {
   String getUkmName() => ukm?['nama_ukm'] as String? ?? 'UKM';
   String getUserName() => user?['username'] as String? ?? 'User';
   String? getAdminName() => admin?['username_admin'] as String?;
+  String? getEventImage() => event?['gambar'] as String?;
 }
 
 class DocumentLPJ {
@@ -441,6 +442,7 @@ class DocumentLPJ {
   String getUkmName() => ukm?['nama_ukm'] as String? ?? 'UKM';
   String getUserName() => user?['username'] as String? ?? 'User';
   String? getAdminName() => admin?['username_admin'] as String?;
+  String? getEventImage() => event?['gambar'] as String?;
 }
 
 class DocumentRevision {

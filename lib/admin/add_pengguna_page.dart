@@ -238,9 +238,8 @@ class _AddPenggunaPageState extends State<AddPenggunaPage> {
                         if (value == null || value.isEmpty) {
                           return 'Username tidak boleh kosong';
                         }
-                        final usernameRegex = RegExp(r'^[a-zA-Z0-9_]{3,}$');
-                        if (!usernameRegex.hasMatch(value)) {
-                          return 'Username minimal 3 karakter (huruf, angka, underscore)';
+                        if (value.length < 3) {
+                          return 'Username minimal 3 karakter';
                         }
                         return null;
                       },
@@ -288,7 +287,9 @@ class _AddPenggunaPageState extends State<AddPenggunaPage> {
                       decoration: BoxDecoration(
                         color: Colors.blue.withValues(alpha: 0.05),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.blue.withValues(alpha: 0.2)),
+                        border: Border.all(
+                          color: Colors.blue.withValues(alpha: 0.2),
+                        ),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,

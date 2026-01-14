@@ -19,6 +19,8 @@ class _DetailEventPageState extends State<DetailEventPage> {
   List<Map<String, dynamic>> _dokumenProposal = [];
   List<Map<String, dynamic>> _dokumenLpj = [];
   int _jumlahPeserta = 0;
+  List<Map<String, dynamic>> _pesertaList =
+      []; // List of participants with attendance status
 
   // Realtime subscription
   RealtimeChannel? _documentsChannel;
@@ -82,13 +84,13 @@ class _DetailEventPageState extends State<DetailEventPage> {
           .eq('document_type', 'lpj');
       _dokumenLpj = List<Map<String, dynamic>>.from(lpjData);
 
-      // Load jumlah peserta dari absen_event
-      final pesertaCount = await _supabase
+      // Load peserta dengan status absensi dari absen_event
+      final pesertaData = await _supabase
           .from('absen_event')
-          .select('id_user')
-          .eq('id_event', idEvent)
-          .count();
-      _jumlahPeserta = pesertaCount.count;
+          .select('*, users(username, nim, email)')
+          .eq('id_event', idEvent);
+      _pesertaList = List<Map<String, dynamic>>.from(pesertaData);
+      _jumlahPeserta = _pesertaList.length;
 
       if (mounted) {
         setState(() => _isLoading = false);
@@ -98,7 +100,7 @@ class _DetailEventPageState extends State<DetailEventPage> {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Gagal memuat detail event: \$e'),
+            content: Text('Gagal memuat detail event: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -117,7 +119,7 @@ class _DetailEventPageState extends State<DetailEventPage> {
   }
 
   String _formatTime(String? timeStr) {
-    if (timeStr == null) return '-';
+    if (timeStr == null || timeStr.isEmpty) return '00:00';
     try {
       // Check if it's a time string (HH:mm:ss format)
       if (timeStr.contains(':') && !timeStr.contains('T')) {
@@ -132,7 +134,7 @@ class _DetailEventPageState extends State<DetailEventPage> {
       final date = DateTime.parse(timeStr);
       return DateFormat('HH:mm', 'id_ID').format(date);
     } catch (e) {
-      return '-';
+      return '00:00';
     }
   }
 
@@ -308,6 +310,10 @@ class _DetailEventPageState extends State<DetailEventPage> {
 
                   // Documents
                   _buildDocumentsCard(context, isDesktop, isMobile),
+                  const SizedBox(height: 20),
+
+                  // Participants List
+                  _buildParticipantsCard(isDesktop, isMobile),
                 ],
               ),
             ),
@@ -318,8 +324,10 @@ class _DetailEventPageState extends State<DetailEventPage> {
   }
 
   Widget _buildEventHeaderCard(bool isDesktop, bool isMobile) {
+    // Get event image
+    final String? imageUrl = widget.event['gambar'];
+
     return Container(
-      padding: EdgeInsets.all(isMobile ? 16 : 24),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -334,80 +342,128 @@ class _DetailEventPageState extends State<DetailEventPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              // Event Icon
-              Container(
-                padding: EdgeInsets.all(isMobile ? 12 : 16),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF4169E1), Color(0xFF5B7FE8)],
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF4169E1).withValues(alpha: 0.3),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Icon(
-                  Icons.event_rounded,
-                  size: isMobile ? 24 : 32,
-                  color: Colors.white,
-                ),
-              ),
-              SizedBox(width: isMobile ? 12 : 16),
-
-              // Event Info
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.event['nama_event'] ?? '-',
-                      style: GoogleFonts.inter(
-                        fontSize: isDesktop ? 24 : 20,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF4169E1).withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.category_rounded,
-                            size: 14,
-                            color: const Color(0xFF4169E1),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            widget.event['tipevent'] ?? '-',
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFF4169E1),
-                              letterSpacing: 0.5,
+          // Event Image
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+            child: AspectRatio(
+              aspectRatio: 16 / 9,
+              child: imageUrl != null && imageUrl.isNotEmpty
+                  ? Image.network(
+                      imageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          color: const Color(0xFF4169E1).withValues(alpha: 0.1),
+                          child: const Center(
+                            child: Icon(
+                              Icons.event_rounded,
+                              size: 48,
+                              color: Color(0xFF4169E1),
                             ),
                           ),
-                        ],
+                        );
+                      },
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return Container(
+                          color: Colors.grey[100],
+                          child: const Center(
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        );
+                      },
+                    )
+                  : Container(
+                      color: const Color(0xFF4169E1).withValues(alpha: 0.1),
+                      child: const Center(
+                        child: Icon(
+                          Icons.event_rounded,
+                          size: 48,
+                          color: Color(0xFF4169E1),
+                        ),
                       ),
                     ),
-                  ],
+            ),
+          ),
+
+          // Content
+          Padding(
+            padding: EdgeInsets.all(isMobile ? 16 : 24),
+            child: Row(
+              children: [
+                // Event Icon
+                Container(
+                  padding: EdgeInsets.all(isMobile ? 12 : 16),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF4169E1), Color(0xFF5B7FE8)],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF4169E1).withValues(alpha: 0.3),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    Icons.event_rounded,
+                    size: isMobile ? 24 : 32,
+                    color: Colors.white,
+                  ),
                 ),
-              ),
-            ],
+                SizedBox(width: isMobile ? 12 : 16),
+
+                // Event Info
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.event['nama_event'] ?? '-',
+                        style: GoogleFonts.inter(
+                          fontSize: isDesktop ? 24 : 20,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF4169E1).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.category_rounded,
+                              size: 14,
+                              color: const Color(0xFF4169E1),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              widget.event['tipevent'] ?? '-',
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF4169E1),
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -622,10 +678,9 @@ class _DetailEventPageState extends State<DetailEventPage> {
           ),
           const SizedBox(height: 16),
           _buildInfoRow(
-            Icons.person_outline_rounded,
+            Icons.business_rounded,
             'Dibuat Oleh',
-            (widget.event['users'] as Map<String, dynamic>?)?['username'] ??
-                '-',
+            (widget.event['ukm'] as Map<String, dynamic>?)?['nama_ukm'] ?? '-',
           ),
           const SizedBox(height: 16),
           _buildInfoRow(
@@ -1054,6 +1109,256 @@ class _DetailEventPageState extends State<DetailEventPage> {
               ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// Build participants card with attendance status
+  Widget _buildParticipantsCard(bool isDesktop, bool isMobile) {
+    // Count participants who have attended (status = 'hadir')
+    final attendedCount = _pesertaList.where((p) {
+      final status = p['status']?.toString().toLowerCase() ?? '';
+      return status == 'hadir';
+    }).length;
+
+    return Container(
+      padding: EdgeInsets.all(isMobile ? 16 : 24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(isMobile ? 8 : 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4169E1).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  Icons.people_rounded,
+                  color: const Color(0xFF4169E1),
+                  size: isMobile ? 20 : 24,
+                ),
+              ),
+              SizedBox(width: isMobile ? 8 : 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Daftar Peserta',
+                      style: GoogleFonts.inter(
+                        fontSize: isMobile ? 16 : 18,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '$attendedCount dari $_jumlahPeserta peserta hadir',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Stats badges
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.green.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.check_circle,
+                      size: 14,
+                      color: Colors.green[700],
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '$attendedCount Hadir',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.green[700],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Participant List
+          if (_pesertaList.isEmpty)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.people_outline,
+                      size: 48,
+                      color: Colors.grey[300],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Belum ada peserta terdaftar',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        color: Colors.grey[500],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _pesertaList.length,
+              separatorBuilder: (context, index) =>
+                  Divider(color: Colors.grey[200], height: 1),
+              itemBuilder: (context, index) {
+                final peserta = _pesertaList[index];
+                final userData = peserta['users'] as Map<String, dynamic>?;
+                final username = userData?['username'] ?? 'Unknown';
+                final nim = userData?['nim'] ?? '-';
+                final status =
+                    peserta['status']?.toString().toLowerCase() ?? '';
+                final isHadir = status == 'hadir';
+                final jamAbsen = peserta['jam']?.toString() ?? '';
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Row(
+                    children: [
+                      // Avatar
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF4169E1).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Center(
+                          child: Text(
+                            username.isNotEmpty
+                                ? username[0].toUpperCase()
+                                : '?',
+                            style: GoogleFonts.inter(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF4169E1),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+
+                      // User Info
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              username,
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'NIM: $nim',
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // Attendance Status
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isHadir
+                                  ? Colors.green.withValues(alpha: 0.1)
+                                  : Colors.orange.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  isHadir ? Icons.check_circle : Icons.schedule,
+                                  size: 14,
+                                  color: isHadir
+                                      ? Colors.green[700]
+                                      : Colors.orange[700],
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  isHadir ? 'Hadir' : 'Belum Hadir',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: isHadir
+                                        ? Colors.green[700]
+                                        : Colors.orange[700],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (isHadir && jamAbsen.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              'Jam: $jamAbsen',
+                              style: GoogleFonts.inter(
+                                fontSize: 10,
+                                color: Colors.grey[500],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+        ],
       ),
     );
   }

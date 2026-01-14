@@ -190,7 +190,8 @@ class _EditPenggunaPageState extends State<EditPenggunaPage> {
       await _supabase
           .from('users')
           .update(updateData)
-          .eq('id_user', widget.user['id_user']);
+          .eq('id_user', widget.user['id_user'].toString())
+          .select();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -313,7 +314,9 @@ class _EditPenggunaPageState extends State<EditPenggunaPage> {
                       decoration: BoxDecoration(
                         color: Colors.blue.withValues(alpha: 0.05),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.blue.withValues(alpha: 0.2)),
+                        border: Border.all(
+                          color: Colors.blue.withValues(alpha: 0.2),
+                        ),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,

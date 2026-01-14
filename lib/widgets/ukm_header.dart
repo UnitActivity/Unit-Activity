@@ -7,6 +7,7 @@ class UKMHeader extends StatelessWidget {
   final VoidCallback? onLogout;
   final Function(String)? onMenuSelected;
   final String ukmName;
+  final String? ukmLogo;
   final String periode;
   final bool showWelcomeText;
 
@@ -16,6 +17,7 @@ class UKMHeader extends StatelessWidget {
     this.onLogout,
     this.onMenuSelected,
     required this.ukmName,
+    this.ukmLogo,
     required this.periode,
     this.showWelcomeText = true,
   });
@@ -139,7 +141,10 @@ class UKMHeader extends StatelessWidget {
       child: CircleAvatar(
         radius: 20,
         backgroundColor: const Color(0xFF4169E1).withOpacity(0.2),
-        child: const Icon(Icons.person, color: Color(0xFF4169E1), size: 24),
+        backgroundImage: ukmLogo != null ? NetworkImage(ukmLogo!) : null,
+        child: ukmLogo == null
+            ? const Icon(Icons.person, color: Color(0xFF4169E1), size: 24)
+            : null,
       ),
       itemBuilder: (context) => [
         PopupMenuItem<String>(

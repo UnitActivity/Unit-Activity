@@ -199,6 +199,17 @@ class EventService {
       print('========== DELETE EVENT ==========');
       print('Event ID: $eventId');
 
+      // First verify the event exists
+      final existingEvent = await _supabase
+          .from('events')
+          .select('id_events')
+          .eq('id_events', eventId)
+          .maybeSingle();
+      
+      if (existingEvent == null) {
+        throw Exception('Event tidak ditemukan dengan ID: $eventId');
+      }
+
       // Delete related records first to avoid foreign key constraint errors
       
       // 1. Delete attendance records (absen_event)
@@ -218,10 +229,35 @@ class EventService {
         print('ℹ️ No peserta_event records to delete or table not found');
       }
 
-      // 4. Finally delete the event itself
-      await _supabase.from('events').delete().eq('id_events', eventId);
+      // 4. Delete notification records related to this event
+      try {
+        await _supabase.from('notification_preference').delete().eq('type', 'event');
+        print('ℹ️ Cleaned up notification records');
+      } catch (e) {
+        // Continue if no notifications
+      }
 
-      print('✅ Event deleted');
+      // 5. Finally delete the event itself and verify
+      final deleteResult = await _supabase
+          .from('events')
+          .delete()
+          .eq('id_events', eventId)
+          .select();
+
+      print('Delete result: $deleteResult');
+      
+      // Verify event was actually deleted
+      final checkDeleted = await _supabase
+          .from('events')
+          .select('id_events')
+          .eq('id_events', eventId)
+          .maybeSingle();
+      
+      if (checkDeleted != null) {
+        throw Exception('Gagal menghapus event. Event masih ada di database.');
+      }
+
+      print('✅ Event deleted successfully');
     } catch (e) {
       print('❌ Error deleting event: $e');
       rethrow;

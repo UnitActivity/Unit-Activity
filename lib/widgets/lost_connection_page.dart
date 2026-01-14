@@ -159,12 +159,6 @@ class _LostConnectionPageState extends State<LostConnectionPage>
     super.dispose();
   }
 
-  /// Mendapatkan nama platform untuk ditampilkan
-  String get _platformName {
-    if (kIsWeb) return 'Web';
-    return 'Application';
-  }
-
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
@@ -181,27 +175,6 @@ class _LostConnectionPageState extends State<LostConnectionPage>
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Platform info badge
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE2E8F0),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      _platformName,
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF64748B),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
                   // Lottie Animation
                   Container(
                     constraints: BoxConstraints(
@@ -214,7 +187,7 @@ class _LostConnectionPageState extends State<LostConnectionPage>
                       repeat: true,
                     ),
                   ),
-                  SizedBox(height: isMobile ? 24 : 40),
+                  // SizedBox(height: isMobile ? 16 : 16),
 
                   // Title
                   Text(
@@ -417,6 +390,11 @@ class _ConnectivityWrapperState extends State<ConnectivityWrapper> {
   @override
   void initState() {
     super.initState();
+
+    // Skip connectivity monitoring on web platform
+    // Web has CORS restrictions that make connectivity checks unreliable
+    if (kIsWeb) return;
+
     _connectivityService.initialize();
     _subscription = _connectivityService.connectionStream.listen((isConnected) {
       if (mounted) {
