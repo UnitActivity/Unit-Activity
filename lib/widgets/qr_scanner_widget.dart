@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
@@ -25,21 +27,38 @@ class QRScannerDialog extends StatefulWidget {
 
 class _QRScannerDialogState extends State<QRScannerDialog> {
   late MobileScannerController cameraController;
+  final TextEditingController _manualInputController = TextEditingController();
   bool _isFlashlightOn = false;
+  bool _isManualInputMode = false;
+  bool _isDesktop = false;
 
   @override
   void initState() {
     super.initState();
+    try {
+      if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+        _isDesktop = true;
+        _isManualInputMode = true; // Default to manual input on desktop
+      }
+    } catch (e) {
+      // Fallback if Platform check fails (e.g. web)
+      _isDesktop = false;
+    }
+
+    // Initialize camera controller even on desktop to avoid null errors if accessed,
+    // though we won't use it.
     cameraController = MobileScannerController();
   }
 
   @override
   void dispose() {
     cameraController.dispose();
+    _manualInputController.dispose();
     super.dispose();
   }
 
   void _toggleFlashlight() async {
+    if (_isDesktop) return;
     await cameraController.toggleTorch();
     setState(() {
       _isFlashlightOn = !_isFlashlightOn;
@@ -55,15 +74,29 @@ class _QRScannerDialogState extends State<QRScannerDialog> {
     for (final barcode in barcodes) {
       final code = barcode.rawValue ?? '';
       if (code.isNotEmpty) {
-        setState(() {
-          _isProcessingSource = true;
-        });
-        widget.onCodeScanned(code);
-        if (mounted) {
-          Navigator.pop(context);
-        }
+        _submitCode(code);
         break; // Only process the first valid barcode
       }
+    }
+  }
+
+  void _submitCode(String code) {
+    if (_isProcessingSource) return;
+    
+    // Simple validation
+    if (code.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Kode tidak boleh kosong')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isProcessingSource = true;
+    });
+    widget.onCodeScanned(code);
+    if (mounted) {
+      Navigator.pop(context);
     }
   }
 
@@ -71,6 +104,11 @@ class _QRScannerDialogState extends State<QRScannerDialog> {
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
     final isMobile = screenSize.width < 600;
+
+    // If manual input is active or we are on desktop
+    if (_isManualInputMode) {
+      return _buildManualInput(context);
+    }
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -131,12 +169,28 @@ class _QRScannerDialogState extends State<QRScannerDialog> {
                                 ),
                               ),
                               const SizedBox(width: 8),
-                              Text(
-                                widget.title,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w600,
+                              Expanded(
+                                child: Text(
+                                  widget.title,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              // Button to switch to manual input
+                              TextButton.icon(
+                                onPressed: () {
+                                  setState(() {
+                                    _isManualInputMode = true;
+                                  });
+                                },
+                                icon: const Icon(Icons.keyboard, color: Colors.white),
+                                label: const Text(
+                                  "Manual",
+                                  style: TextStyle(color: Colors.white),
                                 ),
                               ),
                             ],
@@ -236,12 +290,25 @@ class _QRScannerDialogState extends State<QRScannerDialog> {
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
-                            IconButton(
-                              onPressed: () => Navigator.pop(context),
-                              icon: const Icon(
-                                Icons.close,
-                                color: Colors.white,
-                              ),
+                            Row(
+                              children: [
+                                IconButton(
+                                  onPressed: () {
+                                     setState(() {
+                                      _isManualInputMode = true;
+                                    });
+                                  },
+                                  tooltip: "Input Manual",
+                                  icon: const Icon(Icons.keyboard, color: Colors.white),
+                                ),
+                                IconButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  icon: const Icon(
+                                    Icons.close,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -275,6 +342,98 @@ class _QRScannerDialogState extends State<QRScannerDialog> {
         ],
       ),
     );
+  }
+
+  Widget _buildManualInput(BuildContext context) {
+    return Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Container(
+          width: 400,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    widget.manualInputLabel,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close),
+                  )
+                ],
+              ),
+              const SizedBox(height: 16),
+              if (_isDesktop)
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade50,
+                    border: Border.all(color: Colors.amber.shade300),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, color: Colors.amber.shade800),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          "Fitur scan kamera tidak tersedia di Desktop. Silakan masukkan kode secara manual.",
+                          style: TextStyle(color: Colors.amber.shade900, fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              TextField(
+                controller: _manualInputController,
+                decoration: InputDecoration(
+                  labelText: 'Kode QR / Token',
+                  hintText: 'Masukkan kode di sini',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  prefixIcon: const Icon(Icons.qr_code),
+                ),
+                onSubmitted: _submitCode,
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: () => _submitCode(_manualInputController.text),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue[700],
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text('Simpan & Lanjutkan'),
+              ),
+              if (!_isDesktop) ...[
+                const SizedBox(height: 12),
+                TextButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _isManualInputMode = false;
+                    });
+                  },
+                  icon: const Icon(Icons.camera_alt),
+                  label: const Text('Gunakan Kamera'),
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
   }
 }
 

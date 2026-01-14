@@ -21,15 +21,23 @@ class InformasiService {
     }
   }
 
-  // Get all informasi for a specific UKM
-  Future<List<InformasiModel>> getInformasiByUkm(String idUkm) async {
+  // Get all informasi for a specific UKM with pagination
+  Future<List<InformasiModel>> getInformasiByUkm(
+    String idUkm, {
+    int page = 1,
+    int limit = 5,
+  }) async {
     try {
+      final from = (page - 1) * limit;
+      final to = from + limit - 1;
+
       final response = await _supabase
           .from('informasi')
           .select()
           .eq('id_ukm', idUkm)
           .eq('status_aktif', true)
-          .order('create_at', ascending: false);
+          .order('create_at', ascending: false)
+          .range(from, to);
 
       return (response as List)
           .map((json) => InformasiModel.fromJson(json))

@@ -12,6 +12,8 @@ import 'package:unit_activity/admin/notifikasi.dart';
 import 'package:unit_activity/admin/informasi.dart';
 import 'package:unit_activity/admin/profile_admin.dart';
 import 'package:unit_activity/services/dashboard_service.dart';
+import 'package:unit_activity/services/custom_auth_service.dart';
+import 'package:unit_activity/auth/login.dart';
 
 class DashboardAdminPage extends StatefulWidget {
   const DashboardAdminPage({super.key});
@@ -24,6 +26,7 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
   String _selectedMenu = 'dashboard';
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final DashboardService _dashboardService = DashboardService();
+  final CustomAuthService _authService = CustomAuthService();
 
   // Dashboard stats
   Map<String, dynamic>? _dashboardStats;
@@ -164,10 +167,16 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
             child: const Text('Batal'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              // Navigate to login page
-              Navigator.pushReplacementNamed(context, '/login');
+              await _authService.logout();
+              if (mounted) {
+                // Navigate to login page
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => const LoginPage()),
+                );
+              }
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Keluar'),

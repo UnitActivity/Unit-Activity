@@ -277,11 +277,7 @@ class _HistoryPageState extends State<HistoryPage>
                       );
                     }
                   },
-                  onLogout: () => Navigator.pushNamedAndRemoveUntil(
-                    context,
-                    '/login',
-                    (route) => false,
-                  ),
+                  onLogout: _showLogoutDialog,
                 ),
               ),
               Expanded(
@@ -497,10 +493,14 @@ class _HistoryPageState extends State<HistoryPage>
                       ),
                     ),
                   ],
-                  child: const CircleAvatar(
-                    radius: 16,
-                    backgroundColor: Colors.blue,
-                    child: Icon(Icons.person, color: Colors.white, size: 20),
+                  child: CircleAvatar(
+                    radius: 20,
+                    backgroundColor: const Color(0xFF4169E1).withOpacity(0.2),
+                    child: const Icon(
+                      Icons.person,
+                      color: Color(0xFF4169E1),
+                      size: 24,
+                    ),
                   ),
                 ),
               ],
@@ -1446,7 +1446,8 @@ class _HistoryDetailPageState extends State<HistoryDetailPage>
   late TabController _tabController;
   final UserDashboardService _dashboardService = UserDashboardService();
 
-  List<Map<String, dynamic>> _participants = [];
+  List<Map<String, dynamic>> _participants = []; // Attendees
+  List<Map<String, dynamic>> _registeredParticipants = []; // Registered
   bool _isLoadingParticipants = true;
   bool _isDownloading = false;
 
@@ -1467,11 +1468,17 @@ class _HistoryDetailPageState extends State<HistoryDetailPage>
     setState(() => _isLoadingParticipants = true);
 
     try {
-      final participants = await _dashboardService.getEventParticipants(
-        widget.activity['id']?.toString() ?? '',
-      );
+      final eventId = widget.activity['id']?.toString() ?? '';
+      
+      // Load attendees (those who already attended via QR scan)
+      final participants = await _dashboardService.getEventParticipants(eventId);
+      
+      // Load registered participants (those who registered but may not have attended yet)
+      final registered = await _dashboardService.getEventRegisteredParticipants(eventId);
+
       setState(() {
         _participants = participants;
+        _registeredParticipants = registered;
         _isLoadingParticipants = false;
       });
     } catch (e) {
@@ -1593,16 +1600,16 @@ class _HistoryDetailPageState extends State<HistoryDetailPage>
             indicatorColor: Colors.blue[700],
             labelStyle: GoogleFonts.poppins(fontWeight: FontWeight.w600),
             tabs: const [
-              Tab(text: 'Logbook'),
               Tab(text: 'Peserta'),
+              Tab(text: 'Logbook'),
             ],
           ),
           Expanded(
             child: TabBarView(
               controller: _tabController,
               children: [
-                _buildLogbookTab(isMobile: true),
                 _buildParticipantsTab(isMobile: true),
+                _buildLogbookTab(isMobile: true),
               ],
             ),
           ),
@@ -1652,8 +1659,8 @@ class _HistoryDetailPageState extends State<HistoryDetailPage>
                                   fontWeight: FontWeight.w600,
                                 ),
                                 tabs: const [
-                                  Tab(text: 'Logbook'),
                                   Tab(text: 'Peserta'),
+                                  Tab(text: 'Logbook'),
                                 ],
                               ),
                               SizedBox(
@@ -1661,8 +1668,8 @@ class _HistoryDetailPageState extends State<HistoryDetailPage>
                                 child: TabBarView(
                                   controller: _tabController,
                                   children: [
-                                    _buildLogbookTab(isMobile: false),
                                     _buildParticipantsTab(isMobile: false),
+                                    _buildLogbookTab(isMobile: false),
                                   ],
                                 ),
                               ),
@@ -1902,7 +1909,14 @@ class _HistoryDetailPageState extends State<HistoryDetailPage>
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (_participants.isEmpty) {
+    // Create a map of attended user IDs for quick lookup
+    final attendedUserIds = <String>{};
+    for (var p in _participants) {
+      final userId = p['users']?['id_user']?.toString() ?? '';
+      if (userId.isNotEmpty) attendedUserIds.add(userId);
+    }
+
+    if (_registeredParticipants.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -1910,7 +1924,7 @@ class _HistoryDetailPageState extends State<HistoryDetailPage>
             Icon(Icons.people_outline, size: 48, color: Colors.grey[400]),
             const SizedBox(height: 12),
             Text(
-              'Tidak ada peserta',
+              'Belum ada peserta yang terdaftar',
               style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey[600]),
             ),
           ],
@@ -1918,28 +1932,42 @@ class _HistoryDetailPageState extends State<HistoryDetailPage>
       );
     }
 
-    return ListView.builder(
+    return ListView.separated(
       padding: EdgeInsets.all(isMobile ? 12 : 16),
-      itemCount: _participants.length,
+      itemCount: _registeredParticipants.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
-        final participant = _participants[index];
+        final participant = _registeredParticipants[index];
+        final user = participant['users'];
+        final participantUserId = user?['id_user']?.toString() ?? '';
+        final hasAttended = attendedUserIds.contains(participantUserId);
+
         return Container(
-          margin: const EdgeInsets.only(bottom: 8),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.grey[50],
-            borderRadius: BorderRadius.circular(8),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+            border: Border.all(color: Colors.grey[100]!),
           ),
           child: Row(
             children: [
               CircleAvatar(
                 radius: 20,
-                backgroundColor: const Color(0xFF4169E1).withOpacity(0.1),
+                backgroundColor: hasAttended 
+                    ? Colors.green.withOpacity(0.1) 
+                    : const Color(0xFF4169E1).withOpacity(0.1),
                 child: Text(
-                  (participant['nama'] ?? 'U')[0].toUpperCase(),
+                  (user?['nama'] ?? user?['username'] ?? 'U')[0].toUpperCase(),
                   style: GoogleFonts.poppins(
                     fontWeight: FontWeight.w600,
-                    color: const Color(0xFF4169E1),
+                    color: hasAttended ? Colors.green[700] : const Color(0xFF4169E1),
                   ),
                 ),
               ),
@@ -1949,14 +1977,14 @@ class _HistoryDetailPageState extends State<HistoryDetailPage>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      participant['nama'] ?? 'Unknown',
+                      user?['nama'] ?? user?['username'] ?? 'Unknown',
                       style: GoogleFonts.poppins(
                         fontWeight: FontWeight.w600,
                         fontSize: 14,
                       ),
                     ),
                     Text(
-                      participant['email'] ?? '',
+                      user?['nim']?.toString() ?? user?['email'] ?? '',
                       style: GoogleFonts.poppins(
                         fontSize: 12,
                         color: Colors.grey[600],
@@ -1966,21 +1994,17 @@ class _HistoryDetailPageState extends State<HistoryDetailPage>
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: (participant['status']?.toString().toLowerCase() == 'hadir')
-                      ? Colors.green[50]
-                      : Colors.orange[50],
-                  borderRadius: BorderRadius.circular(4),
+                  color: hasAttended ? Colors.green[50] : Colors.blue[50],
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  (participant['status']?.toString().toLowerCase() == 'hadir') ? 'Hadir' : 'Terdaftar',
+                  hasAttended ? 'Hadir' : 'Terdaftar',
                   style: GoogleFonts.poppins(
                     fontSize: 11,
                     fontWeight: FontWeight.w500,
-                    color: (participant['status']?.toString().toLowerCase() == 'hadir')
-                        ? Colors.green[700]
-                        : Colors.orange[700],
+                    color: hasAttended ? Colors.green[700] : Colors.blue[700],
                   ),
                 ),
               ),

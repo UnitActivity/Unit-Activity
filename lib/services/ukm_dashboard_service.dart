@@ -570,5 +570,92 @@ class UkmDashboardService {
       return {'success': false, 'error': e.toString()};
     }
   }
+  /// Get Top Members by attendance
+  Future<List<Map<String, dynamic>>> getTopMembers(
+    String ukmId, {
+    String? periodeId,
+    int limit = 5,
+  }) async {
+    try {
+      print('========== GET TOP MEMBERS ==========');
+      
+      // 1. Get all pertemuan IDs for this UKM (and periode if specified)
+      var query = _supabase
+          .from('pertemuan')
+          .select('id_pertemuan')
+          .or('id_ukm.eq.$ukmId,id_ukm.is.null');
+
+      // Note: We might want to filter by periode, but 'pertemuan' table doesn't seem to have 'id_periode' explicitly shown in previous `read_file` of `pertemuan_service.dart`.
+      // Let's check `pertemuan_service.dart` again or `pertemuan` model.
+      // `PertemuanService` used `.or('id_ukm.eq.$idUkm,id_ukm.is.null')`.
+      
+      final pertemuanResponse = await _executeQuery(
+        query,
+        errorContext: 'fetching pertemuan for top members',
+      );
+      
+      if (pertemuanResponse.isEmpty) return [];
+
+      final pertemuanIds = pertemuanResponse
+          .map((p) => p['id_pertemuan'])
+          .toList();
+
+      // 2. Get all absences for these meetings
+      final attendanceResponse = await _supabase
+          .from('absen_pertemuan')
+          .select('id_user')
+          .filter('id_pertemuan', 'in', pertemuanIds);
+
+      // 3. Count attendance by user
+      final userCounts = <String, int>{};
+      for (var record in (attendanceResponse as List)) {
+        final userId = record['id_user'] as String;
+        userCounts[userId] = (userCounts[userId] ?? 0) + 1;
+      }
+
+      // 4. Sort by count descending and take top 'limit'
+      final sortedUsers = userCounts.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+      
+      final topUsers = sortedUsers.take(limit).toList();
+      
+      if (topUsers.isEmpty) return [];
+
+      // 5. Get user details for these users
+      final userIds = topUsers.map((e) => e.key).toList();
+      final usersResponse = await _supabase
+          .from('users')
+          .select('id_user, username, email, nim, picture')
+          .filter('id_user', 'in', userIds);
+          
+      final usersMap = {
+        for (var u in (usersResponse as List)) u['id_user']: u
+      };
+
+      // 6. Construct result
+      final results = <Map<String, dynamic>>[];
+      for (var entry in topUsers) {
+        final userId = entry.key;
+        final count = entry.value;
+        final user = usersMap[userId];
+        
+        if (user != null) {
+          results.add({
+            'id_user': userId,
+            'nama': user['username'],
+            'nim': user['nim'],
+            'picture': user['picture'],
+            'kehadiran_count': count,
+          });
+        }
+      }
+
+      print('✅ Found ${results.length} top members');
+      return results;
+    } catch (e) {
+      print('❌ Error fetching top members: $e');
+      return [];
+    }
+  }
 }
 

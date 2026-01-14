@@ -100,12 +100,33 @@ class _AddPertemuanUKMPageState extends State<AddPertemuanUKMPage> {
     setState(() => _isSubmitting = true);
 
     try {
+      // Get the UKM ID for the current admin
+      final ukmId = await _dashboardService.getCurrentUkmId();
+      if (ukmId == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Gagal mendapatkan ID UKM. Pastikan Anda login sebagai admin UKM.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        setState(() => _isSubmitting = false);
+        return;
+      }
+
+      // Get the current periode
+      final periode = await _dashboardService.getCurrentPeriode(ukmId);
+      final periodeId = periode?['id_periode'] as String?;
+
       final newPertemuan = PertemuanModel(
         topik: _topiController.text,
         tanggal: _tanggal!,
         jamMulai: _jamMulaiController.text,
         jamAkhir: _jamAkhirController.text,
         lokasi: _lokasiController.text,
+        idUkm: ukmId,
+        idPeriode: periodeId,
       );
 
       await _pertemuanService.createPertemuan(newPertemuan);

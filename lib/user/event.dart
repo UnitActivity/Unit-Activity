@@ -787,11 +787,7 @@ class _UserEventPageState extends State<UserEventPage>
                     );
                   }
                 },
-                onLogout: () => Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  '/login',
-                  (route) => false,
-                ),
+                onLogout: _showLogoutDialog,
               ),
               Expanded(
                 child: Column(
@@ -903,11 +899,7 @@ class _UserEventPageState extends State<UserEventPage>
                     );
                   }
                 },
-                onLogout: () => Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  '/login',
-                  (route) => false,
-                ),
+                onLogout: _showLogoutDialog,
               ),
               Expanded(
                 child: Column(

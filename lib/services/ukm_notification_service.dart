@@ -144,7 +144,11 @@ class UkmNotificationService extends ChangeNotifier {
 
   /// Load notifications for UKM from database
   /// Gets notifications from Admin and global announcements
-  Future<void> loadNotifications({String? ukmId}) async {
+  Future<void> loadNotifications({
+    String? ukmId,
+    int page = 1,
+    int limit = 5,
+  }) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
@@ -177,6 +181,11 @@ class UkmNotificationService extends ChangeNotifier {
 
       List<UkmNotification> allNotifications = [];
 
+      // Calculate how many items to fetch from each source to ensure we have enough
+      // This is a naive approach for merged pagination: fetch (page * limit) from each
+      // then sort and slice in memory.
+      final fetchLimit = page * limit;
+
       // 1. Load UKM-specific notifications (sent to this UKM)
       if (targetUkmId != null) {
         try {
@@ -185,7 +194,7 @@ class UkmNotificationService extends ChangeNotifier {
               .select('*')
               .eq('id_ukm', targetUkmId)
               .order('created_at', ascending: false)
-              .limit(50);
+              .limit(fetchLimit);
 
           print('Found ${ukmNotifications.length} UKM-specific notifications');
 
@@ -205,7 +214,7 @@ class UkmNotificationService extends ChangeNotifier {
             .from('notifikasi_broadcast')
             .select('*')
             .order('created_at', ascending: false)
-            .limit(50);
+            .limit(fetchLimit);
 
         print('Found ${globalNotifications.length} broadcast notifications');
 
@@ -230,7 +239,7 @@ class UkmNotificationService extends ChangeNotifier {
               .select('*')
               .or('target_ukm.eq.$targetUkmId,target_type.eq.all_ukm')
               .order('create_at', ascending: false)
-              .limit(50);
+              .limit(fetchLimit);
 
           print('Found ${targetNotifications.length} targeted notifications');
 
@@ -247,13 +256,27 @@ class UkmNotificationService extends ChangeNotifier {
 
       // Remove duplicates based on id
       final seen = <String>{};
-      allNotifications = allNotifications.where((notif) {
-        if (seen.contains(notif.id)) return false;
-        seen.add(notif.id);
-        return true;
-      }).toList();
+      final uniqueNotifications = <UkmNotification>[];
+      for (final notif in allNotifications) {
+        if (!seen.contains(notif.id)) {
+          seen.add(notif.id);
+          uniqueNotifications.add(notif);
+        }
+      }
 
-      _notifications = allNotifications;
+      // Pagination slice logic
+      final startIndex = (page - 1) * limit;
+      var endIndex = startIndex + limit;
+      if (endIndex > uniqueNotifications.length) {
+        endIndex = uniqueNotifications.length;
+      }
+      
+      if (startIndex < uniqueNotifications.length) {
+        _notifications = uniqueNotifications.sublist(startIndex, endIndex);
+      } else {
+        _notifications = [];
+      }
+
       _isLoading = false;
 
       print('Total notifications loaded: ${_notifications.length}');

@@ -36,16 +36,39 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
   List<Map<String, dynamic>> _ukmEventsList = [];
   bool _isLoadingPertemuan = false;
   bool _isLoadingEvents = false;
-  Map<String, dynamic>? _currentPeriode; // Store current periode info
+  Map<String, dynamic>? _currentPeriode;
   late final _LifecycleObserver _lifecycleObserver;
+  RealtimeChannel? _pertemuanChannel;
 
   @override
   void initState() {
     super.initState();
     _lifecycleObserver = _LifecycleObserver(_onResume);
     _initializeAndLoad();
+    _setupRealtimeSubscription();
     // Add lifecycle observer
     WidgetsBinding.instance.addObserver(_lifecycleObserver);
+  }
+
+  void _setupRealtimeSubscription() {
+    print('🔌 Setting up Realtime subscription for PERTEMUAN...');
+    _pertemuanChannel = _supabase
+        .channel('public:pertemuan_updates')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'pertemuan',
+          callback: (payload) {
+            print('🔔 REALTIME: Pertemuan table changed! Event: ${payload.eventType}');
+            // Reload UKM list (updates progress bars)
+            _loadUKMs();
+            // If a UKM is selected, reload its specific meetings
+            if (_selectedUKM != null && mounted) {
+               _loadUKMPertemuan(_selectedUKM!['id'].toString());
+            }
+          },
+        )
+        .subscribe();
   }
 
   Future<void> _initializeAndLoad() async {
@@ -57,6 +80,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(_lifecycleObserver);
+    _pertemuanChannel?.unsubscribe();
     super.dispose();
   }
 
@@ -75,109 +99,197 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
     });
 
     try {
+      print('========== _loadUKMs START ==========');
+      
       // 1. Load basic data
       _currentPeriode = await _getCurrentPeriode();
+      print('Current Periode: ${_currentPeriode?['nama_periode'] ?? 'None'}');
       
-      // 2. Load User's Attendance (Global List of Consistently Attended Meeting IDs)
+      // 2. Get current user ID
       final userId = _authService.currentUserId;
+      print('Current User ID: $userId');
+      print('Is Logged In: ${_authService.isLoggedIn}');
+      
+      if (userId == null || userId.isEmpty) {
+        print('⚠️ WARNING: No user ID available! User might not be logged in.');
+      }
+      
+      // 3. Load User's Attendance - ALL records with 'hadir' status
       final Set<String> attendedMeetingIds = {};
       final Set<String> registeredUKMIds = {};
 
-      if (userId != null) {
-        // A. Attendance
+      if (userId != null && userId.isNotEmpty) {
+        // A. Fetch ALL attendance records for this user
         try {
-          // Fetch attendance records with status
+          print('Fetching attendance records for user: $userId');
           final attendanceRes = await _supabase
               .from('absen_pertemuan')
               .select('id_pertemuan, status')
               .eq('id_user', userId);
+          
+          final attendanceList = attendanceRes as List? ?? [];
+          print('Total attendance records found: ${attendanceList.length}');
               
-          for (var row in (attendanceRes as List)) {
+          for (var row in attendanceList) {
             final status = (row['status'] as String?)?.toLowerCase() ?? '';
+            final pertemuanId = row['id_pertemuan']?.toString() ?? '';
+            
             // Check for 'hadir' status (case insensitive)
-            if (status.contains('hadir')) {
-               attendedMeetingIds.add(row['id_pertemuan']?.toString() ?? '');
+            if (status.contains('hadir') && pertemuanId.isNotEmpty) {
+              attendedMeetingIds.add(pertemuanId);
+              print('  - Attended: $pertemuanId (status: $status)');
             }
           }
-          print('DEBUG: User has ${attendedMeetingIds.length} attended meetings (status=hadir)');
+          print('User has ${attendedMeetingIds.length} attended meetings (status=hadir)');
         } catch (e) {
-          print('Error loading attendance: $e');
+          print('❌ Error loading attendance: $e');
         }
 
-        // B. Registered UKMs
+        // B. Fetch Registered UKMs for this user
         try {
+          print('Fetching registered UKMs for user: $userId');
           final regRes = await _supabase
               .from('user_halaman_ukm')
-              .select('id_ukm')
-              .eq('id_user', userId)
-              .or('status.eq.aktif,status.eq.active');
+              .select('id_ukm, status')
+              .eq('id_user', userId);
           
-          for (var row in (regRes as List)) {
-            registeredUKMIds.add(row['id_ukm']?.toString() ?? '');
+          final regList = regRes as List? ?? [];
+          print('Total UKM registrations found: ${regList.length}');
+          
+          for (var row in regList) {
+            final ukmId = row['id_ukm']?.toString() ?? '';
+            final status = (row['status'] as String?)?.toLowerCase() ?? '';
+            
+            // Check for 'aktif' or 'active' status
+            if ((status == 'aktif' || status == 'active') && ukmId.isNotEmpty) {
+              registeredUKMIds.add(ukmId);
+              print('  - Registered in UKM: $ukmId (status: $status)');
+            }
           }
+          print('User is registered in ${registeredUKMIds.length} UKMs');
         } catch (e) {
-          print('Error loading registrations: $e');
+          print('❌ Error loading registrations: $e');
         }
       }
 
-      // 3. Load UKMs
+      // 4. Load ALL UKMs
+      print('Fetching all UKMs...');
       final ukmRes = await _supabase
           .from('ukm')
           .select('id_ukm, nama_ukm, email, logo');
       
-      final List<dynamic> ukmList = ukmRes as List;
+      final ukmList = ukmRes as List? ?? [];
+      print('Total UKMs found: ${ukmList.length}');
+      
+      // Debug: Print first few UKM IDs
+      for (int i = 0; i < (ukmList.length > 3 ? 3 : ukmList.length); i++) {
+        print('  UKM[$i]: id=${ukmList[i]['id_ukm']}, name=${ukmList[i]['nama_ukm']}');
+      }
+      
       final List<Map<String, dynamic>> processedUKMs = [];
 
-      // 4. Process each UKM
+      // 5. Load ALL meetings in one query for efficiency
+      print('Fetching all meetings...');
+      final allMeetingsRes = await _supabase
+          .from('pertemuan')
+          .select('id_pertemuan, id_ukm, topik');
+      
+      final allMeetingsList = allMeetingsRes as List? ?? [];
+      print('Total meetings in database: ${allMeetingsList.length}');
+      
+      // Debug: Count meetings with null id_ukm
+      int nullUkmCount = 0;
+      int validUkmCount = 0;
+      
+      // Debug: Print first few meetings
+      for (int i = 0; i < (allMeetingsList.length > 5 ? 5 : allMeetingsList.length); i++) {
+        final m = allMeetingsList[i];
+        print('  Meeting[$i]: id_pertemuan=${m['id_pertemuan']}, id_ukm=${m['id_ukm']}, topik=${m['topik']}');
+      }
+      
+      // Create a map: UKM ID -> List of meeting IDs
+      final Map<String, List<String>> meetingsByUkm = {};
+      for (var meeting in allMeetingsList) {
+        final ukmId = meeting['id_ukm']?.toString() ?? '';
+        final meetingId = meeting['id_pertemuan']?.toString() ?? '';
+        
+        if (meeting['id_ukm'] == null) {
+          nullUkmCount++;
+        } else {
+          validUkmCount++;
+        }
+        
+        // Strict check: Only add if both IDs are valid strings
+        if (ukmId.isNotEmpty && meetingId.isNotEmpty && ukmId != 'null') {
+          meetingsByUkm.putIfAbsent(ukmId, () => []);
+          meetingsByUkm[ukmId]!.add(meetingId);
+        }
+      }
+      
+      print('⚠️ Meetings with NULL id_ukm: $nullUkmCount');
+      print('✅ Meetings with valid id_ukm: $validUkmCount');
+      print('Meetings grouped by UKM: ${meetingsByUkm.keys.length} UKMs have meetings');
+      
+      // 6. Process each UKM
+      print('\n🔍 --- DIAGNOSTIC REPORT START ---');
+      
+      // Check for duplicate UKM Names
+      final nameCounts = <String, int>{};
+      for (var u in ukmList) {
+        final name = u['nama_ukm']?.toString() ?? 'Unknown';
+        nameCounts[name] = (nameCounts[name] ?? 0) + 1;
+      }
+      nameCounts.forEach((name, count) {
+        if (count > 1) print('⚠️ WARNING: UKM "$name" appears $count times! IDs: ${ukmList.where((u) => u['nama_ukm'] == name).map((u) => u['id_ukm'])}');
+      });
+
+      // Check meetings distribution
+      int totalMeetingsMapped = 0;
+      meetingsByUkm.forEach((ukmId, meetings) {
+        totalMeetingsMapped += meetings.length;
+        final ukmName = ukmList.firstWhere((u) => u['id_ukm'].toString() == ukmId, orElse: () => {'nama_ukm': 'UNKNOWN_ID'})['nama_ukm'];
+        print('  > UKM: "$ukmName" (ID: $ukmId) has ${meetings.length} meetings.');
+      });
+      print('  > Total Meetings Mapped: $totalMeetingsMapped');
+      print('  > Unmapped Meetings (NULL/Invalid ID): $nullUkmCount');
+      print('🔍 --- DIAGNOSTIC REPORT END ---\n');
+
+      // 6. Process each UKM
       for (var ukm in ukmList) {
         final ukmId = ukm['id_ukm']?.toString() ?? '';
+        final ukmName = ukm['nama_ukm']?.toString() ?? 'UKM';
         final isReg = registeredUKMIds.contains(ukmId);
         
-        int totalMeetings = 0;
+        // Get meetings for this UKM from our pre-fetched map
+        final meetingsForUkm = meetingsByUkm[ukmId] ?? [];
+        final totalMeetings = meetingsForUkm.length;
+        
+        // Calculate how many of *these* meetings the user attended
         int attendedCount = 0;
-
-        if (ukmId.isNotEmpty) {
-           // Fetch meetings for this specific UKM
-           // REMOVED PERIOD FILTER: To ensure we show ALL meetings if standardizing on "Total Meetings of UKM"
-           // This fixes "0/0" if meetings don't have period attached.
-           try {
-             final meetingsRes = await _supabase
-                 .from('pertemuan')
-                 .select('id_pertemuan')
-                 .eq('id_ukm', ukmId);
-             
-             final meetings = meetingsRes as List;
-             totalMeetings = meetings.length;
-             
-             // Calculate how many of *these* meetings the user attended
-             for (var m in meetings) {
-               final mId = m['id_pertemuan']?.toString();
-               if (mId != null && attendedMeetingIds.contains(mId)) {
-                 attendedCount++;
-               }
-             }
-             print('DEBUG: UKM ${ukm['nama_ukm']}: $attendedCount / $totalMeetings meetings');
-           } catch (e) {
-             print('Error loading meetings for UKM $ukmId: $e');
-           }
+        for (var meetingId in meetingsForUkm) {
+          if (attendedMeetingIds.contains(meetingId)) {
+            attendedCount++;
+          }
         }
+        
+        print('UKM "$ukmName" (ID: $ukmId): $attendedCount/$totalMeetings meetings, registered: $isReg');
 
         processedUKMs.add({
-            'id': ukmId,
-            'name': ukm['nama_ukm'] ?? 'UKM',
-            'logo': ukm['logo'],
-            'email': ukm['email'] ?? '',
-            'description': 'Tidak ada deskripsi',
-            'jadwal': '-',
-            'time': '-',
-            'location': '-',
-            'kontak': [
-              {'icon': Icons.email, 'text': ukm['email'] ?? '-'},
-            ],
-            'isRegistered': isReg,
-            'status': isReg ? 'Sudah Terdaftar' : 'Belum Terdaftar',
-            'attendance': attendedCount,
-            'totalMeetings': totalMeetings,
+          'id': ukmId,
+          'name': ukmName,
+          'logo': ukm['logo'],
+          'email': ukm['email'] ?? '',
+          'description': 'Tidak ada deskripsi',
+          'jadwal': '-',
+          'time': '-',
+          'location': '-',
+          'kontak': [
+            {'icon': Icons.email, 'text': ukm['email'] ?? '-'},
+          ],
+          'isRegistered': isReg,
+          'status': isReg ? 'Sudah Terdaftar' : 'Belum Terdaftar',
+          'attendance': attendedCount,
+          'totalMeetings': totalMeetings,
         });
       }
 
@@ -187,6 +299,9 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
         _allUKMs = processedUKMs;
         _isLoading = false;
       });
+      
+      print('========== _loadUKMs END ==========');
+      print('Processed ${processedUKMs.length} UKMs');
       
     } catch (e, stackTrace) {
       print('❌ Error loading UKMs: $e');
@@ -279,7 +394,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
   /// Load pertemuan (meetings) for the selected UKM
   Future<void> _loadUKMPertemuan(String ukmId) async {
     print('========================================');
-    print('DEBUG _loadUKMPertemuan: START');
+    print('DEBUG _loadUKMPertemuan: START (Strict Mode)');
     print('UKM ID: $ukmId');
 
     setState(() => _isLoadingPertemuan = true);
@@ -295,7 +410,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
       final response = await _supabase
           .from('pertemuan')
           .select()
-          .or('id_ukm.eq.$ukmId,id_ukm.is.null')
+          .eq('id_ukm', ukmId)
           .order('tanggal', ascending: false);
 
       final List<dynamic> pertemuanData = response as List<dynamic>;
@@ -525,6 +640,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
       // Update status to 'keluar' instead of deleting
       await _supabase.from('user_halaman_ukm').update({
         'status': 'keluar',
+        'unfollow': DateTime.now().toIso8601String(), // Add timestamp for leaving
         // We keep id_periode as the period they were in when they left
         // or effectively the period they are now "cooldown" for if logic checks it
       }).match({
@@ -979,6 +1095,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                                await _supabase.from('user_halaman_ukm').update({
                                   'id_periode': currentPeriode['id_periode'],
                                   'status': 'aktif',
+                                  'follow': DateTime.now().toIso8601String(), // Add timestamp for re-joining
                                   // 'create_at': DateTime.now().toIso8601String(), // Optional: refresh timestamp
                                }).match({
                                   'id_ukm': ukm['id'],
@@ -992,6 +1109,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                                   'id_user': userId,
                                   'id_periode': currentPeriode['id_periode'],
                                   'status': 'aktif',
+                                  'follow': DateTime.now().toIso8601String(), // Add timestamp for new join
                                });
                                print('DAFTAR: Inserted new record');
                             }
@@ -1257,11 +1375,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                     );
                   }
                 },
-                onLogout: () => Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  '/login',
-                  (route) => false,
-                ),
+                onLogout: _showLogoutDialog,
               ),
               Expanded(
                 child: Column(
@@ -1940,9 +2054,9 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
               physics: const NeverScrollableScrollPhysics(),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 0.85,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                childAspectRatio: 0.75, // Reduced from 0.85 to give more vertical space
               ),
               itemCount: _filteredUKMs.length,
               itemBuilder: (context, index) {
@@ -2210,14 +2324,14 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                           ),
                           const SizedBox(height: 10),
                           Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
                             child: Text(
                               ukm['name'],
                               style: GoogleFonts.poppins(
-                                fontSize: isMobile ? 13 : 17,
+                                fontSize: isMobile ? 11 : 17,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.grey[800],
-                                letterSpacing: 0.3,
+                                letterSpacing: 0.2,
                               ),
                               textAlign: TextAlign.center,
                               maxLines: 2,
@@ -3743,6 +3857,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
       ),
     );
   }
+
 }
 
 // Lifecycle observer untuk reload data ketika app resume

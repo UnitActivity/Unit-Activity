@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:unit_activity/services/custom_auth_service.dart';
+import 'package:unit_activity/auth/register.dart';
+import 'package:unit_activity/auth/forgot_password.dart';
+import 'package:unit_activity/admin/dashboard_admin.dart';
+import 'package:unit_activity/ukm/dashboard_ukm.dart';
+import 'package:unit_activity/user/dashboard_user.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -54,14 +59,23 @@ class _LoginPageState extends State<LoginPage> {
           ),
         );
 
-        // Navigate based on role
+        // Navigate based on role using MaterialPageRoute
         print('Navigating to dashboard for role: $role');
         if (role == 'admin') {
-          Navigator.pushReplacementNamed(context, '/admin');
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const DashboardAdminPage()),
+          );
         } else if (role == 'ukm') {
-          Navigator.pushReplacementNamed(context, '/ukm');
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const DashboardUKMPage()),
+          );
         } else {
-          Navigator.pushReplacementNamed(context, '/user');
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const DashboardUser()),
+          );
         }
       } else {
         // Show error message
@@ -94,11 +108,17 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   void _handleForgotPassword() {
-    Navigator.pushNamed(context, '/forgot-password');
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const ForgotPasswordPage()),
+    );
   }
 
   void _handleRegister() {
-    Navigator.pushNamed(context, '/register');
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const RegisterPage()),
+    );
   }
 
   @override

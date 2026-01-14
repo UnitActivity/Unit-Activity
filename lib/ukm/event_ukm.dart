@@ -35,6 +35,29 @@ class _EventUKMPageState extends State<EventUKMPage> {
   String _selectedFilter = 'Semua';
   String _selectedAccessFilter = 'Semua'; // TAMBAHAN: Filter Jenis Akses
   String _searchQuery = '';
+  
+  // Pagination
+  int _currentPage = 1;
+  final int _itemsPerPage = 5;
+
+  List<Map<String, dynamic>> get _paginatedEvents {
+    if (_filteredEventList.isEmpty) return [];
+    final startIndex = (_currentPage - 1) * _itemsPerPage;
+    final endIndex = startIndex + _itemsPerPage;
+    if (startIndex >= _filteredEventList.length) return [];
+    
+    return _filteredEventList.sublist(
+      startIndex,
+      endIndex > _filteredEventList.length
+          ? _filteredEventList.length
+          : endIndex,
+    );
+  }
+  
+  int get _totalPages {
+    if (_filteredEventList.isEmpty) return 0;
+    return (_filteredEventList.length / _itemsPerPage).ceil();
+  }
 
   final TextEditingController _searchController = TextEditingController();
 
@@ -137,6 +160,7 @@ class _EventUKMPageState extends State<EventUKMPage> {
 
         return matchesSearch && matchesStatus && matchesAccess;
       }).toList();
+      _currentPage = 1;
     });
   }
 
@@ -534,14 +558,61 @@ class _EventUKMPageState extends State<EventUKMPage> {
                   ),
                 ),
               )
-            : ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: _filteredEventList.length,
-                itemBuilder: (context, index) {
-                  final event = _filteredEventList[index];
-                  return _buildEventCard(event);
-                },
+            : Column(
+                children: [
+                  ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _paginatedEvents.length,
+                    itemBuilder: (context, index) {
+                      final event = _paginatedEvents[index];
+                      return _buildEventCard(event);
+                    },
+                  ),
+                  
+                  // Pagination Controls
+                  if (_filteredEventList.isNotEmpty && _totalPages > 1)
+                    Container(
+                      margin: const EdgeInsets.only(top: 16),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey[200]!),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Halaman $_currentPage dari $_totalPages',
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                          Row(
+                            children: [
+                              IconButton(
+                                onPressed: _currentPage > 1
+                                    ? () => setState(() => _currentPage--)
+                                    : null,
+                                icon: const Icon(Icons.chevron_left_rounded),
+                                color: const Color(0xFF4169E1),
+                              ),
+                              IconButton(
+                                onPressed: _currentPage < _totalPages
+                                    ? () => setState(() => _currentPage++)
+                                    : null,
+                                icon: const Icon(Icons.chevron_right_rounded),
+                                color: const Color(0xFF4169E1),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
               ),
       ],
     );

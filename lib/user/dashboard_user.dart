@@ -14,7 +14,8 @@ import 'package:unit_activity/services/attendance_service.dart';
 import 'package:unit_activity/services/custom_auth_service.dart';
 import 'dart:async';
 import 'dart:ui';
-
+import 'package:unit_activity/auth/login.dart';
+import 'package:unit_activity/services/custom_auth_service.dart';
 
 class DashboardUser extends StatefulWidget {
   const DashboardUser({super.key});
@@ -28,6 +29,7 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
   String _selectedMenu = 'dashboard';
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final SupabaseClient _supabase = Supabase.instance.client;
+  final CustomAuthService _authService = CustomAuthService();
   final UserDashboardService _dashboardService = UserDashboardService();
   final AttendanceService _attendanceService = AttendanceService();
   Timer? _autoSlideTimer;
@@ -91,7 +93,7 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
   /// Setup realtime subscription for informasi updates
   void _setupRealtimeSubscription() {
     print('🔴 Setting up realtime subscription for informasi...');
-    
+
     _informasiChannel = _supabase
         .channel('informasi_changes')
         .onPostgresChanges(
@@ -101,7 +103,7 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
           callback: (payload) {
             print('🔴 REALTIME: New informasi detected!');
             print('   Payload: ${payload.newRecord}');
-            
+
             // Reload slider events when new informasi is added
             if (mounted) {
               _loadSliderEvents();
@@ -115,7 +117,7 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
           callback: (payload) {
             print('🔴 REALTIME: Informasi updated!');
             print('   Payload: ${payload.newRecord}');
-            
+
             // Reload slider events when informasi is updated
             if (mounted) {
               _loadSliderEvents();
@@ -123,7 +125,7 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
           },
         )
         .subscribe();
-    
+
     print('✅ Realtime subscription active');
   }
 
@@ -388,14 +390,14 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
             onPressed: () async {
               Navigator.pop(context);
               try {
-                await _supabase.auth.signOut();
+                await _authService.logout();
               } catch (e) {
                 debugPrint('Error signing out: $e');
               }
               if (mounted) {
-                Navigator.pushNamedAndRemoveUntil(
+                Navigator.pushAndRemoveUntil(
                   context,
-                  '/login',
+                  MaterialPageRoute(builder: (context) => const LoginPage()),
                   (route) => false,
                 );
               }
@@ -417,169 +419,24 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
   Future<void> _loadStatisticsData() async {
     try {
       print('========== LOADING STATISTICS DATA (ATTENDANCE BASED) ==========');
-
-      // Use the dashboard service's currentUserId (from CustomAuthService)
-      // NOT _supabase.auth.currentUser?.id which is null for custom auth
-      final userId = _dashboardService.currentUserId;
-      print('DEBUG: Dashboard userId from service: $userId');
       
-      if (userId == null || userId.isEmpty) {
-        print('⚠️ No user logged in (userId is null or empty)');
-        if (mounted) {
-          setState(() {
-            _statistikData1 = List.generate(12, (_) => 0);
-            _statistikData2 = List.generate(12, (_) => 0);
-            _statistikLabel1 = 'Belum login';
-            _statistikLabel2 = 'Belum login';
-            _isLoadingStats = false;
-          });
-        }
-        return;
-      }
-
-      // 1. Get user's joined UKMs (aktif status)
-      List<Map<String, dynamic>> joinedUkms = [];
-      try {
-        final userUkmsRes = await _supabase
-            .from('user_halaman_ukm')
-            .select('id_ukm')
-            .eq('id_user', userId)
-            .or('status.eq.aktif,status.eq.active');
-        
-        final ukmIds = (userUkmsRes as List).map((e) => e['id_ukm']).toList();
-        
-        if (ukmIds.isNotEmpty) {
-          final ukmsRes = await _supabase
-              .from('ukm')
-              .select('id_ukm, nama_ukm')
-              .inFilter('id_ukm', ukmIds);
-          joinedUkms = List<Map<String, dynamic>>.from(ukmsRes);
-        }
-        print('✅ User joined ${joinedUkms.length} UKMs');
-      } catch (e) {
-        print('Error fetching joined UKMs: $e');
-      }
-
-      if (joinedUkms.isEmpty) {
-        print('⚠️ User has not joined any UKM');
-        if (mounted) {
-          setState(() {
-            _statistikData1 = List.generate(12, (_) => 0);
-            _statistikData2 = List.generate(12, (_) => 0);
-            _statistikLabel1 = 'Belum bergabung UKM';
-            _statistikLabel2 = 'Belum bergabung UKM';
-            _isLoadingStats = false;
-          });
-        }
-        return;
-      }
-
-      // 2. Get user's meeting attendance from absen_pertemuan
-      // Fetch attendance records with meeting details
-      List<dynamic> attendanceRecords = [];
-      try {
-        attendanceRecords = await _supabase
-            .from('absen_pertemuan')
-            .select('id_pertemuan, status, create_at')
-            .eq('id_user', userId);
-        print('✅ Found ${attendanceRecords.length} attendance records');
-      } catch (e) {
-        print('Error fetching attendance: $e');
-      }
-
-      // Filter for 'hadir' status (case insensitive)
-      final attendedMeetingIds = <String>{};
-      for (var record in attendanceRecords) {
-        final status = (record['status'] as String?)?.toLowerCase() ?? '';
-        if (status.contains('hadir')) {
-          attendedMeetingIds.add(record['id_pertemuan']?.toString() ?? '');
-        }
-      }
-      print('✅ User attended ${attendedMeetingIds.length} meetings');
-
-      // 3. Get meeting details (date and UKM) for attended meetings
-      Map<String, Map<String, dynamic>> meetingDetails = {};
-      if (attendedMeetingIds.isNotEmpty) {
-        try {
-          final meetingsRes = await _supabase
-              .from('pertemuan')
-              .select('id_pertemuan, tanggal, id_ukm')
-              .inFilter('id_pertemuan', attendedMeetingIds.toList());
-          
-          for (var m in meetingsRes) {
-            meetingDetails[m['id_pertemuan'].toString()] = m;
-          }
-        } catch (e) {
-          print('Error fetching meeting details: $e');
-        }
-      }
-
-      // 4. Count attended meetings per month per UKM
-      final currentYear = DateTime.now().year;
-      final Map<String, List<int>> ukmMonthlyAttendance = {};
+      final stats = await _dashboardService.getStatisticsData();
       
-      // Initialize for all joined UKMs
-      for (var ukm in joinedUkms) {
-        ukmMonthlyAttendance[ukm['id_ukm'].toString()] = List.generate(12, (_) => 0);
-      }
-
-      // Count attendance per month
-      for (var meetingId in attendedMeetingIds) {
-        final meeting = meetingDetails[meetingId];
-        if (meeting != null && meeting['tanggal'] != null) {
-          try {
-            final date = DateTime.parse(meeting['tanggal']);
-            final ukmId = meeting['id_ukm']?.toString() ?? '';
-            
-            if (date.year == currentYear && ukmMonthlyAttendance.containsKey(ukmId)) {
-              ukmMonthlyAttendance[ukmId]![date.month - 1]++;
-            }
-          } catch (e) {
-            // Skip invalid dates
-          }
-        }
-      }
-
-      // 5. Set data for display (top 2 UKMs)
-      List<int> data1 = List.generate(12, (_) => 0);
-      List<int> data2 = List.generate(12, (_) => 0);
-      String label1 = 'Tidak ada data';
-      String label2 = 'Tidak ada data';
-
-      if (joinedUkms.isNotEmpty) {
-        final ukm1 = joinedUkms[0];
-        label1 = ukm1['nama_ukm'] ?? 'UKM 1';
-        data1 = ukmMonthlyAttendance[ukm1['id_ukm'].toString()] ?? data1;
-        print('📊 UKM 1 ($_statistikLabel1): $data1');
-      }
-
-      if (joinedUkms.length > 1) {
-        final ukm2 = joinedUkms[1];
-        label2 = ukm2['nama_ukm'] ?? 'UKM 2';
-        data2 = ukmMonthlyAttendance[ukm2['id_ukm'].toString()] ?? data2;
-        print('📊 UKM 2 ($_statistikLabel2): $data2');
-      } else {
-        label2 = 'Hanya 1 UKM';
-      }
-
-      print('==========================================');
-
       if (mounted) {
         setState(() {
-          _statistikData1 = data1;
-          _statistikData2 = data2;
-          _statistikLabel1 = label1;
-          _statistikLabel2 = label2;
+          _statistikLabel1 = stats['label1'] ?? 'UKM 1';
+          _statistikLabel2 = stats['label2'] ?? 'UKM 2';
+          _statistikData1 = stats['data1'] ?? List.filled(12, 0);
+          _statistikData2 = stats['data2'] ?? List.filled(12, 0);
           _isLoadingStats = false;
         });
       }
     } catch (e) {
       print('❌ Error loading statistics: $e');
-      print('Stack trace: ${StackTrace.current}');
       if (mounted) {
         setState(() {
-          _statistikData1 = List.generate(12, (_) => 0);
-          _statistikData2 = List.generate(12, (_) => 0);
+          _statistikData1 = List.filled(12, 0);
+          _statistikData2 = List.filled(12, 0);
           _statistikLabel1 = 'Error';
           _statistikLabel2 = 'Error';
           _isLoadingStats = false;
@@ -590,7 +447,7 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
 
   Future<void> _loadSliderEvents() async {
     try {
-      final userId = _supabase.auth.currentUser?.id;
+      final userId = _authService.currentUserId;
 
       print('========== DEBUG INFORMASI ==========');
       print('Current user ID: $userId');
@@ -600,7 +457,7 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
       // 1. Load ALL active informasi without filter
       print('========== FETCHING INFORMASI ==========');
       print('Fetching informasi from Supabase...');
-      
+
       try {
         final allInfoResponse = await _supabase
             .from('informasi')
@@ -610,7 +467,9 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
             .order('create_at', ascending: false)
             .limit(20);
 
-        print('✅ Supabase returned ${(allInfoResponse as List).length} informasi records (ALL)');
+        print(
+          '✅ Supabase returned ${(allInfoResponse as List).length} informasi records (ALL)',
+        );
 
         // Debug: Print first record details
         if (allInfoResponse.isNotEmpty) {
@@ -636,50 +495,50 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
         print('========================================');
 
         for (var item in activeInfo) {
-        final infoUkmId = item['id_ukm']?.toString() ?? '';
-        final isFromAdmin = infoUkmId.isEmpty || item['id_ukm'] == null;
+          final infoUkmId = item['id_ukm']?.toString() ?? '';
+          final isFromAdmin = infoUkmId.isEmpty || item['id_ukm'] == null;
 
-        String? imageUrl;
-        if (item['gambar'] != null && item['gambar'].toString().isNotEmpty) {
-          try {
-            final gambarPath = item['gambar'].toString();
-            if (gambarPath.startsWith('http://') || gambarPath.startsWith('https://')) {
-              imageUrl = gambarPath;
-            } else {
-              imageUrl = _supabase.storage
-                  .from('informasi-images')
-                  .getPublicUrl(gambarPath);
+          String? imageUrl;
+          if (item['gambar'] != null && item['gambar'].toString().isNotEmpty) {
+            try {
+              final gambarPath = item['gambar'].toString();
+              if (gambarPath.startsWith('http://') ||
+                  gambarPath.startsWith('https://')) {
+                imageUrl = gambarPath;
+              } else {
+                imageUrl = _supabase.storage
+                    .from('informasi-images')
+                    .getPublicUrl(gambarPath);
+              }
+              print('✅ Image URL for "${item['judul']}": $imageUrl');
+            } catch (e) {
+              print('❌ Error getting image URL for "${item['judul']}": $e');
             }
-            print('✅ Image URL for "${item['judul']}": $imageUrl');
-          } catch (e) {
-            print('❌ Error getting image URL for "${item['judul']}": $e');
+          } else {
+            print('⚠️ No image for "${item['judul']}"');
           }
-        } else {
-          print('⚠️ No image for "${item['judul']}"');
+
+          final infoData = {
+            'id': item['id_informasi'],
+            'title': item['judul'] ?? 'Informasi',
+            'description': item['deskripsi'] ?? '',
+            'subtitle': isFromAdmin
+                ? 'Admin'
+                : (item['ukm']?['nama_ukm'] ?? 'UKM'),
+            'source': isFromAdmin ? 'admin' : 'ukm',
+            'date': _formatDate(item['create_at']),
+            'rawDate': item['create_at'] ?? '',
+            'imageUrl': imageUrl,
+            'image': null,
+          };
+
+          allInformasi.add(infoData);
+          print(
+            'Added informasi: ${infoData['title']} (${infoData['subtitle']})',
+          );
         }
 
-        final infoData = {
-          'id': item['id_informasi'],
-          'title': item['judul'] ?? 'Informasi',
-          'description': item['deskripsi'] ?? '',
-          'subtitle': isFromAdmin
-              ? 'Admin'
-              : (item['ukm']?['nama_ukm'] ?? 'UKM'),
-          'source': isFromAdmin ? 'admin' : 'ukm',
-          'date': _formatDate(item['create_at']),
-          'rawDate': item['create_at'] ?? '',
-          'imageUrl': imageUrl,
-          'image': null,
-        };
-
-        allInformasi.add(infoData);
-        print(
-          'Added informasi: ${infoData['title']} (${infoData['subtitle']})',
-        );
-      }
-
-      print('📊 Total informasi added: ${allInformasi.length}');
-      
+        print('📊 Total informasi added: ${allInformasi.length}');
       } catch (e) {
         print('❌ ERROR fetching informasi: $e');
         print('Stack trace: ${StackTrace.current}');
@@ -971,8 +830,20 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
     }
   }
 
-  void _handleLogout() {
-    Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+  Future<void> _handleLogout() async {
+    try {
+      await _supabase.auth.signOut();
+    } catch (e) {
+      debugPrint('Error signing out: $e');
+    }
+    
+    if (mounted) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => const LoginPage()),
+        (route) => false,
+      );
+    }
   }
 
   /// Navigate to informasi detail page
@@ -1120,7 +991,12 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
               children: [
                 NotificationBellWidget(
                   onViewAll: () {
-                    Navigator.pushNamed(context, '/user/notifikasi');
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const NotifikasiUserPage(),
+                      ),
+                    );
                   },
                 ),
                 const SizedBox(width: 8),
@@ -1976,10 +1852,7 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
       height: 240, // Increased from 180 to fix overflow
       child: ScrollConfiguration(
         behavior: ScrollConfiguration.of(context).copyWith(
-          dragDevices: {
-            PointerDeviceKind.touch,
-            PointerDeviceKind.mouse,
-          },
+          dragDevices: {PointerDeviceKind.touch, PointerDeviceKind.mouse},
         ),
         child: ListView.builder(
           scrollDirection: Axis.horizontal,
@@ -1997,10 +1870,7 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
       height: 240, // Increased from 200 to fix overflow
       child: ScrollConfiguration(
         behavior: ScrollConfiguration.of(context).copyWith(
-          dragDevices: {
-            PointerDeviceKind.touch,
-            PointerDeviceKind.mouse,
-          },
+          dragDevices: {PointerDeviceKind.touch, PointerDeviceKind.mouse},
         ),
         child: ListView.builder(
           scrollDirection: Axis.horizontal,
@@ -2008,7 +1878,9 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
           itemCount: _ukmSchedule.length,
           itemBuilder: (context, index) {
             return Container(
-              width: MediaQuery.of(context).size.width * 0.85, // 85% of screen width
+              width:
+                  MediaQuery.of(context).size.width *
+                  0.85, // 85% of screen width
               margin: const EdgeInsets.only(right: 12),
               child: _buildJadwalCard(_ukmSchedule[index], true),
             );

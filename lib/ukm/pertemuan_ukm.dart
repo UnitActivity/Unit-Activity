@@ -16,7 +16,7 @@ class PertemuanUKMPage extends StatefulWidget {
 
 class _PertemuanUKMPageState extends State<PertemuanUKMPage> {
   int _currentPage = 1;
-  final int _itemsPerPage = 10;
+  final int _itemsPerPage = 5;
   final PertemuanService _pertemuanService = PertemuanService();
   final UkmDashboardService _dashboardService = UkmDashboardService();
   final TextEditingController _searchController = TextEditingController();

@@ -1,0 +1,30 @@
+﻿Resolving dependencies...
+Downloading packages...
+  app_links 6.4.1 (7.0.0 available)
+  connectivity_plus 6.1.5 (7.0.0 available)
+  extension 0.6.0 (1.0.0 available)
+  ffi 2.1.4 (2.1.5 available)
+  file_picker 8.3.7 (10.3.8 available)
+  fl_chart 0.69.2 (1.1.1 available)
+  flutter_dotenv 5.2.1 (6.0.0 available)
+  flutter_lints 5.0.0 (6.0.0 available)
+  flutter_local_notifications 18.0.1 (19.5.0 available)
+  flutter_local_notifications_linux 5.0.0 (6.0.0 available)
+  flutter_local_notifications_platform_interface 8.0.0 (9.1.0 available)
+  google_fonts 6.3.3 (7.0.0 available)
+  image_cropper 8.1.0 (11.0.0 available)
+  image_cropper_for_web 6.1.0 (7.0.0 available)
+  image_cropper_platform_interface 7.2.0 (8.0.0 available)
+  lints 5.1.1 (6.0.0 available)
+  mime 1.0.6 (2.0.0 available)
+  mobile_scanner 6.0.11 (7.1.4 available)
+  open_file 3.5.10 (3.5.11 available)
+  open_file_ios 1.0.3 (1.0.4 available)
+  open_file_mac 1.0.3 (1.0.4 available)
+  test_api 0.7.8 (0.7.9 available)
+  timezone 0.9.4 (0.11.0 available)
+Got dependencies!
+23 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+Running Gradle task 'assembleRelease'...                        
+Running Gradle task 'assembleRelease'...                           56.5s

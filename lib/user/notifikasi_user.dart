@@ -22,25 +22,31 @@ class NotifikasiUserPage extends StatefulWidget {
 class _NotifikasiUserPageState extends State<NotifikasiUserPage>
     with QRScannerMixin {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  final UserNotificationService _notificationService =
-      UserNotificationService();
+  final UserNotificationService _notificationService = UserNotificationService(); // Instantiate locally
   final AttendanceService _attendanceService = AttendanceService();
   String _selectedMenu = 'notifikasi';
   String _filterType = 'all'; // 'all', 'admin', 'ukm', 'event'
+  // No scroll controller needed for pagination
   Timer? _refreshTimer;
-
+  
   @override
   void initState() {
     super.initState();
     _notificationService.addListener(_onNotificationUpdate);
-    _notificationService.loadNotifications();
-
-    // Auto-refresh notifikasi setiap 30 detik
-    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
-      if (mounted) {
-        _notificationService.loadNotifications();
-      }
+    
+    // Initial load
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadData();
     });
+
+    // Auto-refresh unread count periodically
+    _refreshTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+       _notificationService.fetchUnreadCount();
+    });
+  }
+
+  Future<void> _loadData() async {
+    await _notificationService.loadPage(0);
   }
 
   @override
@@ -49,13 +55,17 @@ class _NotifikasiUserPageState extends State<NotifikasiUserPage>
     _notificationService.removeListener(_onNotificationUpdate);
     super.dispose();
   }
-
+  
   void _onNotificationUpdate() {
     if (mounted) {
       setState(() {});
     }
   }
 
+  Future<void> _handleRefresh() async {
+    await _notificationService.refresh();
+  }
+  
   void _handleMenuSelected(String menu) {
     setState(() {
       _selectedMenu = menu;
@@ -94,53 +104,6 @@ class _NotifikasiUserPageState extends State<NotifikasiUserPage>
     }
   }
 
-  void _handleLogout() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          'Logout',
-          style: GoogleFonts.inter(fontWeight: FontWeight.bold),
-        ),
-        content: Text(
-          'Apakah Anda yakin ingin keluar?',
-          style: GoogleFonts.inter(),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Batal',
-              style: GoogleFonts.inter(
-                color: Colors.grey[600],
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pushNamed(context, '/login');
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            child: Text(
-              'Logout',
-              style: GoogleFonts.inter(fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 768;
@@ -165,7 +128,7 @@ class _NotifikasiUserPageState extends State<NotifikasiUserPage>
       body: Stack(
         children: [
           RefreshIndicator(
-            onRefresh: () => _notificationService.loadNotifications(),
+            onRefresh: _handleRefresh,
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.only(
@@ -206,13 +169,12 @@ class _NotifikasiUserPageState extends State<NotifikasiUserPage>
                       child: UserSidebar(
                         selectedMenu: _selectedMenu,
                         onMenuSelected: _handleMenuSelected,
-                        onLogout: _handleLogout,
+                        onLogout: _showLogoutDialog,
                       ),
                     ),
                     Expanded(
                       child: RefreshIndicator(
-                        onRefresh: () =>
-                            _notificationService.loadNotifications(),
+                        onRefresh: _handleRefresh,
                         child: SingleChildScrollView(
                           physics: const AlwaysScrollableScrollPhysics(),
                           padding: const EdgeInsets.all(24),
@@ -250,7 +212,7 @@ class _NotifikasiUserPageState extends State<NotifikasiUserPage>
                 child: UserSidebar(
                   selectedMenu: _selectedMenu,
                   onMenuSelected: _handleMenuSelected,
-                  onLogout: _handleLogout,
+                  onLogout: _showLogoutDialog,
                 ),
               ),
 
@@ -261,8 +223,7 @@ class _NotifikasiUserPageState extends State<NotifikasiUserPage>
                     const SizedBox(height: 70), // Space for floating top bar
                     Expanded(
                       child: RefreshIndicator(
-                        onRefresh: () =>
-                            _notificationService.loadNotifications(),
+                        onRefresh: _handleRefresh,
                         child: SingleChildScrollView(
                           physics: const AlwaysScrollableScrollPhysics(),
                           padding: const EdgeInsets.all(24),
@@ -556,7 +517,7 @@ class _NotifikasiUserPageState extends State<NotifikasiUserPage>
         const SizedBox(height: 20),
 
         // Notification list
-        if (filteredNotifications.isEmpty)
+        if (filteredNotifications.isEmpty && !_notificationService.isLoading)
           Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -596,7 +557,7 @@ class _NotifikasiUserPageState extends State<NotifikasiUserPage>
               ],
             ),
           )
-        else
+        else ...[
           ListView.separated(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -607,6 +568,22 @@ class _NotifikasiUserPageState extends State<NotifikasiUserPage>
               return _buildNotificationCard(notification);
             },
           ),
+
+          // Loading Indicator
+          if (_notificationService.isLoading)
+             Padding(
+               padding: const EdgeInsets.symmetric(vertical: 20),
+               child: Center(
+                 child: SizedBox(
+                   width: 24,
+                   height: 24,
+                   child: CircularProgressIndicator(strokeWidth: 2, color: Colors.blue[600]),
+                 ),
+               ),
+             ),
+
+
+        ],
       ],
     );
   }

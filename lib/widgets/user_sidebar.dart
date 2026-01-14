@@ -71,6 +71,20 @@ class UserSidebar extends StatelessWidget {
               ],
             ),
           ),
+
+          // Logout Button
+          Padding(
+            padding: const EdgeInsets.all(8),
+            child: _buildMenuItem(
+              icon: Icons.logout,
+              title: 'Logout',
+              value: 'logout',
+              isSelected: false,
+              onTap: onLogout,
+              isLogout: true,
+            ),
+          ),
+          const SizedBox(height: 8),
         ],
       ),
     );
@@ -82,7 +96,15 @@ class UserSidebar extends StatelessWidget {
     required String value,
     required bool isSelected,
     required VoidCallback onTap,
+    bool isLogout = false,
   }) {
+    final color = isLogout
+        ? Colors.red[600]
+        : (isSelected ? const Color(0xFF4169E1) : Colors.grey[700]);
+    final textColor = isLogout
+        ? Colors.red[600]
+        : (isSelected ? const Color(0xFF4169E1) : Colors.grey[800]);
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
@@ -92,7 +114,7 @@ class UserSidebar extends StatelessWidget {
       child: ListTile(
         leading: Icon(
           icon,
-          color: isSelected ? const Color(0xFF4169E1) : Colors.grey[700],
+          color: color,
           size: 24,
         ),
         title: Text(
@@ -100,7 +122,7 @@ class UserSidebar extends StatelessWidget {
           style: TextStyle(
             fontSize: 15,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-            color: isSelected ? const Color(0xFF4169E1) : Colors.grey[800],
+            color: textColor,
           ),
         ),
         onTap: onTap,

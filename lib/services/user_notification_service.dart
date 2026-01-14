@@ -53,6 +53,8 @@ class UserNotification {
       notifId = json['id_broadcast'].toString();
     } else if (json['id'] != null) {
       notifId = json['id'].toString();
+    } else if (json['id_notification_pref'] != null) {
+      notifId = json['id_notification_pref'].toString();
     }
 
     return UserNotification(
@@ -61,8 +63,8 @@ class UserNotification {
       message: json['pesan'] ?? json['message'] ?? '',
       type: json['tipe'] ?? json['type'] ?? 'info',
       isRead: json['is_read'] ?? json['isRead'] ?? false,
-      createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'])
+      createdAt: json['create_at'] != null
+          ? DateTime.parse(json['create_at'])
           : (json['create_at'] != null
                 ? DateTime.parse(json['create_at'])
                 : DateTime.now()),
@@ -154,22 +156,53 @@ class UserNotificationService extends ChangeNotifier {
   final SupabaseClient _supabase = Supabase.instance.client;
   final CustomAuthService _authService = CustomAuthService();
 
+  // Reverted pagination state
+  // Using a limit instead
+  final int _limit = 50; 
+
   List<UserNotification> _notifications = [];
   bool _isLoading = false;
   String? _error;
+  int _unreadCount = 0;
 
   List<UserNotification> get notifications => _notifications;
+  bool get isLoading => _isLoading;
+  String? get error => _error;
+  int get unreadCount => _unreadCount;
+  
+  // Dummy getter for backward compatibility if UI still uses it (will not support pagination)
+  bool get hasMore => false;
+  int get currentPage => 0;
 
   /// Get current user ID from custom auth service
   String? get currentUserId => _authService.currentUserId;
-  bool get isLoading => _isLoading;
-  String? get error => _error;
 
-  int get unreadCount => _notifications.where((notif) => !notif.isRead).length;
+  /// Fetch separate unread count for badge
+  Future<void> fetchUnreadCount() async {
+    try {
+      final userId = currentUserId;
+      if (userId == null) return;
 
-  /// Load notifications from Supabase
-  /// Gets notifications from Admin, UKM, and broadcast notifications
-  Future<void> loadNotifications() async {
+      final count = await _supabase
+          .from('notification_preference')
+          .count(CountOption.exact)
+          .eq('id_user', userId)
+          .eq('is_read', false);
+      
+      _unreadCount = count;
+      notifyListeners();
+    } catch (e) {
+      print('Error fetching unread count: $e');
+    }
+  }
+
+  /// Load notifications (Latest 50)
+  Future<void> loadNotifications({bool refresh = false}) async {
+    if (_isLoading) return;
+    
+    // If not refresh and we already have data, don't unnecessary reload
+    if (!refresh && _notifications.isNotEmpty) return;
+
     _isLoading = true;
     _error = null;
     notifyListeners();
@@ -183,34 +216,18 @@ class UserNotificationService extends ChangeNotifier {
         return;
       }
 
-      print('========== LOAD USER NOTIFICATIONS ==========');
-      print('User ID: $userId');
+      print('========== LOAD ALL USER NOTIFICATIONS (No Limit) ==========');
 
-      List<UserNotification> allNotifications = [];
+      // 1. Fetch from notification_preference
+      final userNotifications = await _supabase
+          .from('notification_preference')
+          .select('*')
+          .eq('id_user', userId)
+          .order('create_at', ascending: false); // Fetch All, Newest First
 
-      // 1. Load user-specific notifications from notification_preference
-      try {
-        print('Fetching from notification_preference...');
-        final userNotifications = await _supabase
-            .from('notification_preference')
-            .select('*')
-            .eq('id_user', userId)
-            .order('create_at', ascending: false)
-            .limit(50);
+      List<UserNotification> batchNotifications = [];
 
-        print('Found ${userNotifications.length} user-specific notifications');
-
-        // Debug: Print first notification details
-        if (userNotifications.isNotEmpty) {
-          print('Sample notification_preference record:');
-          print('  - ID: ${userNotifications[0]['id_notification_pref']}');
-          print('  - Judul: ${userNotifications[0]['judul']}');
-          print('  - Type: ${userNotifications[0]['type']}');
-          print('  - Is Read: ${userNotifications[0]['is_read']}');
-        }
-
-        for (var json in userNotifications) {
-          // Determine sender based on type and linked IDs
+      for (var json in userNotifications) {
           String senderName = 'Admin';
           if (json['id_ukm'] != null) {
             senderName = 'UKM';
@@ -218,12 +235,9 @@ class UserNotificationService extends ChangeNotifier {
             senderName = 'Event';
           }
 
-          allNotifications.add(
+          batchNotifications.add(
             UserNotification(
-              id:
-                  json['id_notification_pref']?.toString() ??
-                  json['id']?.toString() ??
-                  '',
+              id: json['id_notification_pref']?.toString() ?? json['id']?.toString() ?? '',
               title: json['judul'] ?? 'Notifikasi',
               message: json['pesan'] ?? '',
               type: json['type'] ?? 'info',
@@ -240,362 +254,106 @@ class UserNotificationService extends ChangeNotifier {
               sender: senderName,
             ),
           );
-        }
-      } catch (e) {
-        print('Error loading user notifications: $e');
-        print('Stack trace: ${StackTrace.current}');
       }
 
-      // 2. Load broadcast notifications (from Admin to all users)
-      try {
-        final broadcastNotifications = await _supabase
-            .from('notifikasi_broadcast')
-            .select('*')
-            .eq('status_aktif', true)
-            .order('created_at', ascending: false)
-            .limit(30);
-
-        print(
-          'Found ${broadcastNotifications.length} broadcast notifications from Admin',
-        );
-
-        for (var json in broadcastNotifications) {
-          allNotifications.add(
-            UserNotification.fromJson({
-              ...json,
-              'id':
-                  json['id_broadcast'] ??
-                  json['id_notifikasi_broadcast'] ??
-                  json['id'],
-              'type': json['tipe'] ?? 'announcement',
-              'sender':
-                  json['pengirim'] ??
-                  'Admin', // Broadcast notifications are from Admin
-            }),
-          );
-        }
-      } catch (e) {
-        print('Error loading broadcast notifications: $e');
-        print('Broadcast error details: ${e.toString()}');
-      }
-
-      // 3. Load notifications from UKMs that user has joined
-      try {
-        // Get user's joined UKMs (accept both 'aktif' and 'active')
-        final userUkms = await _supabase
-            .from('user_halaman_ukm')
-            .select('id_ukm')
-            .eq('id_user', userId)
-            .or('status.eq.aktif,status.eq.active');
-
-        print('User is in ${userUkms.length} UKMs');
-
-        if (userUkms.isNotEmpty) {
-          final ukmIds = (userUkms as List).map((e) => e['id_ukm']).toList();
-          print('UKM IDs: $ukmIds');
-
-          // Get notifications from those UKMs from notification_preference table
-          try {
-            final ukmNotifications = await _supabase
-                .from('notification_preference')
-                .select('*, ukm!inner(nama_ukm)')
-                .inFilter('id_ukm', ukmIds)
-                .order('create_at', ascending: false)
-                .limit(30);
-
-            print('Found ${ukmNotifications.length} UKM notifications');
-
-            for (var json in ukmNotifications) {
-              final ukmName =
-                  json['ukm']?['nama_ukm'] ?? json['judul'] ?? 'UKM';
-              allNotifications.add(
-                UserNotification(
-                  id:
-                      json['id_notification_pref']?.toString() ??
-                      json['id']?.toString() ??
-                      '',
-                  title: json['judul'] ?? 'Notifikasi UKM',
-                  message: json['pesan'] ?? '',
-                  type: json['type'] ?? 'info',
-                  isRead: json['is_read'] ?? false,
-                  createdAt: json['create_at'] != null
-                      ? DateTime.parse(json['create_at'])
-                      : DateTime.now(),
-                  sender: ukmName,
-                  metadata: {
-                    'sender_type': 'ukm',
-                    'sender_name': ukmName,
-                    'id_ukm': json['id_ukm'],
-                    'id_events': json['id_events'],
-                    'id_pertemuan': json['id_pertemuan'],
-                  },
-                ),
-              );
-            }
-          } catch (joinError) {
-            print('Error with join query, trying without join: $joinError');
-
-            // Fallback: query without join
-            final ukmNotifications = await _supabase
-                .from('notification_preference')
-                .select('*')
-                .inFilter('id_ukm', ukmIds)
-                .order('create_at', ascending: false)
-                .limit(30);
-
-            print(
-              'Found ${ukmNotifications.length} UKM notifications (without join)',
-            );
-
-            for (var json in ukmNotifications) {
-              final ukmName = json['judul'] ?? 'UKM';
-              allNotifications.add(
-                UserNotification(
-                  id:
-                      json['id_notification_pref']?.toString() ??
-                      json['id']?.toString() ??
-                      '',
-                  title: json['judul'] ?? 'Notifikasi UKM',
-                  message: json['pesan'] ?? '',
-                  type: json['type'] ?? 'info',
-                  isRead: json['is_read'] ?? false,
-                  createdAt: json['create_at'] != null
-                      ? DateTime.parse(json['create_at'])
-                      : DateTime.now(),
-                  sender: ukmName,
-                  metadata: {
-                    'sender_type': 'ukm',
-                    'sender_name': ukmName,
-                    'id_ukm': json['id_ukm'],
-                    'id_events': json['id_events'],
-                    'id_pertemuan': json['id_pertemuan'],
-                  },
-                ),
-              );
-            }
-          }
-        }
-      } catch (e) {
-        print('Error loading UKM notifications: $e');
-        print('Stack trace: $e');
-      }
-
-      // 4. Load event-related notifications (broadcast to all users with null id_user)
-      try {
-        final eventNotifications = await _supabase
-            .from('notification_preference')
-            .select('*')
-            .isFilter('id_user', null)
-            .order('create_at', ascending: false)
-            .limit(20);
-
-        print('Found ${eventNotifications.length} event notifications');
-
-        for (var json in eventNotifications) {
-          // Avoid duplicates
-          final notifId =
-              json['id_notification_pref']?.toString() ??
-              json['id']?.toString() ??
-              '';
-          if (!allNotifications.any((n) => n.id == notifId)) {
-            allNotifications.add(
-              UserNotification(
-                id: notifId,
-                title: json['judul'] ?? 'Notifikasi Event',
-                message: json['pesan'] ?? '',
-                type: json['type'] ?? 'info',
-                isRead: json['is_read'] ?? false,
-                createdAt: json['create_at'] != null
-                    ? DateTime.parse(json['create_at'])
-                    : DateTime.now(),
-                sender: 'Admin',
-                metadata: {
-                  'id_events': json['id_events'],
-                  'id_informasi': json['id_informasi'],
-                },
-              ),
-            );
-          }
-        }
-      } catch (e) {
-        print('Error loading event notifications: $e');
-      }
-
-      // Sort all notifications by created_at descending
-      allNotifications.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-      // Remove duplicates based on id
-      final seen = <String>{};
-      allNotifications = allNotifications.where((notif) {
-        if (seen.contains(notif.id)) return false;
-        seen.add(notif.id);
-        return true;
-      }).toList();
-
-      _notifications = allNotifications;
+      // Replace notifications list (Simple list)
+      _notifications = batchNotifications;
+      
+      // Update unread count separately
+      await fetchUnreadCount();
+      
       _isLoading = false;
-
-      print('Total notifications loaded: ${_notifications.length}');
       notifyListeners();
     } catch (e) {
       print('Error loading notifications: $e');
-      print('Stack trace: ${StackTrace.current}');
       _error = e.toString();
       _isLoading = false;
-
-      // Don't load sample data - keep empty list to show no notifications
-      _notifications = [];
       notifyListeners();
     }
   }
 
-  /// Load sample notifications for development/testing - NOT USED IN PRODUCTION
-  @Deprecated('Use loadNotifications() instead - sample data removed')
-  void _loadSampleNotifications() {
-    // Empty - we don't want dummy data
-    _notifications = [];
+  // Deprecated pagination support methods (No-ops)
+  Future<void> loadPage(int page) async {
+    await loadNotifications(refresh: true);
+  }
+  Future<void> nextPage() async {}
+  Future<void> prevPage() async {}
+
+  /// Refresh notifications
+  Future<void> refresh() async {
+    await loadNotifications(refresh: true);
   }
 
-  /// Mark notification as read
-  /// Updates both local state and Supabase database
+  /// Mark single as read
   Future<void> markAsRead(String notificationId) async {
     try {
       final userId = currentUserId;
-      if (userId == null || userId.isEmpty) return;
-
-      print('DEBUG markAsRead: notificationId=$notificationId, userId=$userId');
-
-      // Update local state first for instant feedback
+      if (userId == null) return;
+      
+      // Update local first
       final index = _notifications.indexWhere((n) => n.id == notificationId);
       if (index != -1) {
         _notifications[index] = _notifications[index].copyWith(isRead: true);
         notifyListeners();
       }
 
-      // Try to update in database - notification_preference table
-      try {
-        // Use id_notification_pref as the primary key column
-        await _supabase
-            .from('notification_preference')
-            .update({'is_read': true})
-            .eq('id_notification_pref', notificationId);
-        print('✅ Marked notification as read in notification_preference');
-      } catch (e) {
-        print(
-          'Error updating notification_preference by id_notification_pref: $e',
-        );
-        // Fallback: try with id_user filter
-        try {
-          await _supabase
-              .from('notification_preference')
-              .update({'is_read': true})
-              .eq('id_user', userId)
-              .eq('id_notification_pref', notificationId);
-        } catch (e2) {
-          print('Fallback also failed: $e2');
-        }
-      }
+      await _supabase
+          .from('notification_preference')
+          .update({'is_read': true})
+          .eq('id_notification_pref', notificationId);
+
+      await fetchUnreadCount();
     } catch (e) {
-      print('Error marking notification as read: $e');
+      print('Error marking as read: $e');
     }
   }
 
-  /// Mark all notifications as read
-  /// Updates both local state and Supabase database
+  /// Mark all as read
   Future<void> markAllAsRead() async {
     try {
       final userId = currentUserId;
-      if (userId == null || userId.isEmpty) {
-        // Still update local state even without userId
-        _notifications = _notifications
-            .map((notif) => notif.copyWith(isRead: true))
-            .toList();
-        notifyListeners();
-        return;
-      }
+      if (userId == null) return;
 
-      print('========== MARK ALL AS READ ==========');
-      print('User ID: $userId');
-      print('Total notifications: ${_notifications.length}');
-      print('Unread count: $unreadCount');
+      // 1. Update DB
+      await _supabase
+          .from('notification_preference')
+          .update({'is_read': true})
+          .eq('id_user', userId)
+          .eq('is_read', false);
 
-      // Get list of unread notification IDs for database update
-      final unreadNotifIds = _notifications
-          .where((n) => !n.isRead)
-          .map((n) => n.id)
-          .where((id) => id.isNotEmpty)
-          .toList();
-
-      print('Unread notification IDs to update: $unreadNotifIds');
-
-      // 1. Update notifications in notification_preference table (direct notifications)
-      if (unreadNotifIds.isNotEmpty) {
-        try {
-          await _supabase
-              .from('notification_preference')
-              .update({'is_read': true})
-              .eq('id_user', userId)
-              .eq('is_read', false);
-          print('✅ Updated notification_preference table for user');
-        } catch (e) {
-          print('❌ Error updating notification_preference: $e');
-        }
-      }
-
-      // 2. Update ALL notifications in local state immediately
-      _notifications = _notifications
-          .map((notif) => notif.copyWith(isRead: true))
-          .toList();
-
-      print(
-        '✅ Updated all ${_notifications.length} notifications in local state',
-      );
-      print('New unread count: $unreadCount');
-      print('=========================================');
-
+      // 2. Update local state
+      _notifications = _notifications.map((n) => n.copyWith(isRead: true)).toList();
+      _unreadCount = 0;
+      
       notifyListeners();
     } catch (e) {
-      print('❌ Error marking all notifications as read: $e');
-      // Update local state anyway to maintain UI consistency
-      _notifications = _notifications
-          .map((notif) => notif.copyWith(isRead: true))
-          .toList();
-      notifyListeners();
+      print('Error marking all as read: $e');
     }
   }
 
   /// Delete notification
   Future<void> deleteNotification(String notificationId) async {
     try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) return;
+      final userId = currentUserId;
+      if (userId == null) return;
 
-      // Try to delete from database
       await _supabase
           .from('notification_preference')
           .delete()
-          .eq('id_notifikasi', notificationId)
-          .eq('id_user', user.id);
+          .eq('id_notification_pref', notificationId)
+          .eq('id_user', userId);
 
-      // Remove from local state
       _notifications.removeWhere((n) => n.id == notificationId);
+      await fetchUnreadCount();
       notifyListeners();
     } catch (e) {
       print('Error deleting notification: $e');
-      // Remove from local state anyway
-      _notifications.removeWhere((n) => n.id == notificationId);
-      notifyListeners();
     }
   }
-
-  /// Refresh notifications
-  Future<void> refresh() async {
-    await loadNotifications();
-  }
-
-  /// Clear all notifications
+  
   void clearAll() {
     _notifications.clear();
+    _unreadCount = 0;
     notifyListeners();
   }
 }
