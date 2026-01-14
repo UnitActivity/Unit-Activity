@@ -137,7 +137,7 @@ class FileUploadService {
     
     // Return only the path (filename) for informasi, full URL for others
     if (folder == 'informasi') {
-      return filePath; // Just the filename for consistency with admin
+      return '$filePath$fileExtension'; // Return filename WITH extension
     }
     return fullUrl;
   }

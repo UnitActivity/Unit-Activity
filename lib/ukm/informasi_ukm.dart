@@ -5,6 +5,7 @@ import 'package:unit_activity/services/informasi_service.dart';
 import 'package:unit_activity/models/informasi_model.dart';
 import 'package:unit_activity/ukm/add_informasi_ukm_page.dart';
 import 'package:unit_activity/ukm/edit_informasi_ukm_page.dart';
+import 'package:unit_activity/ukm/detail_informasi_ukm_page.dart';
 import 'package:intl/intl.dart';
 
 class InformasiUKMPage extends StatefulWidget {
@@ -695,10 +696,16 @@ class _InformasiUKMPageState extends State<InformasiUKMPage> {
   }
 
   Future<void> _navigateToDetailInformasi(InformasiModel info) async {
-    // TODO: Navigate to detail informasi page when implemented
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Detail ${info.judul}'), backgroundColor: const Color(0xFF4169E1)),
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => DetailInformasiUKMPage(informasi: info),
+      ),
     );
+    
+    if (result == true) {
+      _loadInformasi();
+    }
   }
 
   Future<void> _navigateToAddInformasi() async {
@@ -729,6 +736,7 @@ class _InformasiUKMPageState extends State<InformasiUKMPage> {
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
+              setState(() => _isLoading = true);
               try {
                 await _informasiService.deleteInformasi(info.idInformasi!);
                 if (mounted) {
@@ -736,6 +744,7 @@ class _InformasiUKMPageState extends State<InformasiUKMPage> {
                   _loadInformasi();
                 }
               } catch (e) {
+                setState(() => _isLoading = false);
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal menghapus: $e'), backgroundColor: Colors.red));
                 }
