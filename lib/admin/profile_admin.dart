@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -204,7 +205,31 @@ class _ProfileAdminPageState extends State<ProfileAdminPage> {
         } catch (_) {}
       }
 
-      final String extension = image.path.split('.').last.toLowerCase();
+      // Determine file extension - handle web platform (blob URLs don't have extensions)
+      String extension = 'jpg'; // Default fallback
+      String contentType = 'image/jpeg'; // Default content type
+
+      if (kIsWeb) {
+        // On web, use mimeType from image_picker
+        final mimeType = image.mimeType;
+        if (mimeType != null) {
+          contentType = mimeType;
+          if (mimeType.contains('png')) {
+            extension = 'png';
+          } else if (mimeType.contains('webp')) {
+            extension = 'webp';
+          } else if (mimeType.contains('gif')) {
+            extension = 'gif';
+          } else {
+            extension = 'jpg';
+          }
+        }
+      } else {
+        // On mobile, extract from file path
+        extension = image.path.split('.').last.toLowerCase();
+        contentType = 'image/$extension';
+      }
+
       final String fileName = '$role-$username.$extension';
       final bytes = await image.readAsBytes();
 
@@ -216,7 +241,7 @@ class _ProfileAdminPageState extends State<ProfileAdminPage> {
             fileOptions: FileOptions(
               cacheControl: '3600',
               upsert: true,
-              contentType: 'image/$extension',
+              contentType: contentType,
             ),
           );
 

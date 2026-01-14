@@ -417,6 +417,11 @@ class _ConnectivityWrapperState extends State<ConnectivityWrapper> {
   @override
   void initState() {
     super.initState();
+
+    // Skip connectivity monitoring on web platform
+    // Web has CORS restrictions that make connectivity checks unreliable
+    if (kIsWeb) return;
+
     _connectivityService.initialize();
     _subscription = _connectivityService.connectionStream.listen((isConnected) {
       if (mounted) {
