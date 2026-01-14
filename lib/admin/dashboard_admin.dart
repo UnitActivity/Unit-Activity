@@ -387,9 +387,6 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
     final totalUkm = _dashboardStats!['totalUkm'] ?? 0;
     final totalUsers = _dashboardStats!['totalUsers'] ?? 0;
     final totalEvent = _dashboardStats!['totalEvent'] ?? 0;
-    final activeEvents = _dashboardStats!['activeEvents'] ?? 0;
-    final openRegistrations = _dashboardStats!['openRegistrations'] ?? 0;
-    final totalFollowers = _dashboardStats!['totalFollowers'] ?? 0;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -437,33 +434,6 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
                   icon: Icons.event_rounded,
                   gradient: const LinearGradient(
                     colors: [Color(0xFFF59E0B), Color(0xFFFBBF24)],
-                  ),
-                  isMobile: isMobile,
-                ),
-                _buildModernStatCard(
-                  title: 'Event Aktif',
-                  value: '$activeEvents',
-                  icon: Icons.check_circle_rounded,
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF8B5CF6), Color(0xFFA78BFA)],
-                  ),
-                  isMobile: isMobile,
-                ),
-                _buildModernStatCard(
-                  title: 'Registrasi Terbuka',
-                  value: '$openRegistrations',
-                  icon: Icons.how_to_reg_rounded,
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFEC4899), Color(0xFFF472B6)],
-                  ),
-                  isMobile: isMobile,
-                ),
-                _buildModernStatCard(
-                  title: 'Total Anggota UKM',
-                  value: '$totalFollowers',
-                  icon: Icons.person_add_rounded,
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF06B6D4), Color(0xFF22D3EE)],
                   ),
                   isMobile: isMobile,
                 ),

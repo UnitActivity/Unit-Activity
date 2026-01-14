@@ -869,8 +869,6 @@ class _EventPageState extends State<EventPage> {
   }
 
   Widget _buildModernPagination() {
-    if (_totalPages <= 1) return const SizedBox.shrink();
-
     final isMobile = MediaQuery.of(context).size.width < 600;
 
     return Container(

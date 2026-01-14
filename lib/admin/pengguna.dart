@@ -34,6 +34,7 @@ class _PenggunaPageState extends State<PenggunaPage> {
   final Map<String, bool> _columnVisibility = {
     'picture': true,
     'nim': true,
+    'ukm': true,
     'email': false,
     'actions': true,
   };
@@ -146,7 +147,33 @@ class _PenggunaPageState extends State<PenggunaPage> {
 
       final List<dynamic> allResponse = await queryBuilder;
 
+      // Load UKM count per user from user_halaman_ukm
+      final userUkmData = await _supabase
+          .from('user_halaman_ukm')
+          .select('id_user');
+
+      // Count UKM per user
+      final Map<String, int> ukmCountMap = {};
+      for (var record in (userUkmData as List)) {
+        final userId = record['id_user']?.toString();
+        if (userId != null) {
+          ukmCountMap[userId] = (ukmCountMap[userId] ?? 0) + 1;
+        }
+      }
+
+      // Get total UKM count
+      final totalUkmResponse = await _supabase.from('ukm').select('id_ukm');
+      final int totalUkm = (totalUkmResponse as List).length;
+
       var sortedUsers = List<Map<String, dynamic>>.from(allResponse);
+
+      // Attach UKM count to each user
+      for (var user in sortedUsers) {
+        final userId = user['id_user']?.toString();
+        user['ukm_joined'] = ukmCountMap[userId] ?? 0;
+        user['total_ukm'] = totalUkm;
+      }
+
       if (_sortBy == 'NIM') {
         sortedUsers.sort(
           (a, b) => (a['nim'] ?? '').toString().compareTo(
@@ -767,6 +794,8 @@ class _PenggunaPageState extends State<PenggunaPage> {
         return 'Foto & Nama';
       case 'nim':
         return 'NIM';
+      case 'ukm':
+        return 'UKM Diikuti';
       case 'email':
         return 'Email';
       case 'actions':
@@ -844,6 +873,19 @@ class _PenggunaPageState extends State<PenggunaPage> {
                     flex: 3,
                     child: Text(
                       'EMAIL',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF4169E1),
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                if (_columnVisibility['ukm']!)
+                  Expanded(
+                    flex: 2,
+                    child: Text(
+                      'UKM',
                       style: GoogleFonts.inter(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
@@ -988,6 +1030,33 @@ class _PenggunaPageState extends State<PenggunaPage> {
                               color: Colors.grey[700],
                             ),
                             overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+
+                      // UKM Column
+                      if (_columnVisibility['ukm']!)
+                        Expanded(
+                          flex: 2,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(
+                                0xFF4169E1,
+                              ).withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              '${user['ukm_joined'] ?? 0}/${user['total_ukm'] ?? 0}',
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFF4169E1),
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
                           ),
                         ),
 
