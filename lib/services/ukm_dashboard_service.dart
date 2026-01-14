@@ -196,38 +196,42 @@ class UkmDashboardService {
         totalPeserta = 0;
       }
 
-      // ========== GET TOTAL EVENTS ==========
+      // ========== GET TOTAL EVENTS (for this UKM and current periode) ==========
       try {
-        final eventResponse = await _supabase
+        // Count events for this UKM and periode (matching Event page query)
+        var eventQuery = _supabase
             .from('events')
             .select('id_events')
             .eq('id_ukm', ukmId);
+        
+        // Filter by periode to match Event page (Dashboard shows "Total Event Periode ini")
+        if (periodeId != null) {
+          eventQuery = eventQuery.eq('id_periode', periodeId);
+        }
 
+        final eventResponse = await eventQuery;
         totalEvent = (eventResponse as List).length;
+        print('Dashboard events count (UKM $ukmId, periode $periodeId): $totalEvent');
       } catch (e) {
         print('Error fetching events: $e');
         totalEvent = 0;
       }
 
-      // ========== GET TOTAL PERTEMUAN ==========
+      // ========== GET TOTAL PERTEMUAN (matching Pertemuan page - upcoming only, NO UKM filter) ==========
       try {
-        // Debug: First get ALL pertemuan to see what's in the table
-        final allPertemuan = await _supabase
-            .from('pertemuan')
-            .select('id_pertemuan, id_ukm, topik');
-        print('DEBUG All pertemuan in DB: ${(allPertemuan as List).length}');
-        if ((allPertemuan as List).isNotEmpty) {
-          print('DEBUG Sample pertemuan: ${allPertemuan.take(3).toList()}');
-        }
+        final now = DateTime.now();
+        final todayStr = now.toIso8601String().split('T')[0]; // Get date only
         
-        // Include pertemuan with matching id_ukm OR null id_ukm (legacy data)
+        // Pertemuan page uses: _pertemuanService.getAllPertemuan() which loads ALL pertemuan
+        // Then client-side filters by "Mendatang" (tanggal >= today)
+        // So we should NOT filter by id_ukm, just by upcoming date
         final pertemuanResponse = await _supabase
             .from('pertemuan')
             .select('id_pertemuan')
-            .or('id_ukm.eq.$ukmId,id_ukm.is.null');
+            .gte('tanggal', todayStr); // Only upcoming pertemuan
 
         totalPertemuan = (pertemuanResponse as List).length;
-        print('DEBUG Pertemuan for UKM $ukmId: $totalPertemuan');
+        print('Dashboard pertemuan count (upcoming, all UKMs): $totalPertemuan');
       } catch (e) {
         print('Error fetching pertemuan: $e');
         totalPertemuan = 0;

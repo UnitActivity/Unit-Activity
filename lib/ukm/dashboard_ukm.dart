@@ -319,6 +319,10 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
     if (_scaffoldKey.currentState?.isDrawerOpen ?? false) {
       Navigator.pop(context);
     }
+    // Reload dashboard data when navigating back to dashboard
+    if (menu == 'dashboard') {
+      _loadDashboardData();
+    }
   }
 
   void _handleLogout() {
