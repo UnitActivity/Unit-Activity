@@ -82,7 +82,7 @@ class _AkunUKMPageState extends State<AkunUKMPage> {
           // Load UKM data
           final ukmData = await _supabase
               .from('ukm')
-              .select('id_ukm, nama_ukm, id_admin')
+              .select('id_ukm, nama_ukm, id_admin, logo')
               .eq('id_admin', userId)
               .maybeSingle();
 
@@ -198,6 +198,12 @@ class _AkunUKMPageState extends State<AkunUKMPage> {
       _passwordController.clear();
       _confirmPasswordController.clear();
     });
+  }
+
+  String? _getUkmLogoUrl(String? logoPath) {
+    if (logoPath == null || logoPath.isEmpty) return null;
+    if (logoPath.startsWith('http')) return logoPath;
+    return _supabase.storage.from('ukm-logos').getPublicUrl(logoPath);
   }
 
   @override
@@ -319,11 +325,19 @@ class _AkunUKMPageState extends State<AkunUKMPage> {
                 CircleAvatar(
                   radius: isMobile ? 50 : 60,
                   backgroundColor: const Color(0xFF4169E1).withOpacity(0.1),
-                  child: Icon(
-                    Icons.group,
-                    size: isMobile ? 50 : 60,
-                    color: const Color(0xFF4169E1),
-                  ),
+                  backgroundImage: _ukmData != null &&
+                          _getUkmLogoUrl(_ukmData!['logo']) != null
+                      ? NetworkImage(_getUkmLogoUrl(_ukmData!['logo'])!)
+                      : null,
+                  child: (_ukmData == null ||
+                          _ukmData!['logo'] == null ||
+                          _ukmData!['logo'] == '')
+                      ? Icon(
+                          Icons.group,
+                          size: isMobile ? 50 : 60,
+                          color: const Color(0xFF4169E1),
+                        )
+                      : null,
                 ),
                 SizedBox(height: isMobile ? 12 : 16),
 
