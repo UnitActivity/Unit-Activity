@@ -217,21 +217,20 @@ class UkmDashboardService {
         totalEvent = 0;
       }
 
-      // ========== GET TOTAL PERTEMUAN (matching Pertemuan page - upcoming only, NO UKM filter) ==========
+      // ========== GET TOTAL PERTEMUAN (matching Pertemuan page - upcoming only, WITH UKM filter) ==========
       try {
         final now = DateTime.now();
         final todayStr = now.toIso8601String().split('T')[0]; // Get date only
         
-        // Pertemuan page uses: _pertemuanService.getAllPertemuan() which loads ALL pertemuan
-        // Then client-side filters by "Mendatang" (tanggal >= today)
-        // So we should NOT filter by id_ukm, just by upcoming date
+        // Count upcoming pertemuan for this UKM
         final pertemuanResponse = await _supabase
             .from('pertemuan')
             .select('id_pertemuan')
+            .eq('id_ukm', ukmId)
             .gte('tanggal', todayStr); // Only upcoming pertemuan
 
         totalPertemuan = (pertemuanResponse as List).length;
-        print('Dashboard pertemuan count (upcoming, all UKMs): $totalPertemuan');
+        print('Dashboard pertemuan count (UKM $ukmId, upcoming): $totalPertemuan');
       } catch (e) {
         print('Error fetching pertemuan: $e');
         totalPertemuan = 0;

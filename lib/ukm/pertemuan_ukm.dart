@@ -107,14 +107,32 @@ class _PertemuanUKMPageState extends State<PertemuanUKMPage> {
   Future<void> _loadPertemuan() async {
     setState(() => _isLoading = true);
     try {
-      // Load all pertemuan without UUID filter
-      final pertemuan = await _pertemuanService.getAllPertemuan();
+      // Get current UKM ID
+      final ukmId = await _dashboardService.getCurrentUkmId();
+      if (ukmId == null) {
+        throw Exception('Tidak dapat mengidentifikasi UKM');
+      }
+
+      // Get current periode
+      final periode = await _dashboardService.getCurrentPeriode(ukmId);
+      final periodeId = periode?['id_periode']?.toString() ?? '';
+
+      // Load pertemuan for this UKM with large limit to support client-side pagination
+      final pertemuan = await _pertemuanService.getPertemuanByUkm(
+        ukmId,
+        periodeId,
+        limit: 1000,
+      );
+
       setState(() {
         _pertemuanList = pertemuan;
         _filteredPertemuanList = pertemuan;
         _currentPage = 1; // Reset to first page
         _isLoading = false;
       });
+      
+      // Apply existing filters
+      _applyFilters();
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
