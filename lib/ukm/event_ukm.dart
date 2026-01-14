@@ -570,8 +570,8 @@ class _EventUKMPageState extends State<EventUKMPage> {
                     },
                   ),
                   
-                  // Pagination Controls
-                  if (_filteredEventList.isNotEmpty && _totalPages > 1)
+                  // Pagination Controls - Always show when there are events
+                  if (_filteredEventList.isNotEmpty)
                     Container(
                       margin: const EdgeInsets.only(top: 16),
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
