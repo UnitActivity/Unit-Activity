@@ -113,6 +113,19 @@ class _EventPageState extends State<EventPage> {
           .from('event_documents')
           .select('id_event, document_type, status');
 
+      // Load participant count from absen_event for each event
+      final absenData = await _supabase.from('absen_event').select('id_event');
+
+      // Create participant count map: id_event -> count
+      final participantCountMap = <String, int>{};
+      for (var absen in (absenData as List)) {
+        final eventId = absen['id_event']?.toString();
+        if (eventId != null) {
+          participantCountMap[eventId] =
+              (participantCountMap[eventId] ?? 0) + 1;
+        }
+      }
+
       final periodeMap = <String, String>{};
       for (var p in periodeData) {
         periodeMap[p['id_periode']] = p['nama_periode'];
@@ -160,6 +173,9 @@ class _EventPageState extends State<EventPage> {
             event['status_lpj'] = docStatus['lpj'];
           }
         }
+
+        // Attach participant count from absen_event
+        event['registered_count'] = participantCountMap[eventId] ?? 0;
 
         // Ensure default values
         event['status_proposal'] ??= 'belum_ajukan';
@@ -666,6 +682,28 @@ class _EventPageState extends State<EventPage> {
                           event['jam_mulai'],
                           event['jam_akhir'],
                         ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                // Participant Count Row
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildInfoChip(
+                        icon: Icons.people_rounded,
+                        label: 'Peserta',
+                        value:
+                            '${event['registered_count'] ?? 0}/${event['max_participant'] ?? '-'}',
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildInfoChip(
+                        icon: Icons.category_outlined,
+                        label: 'Tipe Akses',
+                        value: event['tipe_akses'] ?? 'anggota',
                       ),
                     ),
                   ],

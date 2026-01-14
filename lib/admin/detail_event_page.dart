@@ -324,8 +324,10 @@ class _DetailEventPageState extends State<DetailEventPage> {
   }
 
   Widget _buildEventHeaderCard(bool isDesktop, bool isMobile) {
+    // Get event image
+    final String? imageUrl = widget.event['gambar'];
+
     return Container(
-      padding: EdgeInsets.all(isMobile ? 16 : 24),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -340,80 +342,128 @@ class _DetailEventPageState extends State<DetailEventPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              // Event Icon
-              Container(
-                padding: EdgeInsets.all(isMobile ? 12 : 16),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF4169E1), Color(0xFF5B7FE8)],
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF4169E1).withValues(alpha: 0.3),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Icon(
-                  Icons.event_rounded,
-                  size: isMobile ? 24 : 32,
-                  color: Colors.white,
-                ),
-              ),
-              SizedBox(width: isMobile ? 12 : 16),
-
-              // Event Info
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.event['nama_event'] ?? '-',
-                      style: GoogleFonts.inter(
-                        fontSize: isDesktop ? 24 : 20,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF4169E1).withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.category_rounded,
-                            size: 14,
-                            color: const Color(0xFF4169E1),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            widget.event['tipevent'] ?? '-',
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFF4169E1),
-                              letterSpacing: 0.5,
+          // Event Image
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+            child: AspectRatio(
+              aspectRatio: 16 / 9,
+              child: imageUrl != null && imageUrl.isNotEmpty
+                  ? Image.network(
+                      imageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          color: const Color(0xFF4169E1).withValues(alpha: 0.1),
+                          child: const Center(
+                            child: Icon(
+                              Icons.event_rounded,
+                              size: 48,
+                              color: Color(0xFF4169E1),
                             ),
                           ),
-                        ],
+                        );
+                      },
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return Container(
+                          color: Colors.grey[100],
+                          child: const Center(
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        );
+                      },
+                    )
+                  : Container(
+                      color: const Color(0xFF4169E1).withValues(alpha: 0.1),
+                      child: const Center(
+                        child: Icon(
+                          Icons.event_rounded,
+                          size: 48,
+                          color: Color(0xFF4169E1),
+                        ),
                       ),
                     ),
-                  ],
+            ),
+          ),
+
+          // Content
+          Padding(
+            padding: EdgeInsets.all(isMobile ? 16 : 24),
+            child: Row(
+              children: [
+                // Event Icon
+                Container(
+                  padding: EdgeInsets.all(isMobile ? 12 : 16),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF4169E1), Color(0xFF5B7FE8)],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF4169E1).withValues(alpha: 0.3),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    Icons.event_rounded,
+                    size: isMobile ? 24 : 32,
+                    color: Colors.white,
+                  ),
                 ),
-              ),
-            ],
+                SizedBox(width: isMobile ? 12 : 16),
+
+                // Event Info
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.event['nama_event'] ?? '-',
+                        style: GoogleFonts.inter(
+                          fontSize: isDesktop ? 24 : 20,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF4169E1).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.category_rounded,
+                              size: 14,
+                              color: const Color(0xFF4169E1),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              widget.event['tipevent'] ?? '-',
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF4169E1),
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),

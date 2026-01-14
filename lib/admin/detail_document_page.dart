@@ -881,6 +881,11 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
     final status = isProposal ? _proposal?.status ?? '-' : _lpj?.status ?? '-';
     final statusStyle = DocumentService.getStatusStyle(status);
 
+    // Get event image
+    final eventImage = isProposal
+        ? _proposal?.getEventImage()
+        : _lpj?.getEventImage();
+
     final fileSize = isProposal
         ? _proposal?.fileSize
         : _selectedLpjFile == 'laporan'
@@ -888,7 +893,6 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
         : _lpj?.fileSizeKeuangan;
 
     return Container(
-      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -903,122 +907,175 @@ class _DetailDocumentPageState extends State<DetailDocumentPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: isProposal
-                        ? [const Color(0xFF4169E1), const Color(0xFF5B7FE8)]
-                        : [const Color(0xFF10B981), const Color(0xFF059669)],
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  isProposal
-                      ? Icons.description_rounded
-                      : Icons.assignment_turned_in_rounded,
-                  color: Colors.white,
-                  size: 28,
+          // Event Image
+          if (eventImage != null && eventImage.isNotEmpty)
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(16),
+              ),
+              child: AspectRatio(
+                aspectRatio: 16 / 9,
+                child: Image.network(
+                  eventImage,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      color: const Color(0xFF4169E1).withValues(alpha: 0.1),
+                      child: const Center(
+                        child: Icon(
+                          Icons.event_rounded,
+                          size: 48,
+                          color: Color(0xFF4169E1),
+                        ),
+                      ),
+                    );
+                  },
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return Container(
+                      color: Colors.grey[100],
+                      child: const Center(
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    );
+                  },
                 ),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      isProposal
-                          ? 'Proposal Event'
-                          : 'Laporan Pertanggungjawaban',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      eventName,
-                      style: GoogleFonts.inter(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.black87,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: (statusStyle['color'] as Color).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: (statusStyle['color'] as Color).withValues(
-                      alpha: 0.3,
-                    ),
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      statusStyle['icon'] as IconData,
-                      size: 16,
-                      color: statusStyle['color'] as Color,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      statusStyle['label'] as String,
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: statusStyle['color'] as Color,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Divider(color: Colors.grey[200]),
-          const SizedBox(height: 20),
-          _buildInfoRow(Icons.business, 'UKM', ukmName),
-          const SizedBox(height: 12),
-          _buildInfoRow(Icons.person, 'Diajukan oleh', userName),
-          const SizedBox(height: 12),
-          _buildInfoRow(
-            Icons.calendar_today,
-            'Tanggal Pengajuan',
-            tanggalPengajuan != null
-                ? DateFormat(
-                    'dd MMMM yyyy, HH:mm',
-                    'id_ID',
-                  ).format(tanggalPengajuan)
-                : '-',
-          ),
-          if (tanggalDitinjau != null) ...[
-            const SizedBox(height: 12),
-            _buildInfoRow(
-              Icons.check_circle,
-              'Tanggal Ditinjau',
-              DateFormat(
-                'dd MMMM yyyy, HH:mm',
-                'id_ID',
-              ).format(tanggalDitinjau),
             ),
-          ],
-          const SizedBox(height: 12),
-          _buildInfoRow(
-            Icons.storage,
-            'Ukuran File',
-            DocumentService.formatFileSize(fileSize),
+
+          // Content
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: isProposal
+                              ? [
+                                  const Color(0xFF4169E1),
+                                  const Color(0xFF5B7FE8),
+                                ]
+                              : [
+                                  const Color(0xFF10B981),
+                                  const Color(0xFF059669),
+                                ],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        isProposal
+                            ? Icons.description_rounded
+                            : Icons.assignment_turned_in_rounded,
+                        color: Colors.white,
+                        size: 28,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            isProposal
+                                ? 'Proposal Event'
+                                : 'Laporan Pertanggungjawaban',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            eventName,
+                            style: GoogleFonts.inter(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: (statusStyle['color'] as Color).withValues(
+                          alpha: 0.1,
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: (statusStyle['color'] as Color).withValues(
+                            alpha: 0.3,
+                          ),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            statusStyle['icon'] as IconData,
+                            size: 16,
+                            color: statusStyle['color'] as Color,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            statusStyle['label'] as String,
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: statusStyle['color'] as Color,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Divider(color: Colors.grey[200]),
+                const SizedBox(height: 20),
+                _buildInfoRow(Icons.business, 'UKM', ukmName),
+                const SizedBox(height: 12),
+                _buildInfoRow(Icons.person, 'Diajukan oleh', userName),
+                const SizedBox(height: 12),
+                _buildInfoRow(
+                  Icons.calendar_today,
+                  'Tanggal Pengajuan',
+                  tanggalPengajuan != null
+                      ? DateFormat(
+                          'dd MMMM yyyy, HH:mm',
+                          'id_ID',
+                        ).format(tanggalPengajuan)
+                      : '-',
+                ),
+                if (tanggalDitinjau != null) ...[
+                  const SizedBox(height: 12),
+                  _buildInfoRow(
+                    Icons.check_circle,
+                    'Tanggal Ditinjau',
+                    DateFormat(
+                      'dd MMMM yyyy, HH:mm',
+                      'id_ID',
+                    ).format(tanggalDitinjau),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                _buildInfoRow(
+                  Icons.storage,
+                  'Ukuran File',
+                  DocumentService.formatFileSize(fileSize),
+                ),
+              ],
+            ),
           ),
         ],
       ),
