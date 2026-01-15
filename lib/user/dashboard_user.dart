@@ -9,6 +9,7 @@ import 'package:unit_activity/user/profile.dart';
 import 'package:unit_activity/user/event.dart';
 import 'package:unit_activity/user/ukm.dart';
 import 'package:unit_activity/user/history.dart';
+import 'package:unit_activity/user/event_detail_user.dart';
 import 'package:unit_activity/services/user_dashboard_service.dart';
 import 'package:unit_activity/services/attendance_service.dart';
 import 'package:unit_activity/services/custom_auth_service.dart';
@@ -520,6 +521,7 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
 
           final infoData = {
             'id': item['id_informasi'],
+            'id_ukm': item['id_ukm']?.toString(), // CAPTURE UKM ID for navigation
             'title': item['judul'] ?? 'Informasi',
             'description': item['deskripsi'] ?? '',
             'subtitle': isFromAdmin
@@ -576,6 +578,7 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
         for (var item in eventsResponse) {
           final eventData = {
             'id': item['id_events'],
+            'id_ukm': item['id_ukm']?.toString(), // UKM ID for context
             'title': item['nama_event'] ?? 'Event',
             'description': item['deskripsi'] ?? '',
             'subtitle': item['ukm']?['nama_ukm'] ?? 'Event',
@@ -1377,184 +1380,181 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
             child: Stack(
               children: [
                 // Image and content
-                Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    // Background image - prioritize imageUrl from database
-                    _sliderEvents[_currentSlideIndex]['imageUrl'] != null
-                        ? Image.network(
-                            _sliderEvents[_currentSlideIndex]['imageUrl']!,
-                            fit: BoxFit.cover,
-                            loadingBuilder: (context, child, loadingProgress) {
-                              if (loadingProgress == null) return child;
-                              return Container(
-                                color: Colors.grey[200],
-                                child: Center(
-                                  child: CircularProgressIndicator(
-                                    value:
-                                        loadingProgress.expectedTotalBytes !=
-                                            null
-                                        ? loadingProgress
-                                                  .cumulativeBytesLoaded /
-                                              loadingProgress
-                                                  .expectedTotalBytes!
-                                        : null,
+                Positioned.fill(
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () {
+                        // Navigate based on source
+                        final currentItem = _sliderEvents[_currentSlideIndex];
+                        final source = currentItem['source'];
+
+                        print('🔘 Carousel Item Clicked: ${currentItem['title']} ($source)');
+
+                        if (source == 'ukm') {
+                          // Navigate to UKM Page with specific UKM selected
+                          final ukmId = currentItem['id_ukm'];
+                          if (ukmId != null) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => UserUKMPage(initialUkmId: ukmId),
+                              ),
+                            );
+                          } else {
+                            // Fallback if no ID
+                             _navigateToInformasiDetail(currentItem);
+                          }
+                        } else if (source == 'event') {
+                           // Navigate to Event Detail
+                           if (currentItem['id'] != null) {
+                             Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => UserEventDetailPage(eventId: currentItem['id'].toString()),
+                              ),
+                            );
+                           }
+                        } else {
+                          // Admin or other - show standard detail modal
+                          _navigateToInformasiDetail(currentItem);
+                        }
+                      },
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          // Background image - prioritize imageUrl from database
+                          _sliderEvents[_currentSlideIndex]['imageUrl'] != null
+                              ? Image.network(
+                                  _sliderEvents[_currentSlideIndex]['imageUrl']!,
+                                  fit: BoxFit.cover,
+                                  loadingBuilder: (context, child, loadingProgress) {
+                                    if (loadingProgress == null) return child;
+                                    return Container(
+                                      color: Colors.grey[200],
+                                      child: Center(
+                                        child: CircularProgressIndicator(
+                                          value:
+                                              loadingProgress.expectedTotalBytes !=
+                                                  null
+                                              ? loadingProgress
+                                                        .cumulativeBytesLoaded /
+                                                    loadingProgress
+                                                        .expectedTotalBytes!
+                                              : null,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  errorBuilder: (context, error, stackTrace) {
+                                    // Show placeholder if image fails to load
+                                    return Container(
+                                      color: Colors.blue[300],
+                                      child: Center(
+                                        child: Icon(
+                                          Icons.info,
+                                          size: 80,
+                                          color: Colors.white.withOpacity(0.3),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                )
+                              : Container(
+                                  color: Colors.blue[300],
+                                  child: Center(
+                                    child: Icon(
+                                      Icons.info,
+                                      size: 80,
+                                      color: Colors.white.withOpacity(0.3),
+                                    ),
                                   ),
                                 ),
-                              );
-                            },
-                            errorBuilder: (context, error, stackTrace) {
-                              // Show placeholder if image fails to load
-                              return Container(
-                                color: Colors.blue[300],
-                                child: Center(
-                                  child: Icon(
-                                    Icons.info,
-                                    size: 80,
-                                    color: Colors.white.withOpacity(0.3),
-                                  ),
-                                ),
-                              );
-                            },
-                          )
-                        : Container(
-                            color: Colors.blue[300],
-                            child: Center(
-                              child: Icon(
-                                Icons.info,
-                                size: 80,
-                                color: Colors.white.withOpacity(0.3),
+                          // Dark gradient overlay
+                          Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.transparent,
+                                  Colors.black.withValues(alpha: 0.7),
+                                ],
                               ),
                             ),
                           ),
-                    // Dark gradient overlay
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.transparent,
-                            Colors.black.withValues(alpha: 0.7),
-                          ],
-                        ),
-                      ),
-                    ),
-                    // Title and info
-                    Positioned(
-                      bottom: isMobile ? 12 : 24,
-                      left: isMobile ? 12 : 24,
-                      right: isMobile ? 60 : 24,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Source badge (Admin or UKM)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color:
-                                  _sliderEvents[_currentSlideIndex]['source'] ==
-                                      'admin'
-                                  ? Colors.purple.withOpacity(0.9)
-                                  : Colors.blue.withOpacity(0.9),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
+                          // Title and info
+                          Positioned(
+                            bottom: isMobile ? 12 : 24,
+                            left: isMobile ? 12 : 24,
+                            right: isMobile ? 60 : 24,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Icon(
-                                  _sliderEvents[_currentSlideIndex]['source'] ==
-                                          'admin'
-                                      ? Icons.admin_panel_settings
-                                      : Icons.school,
-                                  size: 12,
-                                  color: Colors.white,
+                                // Source badge (Admin or UKM)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color:
+                                        _sliderEvents[_currentSlideIndex]['source'] ==
+                                            'admin'
+                                        ? Colors.purple.withOpacity(0.9)
+                                        : Colors.blue.withOpacity(0.9),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        _sliderEvents[_currentSlideIndex]['source'] ==
+                                                'admin'
+                                            ? Icons.admin_panel_settings
+                                            : Icons.school,
+                                        size: 12,
+                                        color: Colors.white,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        _sliderEvents[_currentSlideIndex]['subtitle'] ??
+                                            '',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                                const SizedBox(width: 4),
+                                const SizedBox(height: 8),
                                 Text(
-                                  _sliderEvents[_currentSlideIndex]['subtitle'] ??
-                                      '',
-                                  style: const TextStyle(
+                                  _sliderEvents[_currentSlideIndex]['title'] ?? '',
+                                  style: TextStyle(
                                     color: Colors.white,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600,
+                                    fontSize: isMobile ? 14 : 20,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  _sliderEvents[_currentSlideIndex]['date'] ?? '',
+                                  style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: isMobile ? 10 : 12,
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            _sliderEvents[_currentSlideIndex]['title'] ?? '',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: isMobile ? 14 : 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Text(
-                                _sliderEvents[_currentSlideIndex]['date'] ?? '',
-                                style: TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: isMobile ? 10 : 12,
-                                ),
-                              ),
-                              const Spacer(),
-                              InkWell(
-                                onTap: () {
-                                  // Navigate to informasi detail page
-                                  final currentItem =
-                                      _sliderEvents[_currentSlideIndex];
-                                  _navigateToInformasiDetail(currentItem);
-                                },
-                                child: Container(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: isMobile ? 8 : 12,
-                                    vertical: isMobile ? 4 : 6,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.2),
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: Colors.white.withOpacity(0.5),
-                                      width: 1,
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        'Lebih Lanjut',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: isMobile ? 10 : 12,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      SizedBox(width: isMobile ? 4 : 6),
-                                      Icon(
-                                        Icons.arrow_forward,
-                                        color: Colors.white,
-                                        size: isMobile ? 12 : 14,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
                         ],
                       ),
                     ),
-                  ],
+                  ),
                 ),
                 // Previous button (left) - Always show
                 Positioned(

@@ -386,6 +386,23 @@ class _UserEventDetailPageState extends State<UserEventDetailPage>
       'unknown': 'Unknown',
     };
 
+    // Robust extraction of UKM data
+    String? ukmLogo;
+    String ukmName = 'UKM';
+    if (_event?['ukm'] != null) {
+      final ukmData = _event!['ukm'];
+      if (ukmData is Map) {
+         ukmLogo = ukmData['logo'];
+         ukmName = ukmData['nama_ukm'] ?? 'UKM';
+      } else if (ukmData is List && ukmData.isNotEmpty) {
+         ukmLogo = ukmData[0]['logo'];
+         ukmName = ukmData[0]['nama_ukm'] ?? 'UKM';
+      }
+    }
+
+    final eventImage = _event?['image'] ?? _resolveImageUrl(_event?['gambar']);
+    final displayImage = (eventImage != null && eventImage.isNotEmpty) ? eventImage : ukmLogo;
+
     return Container(
       padding: EdgeInsets.all(isDesktop ? 24 : 16),
       decoration: BoxDecoration(
@@ -403,7 +420,7 @@ class _UserEventDetailPageState extends State<UserEventDetailPage>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Event Image/Logo
-          if (_event?['gambar'] != null && _event!['gambar'].isNotEmpty)
+          if (displayImage != null && displayImage.isNotEmpty)
             Container(
               height: isDesktop ? 200 : 150,
               width: double.infinity,
@@ -411,7 +428,7 @@ class _UserEventDetailPageState extends State<UserEventDetailPage>
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
                 image: DecorationImage(
-                  image: NetworkImage(_event!['gambar']),
+                  image: NetworkImage(displayImage),
                   fit: BoxFit.cover,
                 ),
               ),
@@ -431,7 +448,7 @@ class _UserEventDetailPageState extends State<UserEventDetailPage>
                   Icon(Icons.event, size: 60, color: Colors.grey[400]),
                   const SizedBox(height: 8),
                   Text(
-                    _event?['ukm']?['nama_ukm'] ?? 'UKM',
+                    ukmName,
                     style: GoogleFonts.inter(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -1017,5 +1034,15 @@ class _UserEventDetailPageState extends State<UserEventDetailPage>
         ],
       ),
     );
+  }
+  // Helper to construct full image URL
+  String? _resolveImageUrl(String? path) {
+    if (path == null || path.isEmpty) return null;
+    if (path.startsWith('http')) return path;
+    try {
+       return Supabase.instance.client.storage.from('event-images').getPublicUrl(path);
+    } catch (_) {
+       return path;
+    }
   }
 }

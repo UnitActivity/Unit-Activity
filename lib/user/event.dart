@@ -171,17 +171,33 @@ class _UserEventPageState extends State<UserEventPage>
         final ukmId = event['id_ukm']?.toString() ?? '';
         final tipeAkses = event['tipe_akses']?.toString().toLowerCase() ?? 'anggota';
         final isMyUKM = _userUKMIds.contains(ukmId);
-        
         // Access control: umum events visible to all, anggota events only to UKM members
         final canView = tipeAkses == 'umum' || isMyUKM;
         
+        // Robust extraction of UKM data
+        String ukmName = '';
+        String? ukmLogo;
+        
+        final ukmData = event['ukm'];
+        if (ukmData != null) {
+          if (ukmData is Map) {
+            ukmName = ukmData['nama_ukm'] ?? '';
+            ukmLogo = ukmData['logo'];
+          } else if (ukmData is List && ukmData.isNotEmpty) {
+            ukmName = ukmData[0]['nama_ukm'] ?? '';
+            ukmLogo = ukmData[0]['logo'];
+          }
+        }
+
+
+
         return {
           'id': eventId,
           'id_ukm': ukmId,
           'tipe_akses': tipeAkses,
           'canView': canView,
           'title': event['nama_event'] ?? 'Event',
-          'image': null,
+          'image': _resolveImageUrl(event['gambar']),
           'date': _formatDate(event['tanggal_mulai']),
           'time':
               '${event['jam_mulai'] ?? ''} - ${event['jam_akhir'] ?? ''} WIB',
@@ -189,8 +205,8 @@ class _UserEventPageState extends State<UserEventPage>
           'description': event['deskripsi'] ?? '',
           'isRegistered': _registeredEventIds.contains(eventId),
           'isMyUKM': isMyUKM,
-          'ukm_name': event['ukm']?['nama_ukm'] ?? '',
-          'ukm_logo': event['ukm']?['logo'],
+          'ukm_name': ukmName,
+          'ukm_logo': ukmLogo,
           'max_participant': event['max_participant'],
           'tanggal_mulai': event['tanggal_mulai'],
           'tanggal_akhir': event['tanggal_akhir'],
@@ -323,6 +339,17 @@ class _UserEventPageState extends State<UserEventPage>
       // Refresh data when returning
       _loadEvents();
     });
+  }
+
+  // Helper to construct full image URL
+  String? _resolveImageUrl(String? path) {
+    if (path == null || path.isEmpty) return null;
+    if (path.startsWith('http')) return path;
+    try {
+       return Supabase.instance.client.storage.from('event-images').getPublicUrl(path);
+    } catch (_) {
+       return path;
+    }
   }
 
   /// Register user for an event
@@ -1143,7 +1170,10 @@ class _UserEventPageState extends State<UserEventPage>
   // ==================== EVENT CARD ====================
   Widget _buildEventCard(Map<String, dynamic> event) {
     final String eventId = event['id_events']?.toString() ?? '';
-    final String? imageUrl = event['gambar'];
+    // Use resolved event image if available, otherwise fallback to UKM logo
+    final String? imageUrl = (event['image'] != null && event['image'].toString().isNotEmpty) 
+        ? event['image'] 
+        : event['ukm_logo'];
     final String title = event['nama_event'] ?? 'Event';
     final String location = event['lokasi'] ?? '-';
     final String? dateStr = event['tanggal_mulai'];

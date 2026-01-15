@@ -579,10 +579,87 @@ class _NotifikasiUserPageState extends State<NotifikasiUserPage>
                    height: 24,
                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.blue[600]),
                  ),
-               ),
-             ),
+               ),             ),
 
+          // Pagination Controls
+          if (allNotifications.isNotEmpty || _notificationService.currentPage > 0)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                   // Previous Button
+                   ElevatedButton.icon(
+                     onPressed: !_notificationService.isLoading && _notificationService.currentPage > 0
+                         ? () => _notificationService.prevPage()
+                         : null,
+                     icon: const Icon(Icons.arrow_back_ios_rounded, size: 14),
+                     label: const Text('Sebelumnya'),
+                     style: ElevatedButton.styleFrom(
+                       backgroundColor: Colors.white,
+                       foregroundColor: Colors.blue[700],
+                       disabledBackgroundColor: Colors.grey[100],
+                       disabledForegroundColor: Colors.grey[400],
+                       elevation: 0,
+                       side: BorderSide(color: Colors.grey.shade300),
+                       shape: RoundedRectangleBorder(
+                         borderRadius: BorderRadius.circular(8),
+                       ),
+                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                     ),
+                   ),
 
+                   const SizedBox(width: 16),
+
+                   // Page Indicator
+                   Container(
+                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                     decoration: BoxDecoration(
+                       color: Colors.blue[50],
+                       borderRadius: BorderRadius.circular(20),
+                       border: Border.all(color: Colors.blue.shade100),
+                     ),
+                     child: Text(
+                       'Hal ${_notificationService.currentPage + 1}',
+                       style: GoogleFonts.poppins(
+                         fontWeight: FontWeight.w600,
+                         color: Colors.blue[800],
+                         fontSize: 12,
+                       ),
+                     ),
+                   ),
+
+                   const SizedBox(width: 16),
+
+                   // Next Button
+                   ElevatedButton(
+                     onPressed: !_notificationService.isLoading && _notificationService.hasMore
+                         ? () => _notificationService.nextPage()
+                         : null,
+                     style: ElevatedButton.styleFrom(
+                       backgroundColor: Colors.white,
+                       foregroundColor: Colors.blue[700],
+                       disabledBackgroundColor: Colors.grey[100],
+                       disabledForegroundColor: Colors.grey[400],
+                       elevation: 0,
+                       side: BorderSide(color: Colors.grey.shade300),
+                       shape: RoundedRectangleBorder(
+                         borderRadius: BorderRadius.circular(8),
+                       ),
+                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                     ),
+                     child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                           const Text('Selanjutnya'),
+                           const SizedBox(width: 8),
+                           const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                        ],
+                     ),
+                   ),
+                ],
+              ),
+            ),
         ],
       ],
     );

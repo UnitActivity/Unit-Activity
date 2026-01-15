@@ -2018,7 +2018,7 @@ class _HistoryDetailPageState extends State<HistoryDetailPage>
   // ==================== SIDEBAR ====================
   Widget _buildSidebar(BuildContext context) {
     return UserSidebar(
-      selectedMenu: 'histori',
+      selectedMenu: 'historu',
       onMenuSelected: (menu) {
         if (menu == 'dashboard') {
           Navigator.pushReplacement(

@@ -156,9 +156,9 @@ class UserNotificationService extends ChangeNotifier {
   final SupabaseClient _supabase = Supabase.instance.client;
   final CustomAuthService _authService = CustomAuthService();
 
-  // Reverted pagination state
-  // Using a limit instead
-  final int _limit = 50; 
+  int _currentPage = 0;
+  final int _pageSize = 15;
+  bool _hasMore = true;
 
   List<UserNotification> _notifications = [];
   bool _isLoading = false;
@@ -166,16 +166,27 @@ class UserNotificationService extends ChangeNotifier {
   int _unreadCount = 0;
 
   List<UserNotification> get notifications => _notifications;
+  bool get hasMore => _hasMore;
   bool get isLoading => _isLoading;
   String? get error => _error;
+  int get currentPage => _currentPage;
   int get unreadCount => _unreadCount;
   
-  // Dummy getter for backward compatibility if UI still uses it (will not support pagination)
-  bool get hasMore => false;
-  int get currentPage => 0;
-
   /// Get current user ID from custom auth service
   String? get currentUserId => _authService.currentUserId;
+
+  /// Compatibility wrapper for older code calling loadNotifications
+  /// If refresh is true, it loads page 0.
+  Future<void> loadNotifications({bool refresh = false}) async {
+    if (refresh) {
+      await loadPage(0);
+    } else {
+      // If called without refresh (e.g. initial load), load page 0 if empty
+      if (_notifications.isEmpty) {
+        await loadPage(0);
+      }
+    }
+  }
 
   /// Fetch separate unread count for badge
   Future<void> fetchUnreadCount() async {
@@ -196,13 +207,10 @@ class UserNotificationService extends ChangeNotifier {
     }
   }
 
-  /// Load notifications (Latest 50)
-  Future<void> loadNotifications({bool refresh = false}) async {
+  /// Load notifications for a specific page (0-indexed)
+  Future<void> loadPage(int page) async {
     if (_isLoading) return;
     
-    // If not refresh and we already have data, don't unnecessary reload
-    if (!refresh && _notifications.isNotEmpty) return;
-
     _isLoading = true;
     _error = null;
     notifyListeners();
@@ -216,14 +224,19 @@ class UserNotificationService extends ChangeNotifier {
         return;
       }
 
-      print('========== LOAD ALL USER NOTIFICATIONS (No Limit) ==========');
+      final int from = page * _pageSize;
+      final int to = from + _pageSize - 1;
+
+      print('========== LOAD USER NOTIFICATIONS (Page $page) ==========');
+      print('Range: $from - $to');
 
       // 1. Fetch from notification_preference
       final userNotifications = await _supabase
           .from('notification_preference')
           .select('*')
           .eq('id_user', userId)
-          .order('create_at', ascending: false); // Fetch All, Newest First
+          .order('create_at', ascending: false)
+          .range(from, to);
 
       List<UserNotification> batchNotifications = [];
 
@@ -256,8 +269,10 @@ class UserNotificationService extends ChangeNotifier {
           );
       }
 
-      // Replace notifications list (Simple list)
+      // Replace notifications list (Don't append)
       _notifications = batchNotifications;
+      _currentPage = page;
+      _hasMore = batchNotifications.length >= _pageSize;
       
       // Update unread count separately
       await fetchUnreadCount();
@@ -272,16 +287,23 @@ class UserNotificationService extends ChangeNotifier {
     }
   }
 
-  // Deprecated pagination support methods (No-ops)
-  Future<void> loadPage(int page) async {
-    await loadNotifications(refresh: true);
+  /// Next page
+  Future<void> nextPage() async {
+    if (!_hasMore) return;
+    await loadPage(_currentPage + 1);
   }
-  Future<void> nextPage() async {}
-  Future<void> prevPage() async {}
 
-  /// Refresh notifications
+  /// Previous page
+  Future<void> prevPage() async {
+    if (_currentPage > 0) {
+      await loadPage(_currentPage - 1);
+    }
+  }
+
+  /// Reload current page
   Future<void> refresh() async {
-    await loadNotifications(refresh: true);
+    await loadPage(_currentPage);
+    await fetchUnreadCount();
   }
 
   /// Mark single as read

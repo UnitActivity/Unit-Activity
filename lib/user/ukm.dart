@@ -14,7 +14,8 @@ import 'package:unit_activity/services/pertemuan_service.dart';
 import 'package:unit_activity/services/attendance_service.dart';
 
 class UserUKMPage extends StatefulWidget {
-  const UserUKMPage({super.key});
+  final String? initialUkmId;
+  const UserUKMPage({super.key, this.initialUkmId});
 
   @override
   State<UserUKMPage> createState() => _UserUKMPageState();
@@ -293,12 +294,25 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
         });
       }
 
-      if (!mounted) return;
+      if (mounted) {
+        setState(() {
+          _allUKMs = processedUKMs;
+          _isLoading = false;
 
-      setState(() {
-        _allUKMs = processedUKMs;
-        _isLoading = false;
-      });
+          // Auto-select UKM if provided in constructor (Deep Linking)
+          if (widget.initialUkmId != null && _selectedUKM == null) {
+            try {
+              final targetUKM = _allUKMs.firstWhere(
+                (ukm) => ukm['id'].toString() == widget.initialUkmId.toString(),
+              );
+              _viewUKMDetail(targetUKM);
+              print('🔗 Deep linked to UKM: ${targetUKM['name']}');
+            } catch (e) {
+              print('⚠️ Could not find initial UKM ID: ${widget.initialUkmId}');
+            }
+          }
+        });
+      }
       
       print('========== _loadUKMs END ==========');
       print('Processed ${processedUKMs.length} UKMs');
@@ -594,8 +608,9 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
   /// Unjoin from UKM
   Future<void> _unjoinUKM(Map<String, dynamic> ukm) async {
     final userId = _authService.currentUserId;
+    final TextEditingController reasonController = TextEditingController();
 
-    // Show confirmation dialog
+    // Show confirmation dialog with input
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -604,8 +619,24 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
           'Keluar dari UKM?',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
-        content: Text(
-          'Anda yakin ingin keluar dari ${ukm['name']}? Anda harus menunggu 1 periode untuk bergabung kembali.',
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Anda yakin ingin keluar dari ${ukm['name']}? Anda harus menunggu 1 periode untuk bergabung kembali.',
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: reasonController,
+              decoration: const InputDecoration(
+                labelText: 'Alasan Keluar',
+                border: OutlineInputBorder(),
+                hintText: 'Cth: Jadwal tidak cocok',
+              ),
+              maxLines: 2,
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -613,7 +644,15 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
             child: const Text('Batal'),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () {
+              if (reasonController.text.trim().isEmpty) {
+                 ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Mohon isi alasan keluar')),
+                );
+                return;
+              }
+              Navigator.pop(context, true);
+            },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red[600],
               foregroundColor: Colors.white,
@@ -641,6 +680,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
       await _supabase.from('user_halaman_ukm').update({
         'status': 'keluar',
         'unfollow': DateTime.now().toIso8601String(), // Add timestamp for leaving
+        'unfollow_reason': reasonController.text.trim(),
         // We keep id_periode as the period they were in when they left
         // or effectively the period they are now "cooldown" for if logic checks it
       }).match({

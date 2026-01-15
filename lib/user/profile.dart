@@ -305,16 +305,13 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
           .eq('id_user', effectiveUserId);
       _totalEvents = (eventsData as List).length;
 
-      // Load TOTAL meetings from joined UKMs
-      if (joinedUkmIds.isNotEmpty) {
-        final meetingsResponse = await _supabase
-            .from('pertemuan')
-            .select('id_pertemuan')
-            .inFilter('id_ukm', joinedUkmIds);
-        _totalMeetings = (meetingsResponse as List).length;
-      } else {
-        _totalMeetings = 0;
-      }
+      // Load TOTAL meetings count (ATTENDED meetings)
+      // Count rows in absen_pertemuan for this user
+      final attendedMeetingsResponse = await _supabase
+          .from('absen_pertemuan')
+          .count(CountOption.exact)
+          .eq('id_user', effectiveUserId);
+      _totalMeetings = attendedMeetingsResponse;
 
       if (mounted) {
         setState(() => _isLoadingStats = false);
