@@ -150,11 +150,10 @@ class _AkunUKMPageState extends State<AkunUKMPage> {
     try {
       final userId = _authService.currentUserId;
 
-      // Update admin table
+      // Update admin table (only email, username is read-only)
       await _supabase
           .from('admin')
           .update({
-            'username_admin': _usernameController.text,
             'email_admin': _emailController.text,
           })
           .eq('id_admin', userId!);
@@ -569,7 +568,7 @@ class _AkunUKMPageState extends State<AkunUKMPage> {
                   label: 'Username Admin',
                   controller: _usernameController,
                   icon: Icons.person_outline,
-                  enabled: _isEditMode,
+                  enabled: false, // Read-only field
                   isMobile: isMobile,
                 ),
                 SizedBox(height: isMobile ? 12 : 16),
