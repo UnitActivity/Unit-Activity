@@ -57,6 +57,10 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
   bool _isQRActive = false;
   // Auto regenerate is always enabled
 
+  // Attendance list pagination
+  int _attendanceCurrentPage = 1;
+  static const int _attendanceItemsPerPage = 5;
+
   @override
   void initState() {
     super.initState();
@@ -828,6 +832,503 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
     }
   }
 
+  Future<void> _showEditEventDialog() async {
+    if (_event == null) return;
+
+    final namaController = TextEditingController(text: _event!['nama_event'] ?? '');
+    final deskripsiController = TextEditingController(text: _event!['deskripsi'] ?? '');
+    final lokasiController = TextEditingController(text: _event!['lokasi'] ?? '');
+    final maxParticipantController = TextEditingController(
+      text: (_event!['max_participant'] ?? 0).toString(),
+    );
+
+    DateTime? tanggalMulai = _event!['tanggal_mulai'] != null
+        ? DateTime.tryParse(_event!['tanggal_mulai'])
+        : null;
+    DateTime? tanggalAkhir = _event!['tanggal_akhir'] != null
+        ? DateTime.tryParse(_event!['tanggal_akhir'])
+        : null;
+
+    String selectedTipeAkses = _event!['tipe_akses'] ?? 'public';
+    String selectedTipevent = _event!['tipevent'] ?? 'offline';
+
+    final formKey = GlobalKey<FormState>();
+    bool isSaving = false;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4169E1).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.edit_rounded,
+                  color: Color(0xFF4169E1),
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Edit Event',
+                  style: GoogleFonts.inter(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              IconButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                icon: const Icon(Icons.close),
+                iconSize: 20,
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: MediaQuery.of(context).size.width * 0.8,
+            child: Form(
+              key: formKey,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Nama Event
+                    Text(
+                      'Nama Event',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey[700],
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    TextFormField(
+                      controller: namaController,
+                      decoration: InputDecoration(
+                        hintText: 'Nama event',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                      ),
+                      validator: (v) => v?.isEmpty == true ? 'Wajib diisi' : null,
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Deskripsi
+                    Text(
+                      'Deskripsi',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey[700],
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    TextFormField(
+                      controller: deskripsiController,
+                      maxLines: 3,
+                      decoration: InputDecoration(
+                        hintText: 'Deskripsi event',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Lokasi
+                    Text(
+                      'Lokasi',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey[700],
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    TextFormField(
+                      controller: lokasiController,
+                      decoration: InputDecoration(
+                        hintText: 'Lokasi event',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                      ),
+                      validator: (v) => v?.isEmpty == true ? 'Wajib diisi' : null,
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Tanggal Mulai & Akhir
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Tanggal Mulai',
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.grey[700],
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              InkWell(
+                                onTap: () async {
+                                  final picked = await showDatePicker(
+                                    context: context,
+                                    initialDate: tanggalMulai ?? DateTime.now(),
+                                    firstDate: DateTime(2020),
+                                    lastDate: DateTime(2030),
+                                  );
+                                  if (picked != null) {
+                                    final time = await showTimePicker(
+                                      context: context,
+                                      initialTime: TimeOfDay.fromDateTime(
+                                        tanggalMulai ?? DateTime.now(),
+                                      ),
+                                    );
+                                    if (time != null) {
+                                      setDialogState(() {
+                                        tanggalMulai = DateTime(
+                                          picked.year,
+                                          picked.month,
+                                          picked.day,
+                                          time.hour,
+                                          time.minute,
+                                        );
+                                      });
+                                    }
+                                  }
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 10,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    border: Border.all(color: Colors.grey[400]!),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.calendar_today, size: 16, color: Colors.grey[600]),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          tanggalMulai != null
+                                              ? DateFormat('dd/MM/yy HH:mm').format(tanggalMulai!)
+                                              : 'Pilih tanggal',
+                                          style: GoogleFonts.inter(fontSize: 13),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Tanggal Akhir',
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.grey[700],
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              InkWell(
+                                onTap: () async {
+                                  final picked = await showDatePicker(
+                                    context: context,
+                                    initialDate: tanggalAkhir ?? DateTime.now(),
+                                    firstDate: DateTime(2020),
+                                    lastDate: DateTime(2030),
+                                  );
+                                  if (picked != null) {
+                                    final time = await showTimePicker(
+                                      context: context,
+                                      initialTime: TimeOfDay.fromDateTime(
+                                        tanggalAkhir ?? DateTime.now(),
+                                      ),
+                                    );
+                                    if (time != null) {
+                                      setDialogState(() {
+                                        tanggalAkhir = DateTime(
+                                          picked.year,
+                                          picked.month,
+                                          picked.day,
+                                          time.hour,
+                                          time.minute,
+                                        );
+                                      });
+                                    }
+                                  }
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 10,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    border: Border.all(color: Colors.grey[400]!),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.calendar_today, size: 16, color: Colors.grey[600]),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          tanggalAkhir != null
+                                              ? DateFormat('dd/MM/yy HH:mm').format(tanggalAkhir!)
+                                              : 'Pilih tanggal',
+                                          style: GoogleFonts.inter(fontSize: 13),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Max Peserta & Tipe Event
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Maks Peserta',
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.grey[700],
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              TextFormField(
+                                controller: maxParticipantController,
+                                keyboardType: TextInputType.number,
+                                decoration: InputDecoration(
+                                  hintText: '100',
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 10,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Tipe Event',
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.grey[700],
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              DropdownButtonFormField<String>(
+                                value: selectedTipevent,
+                                decoration: InputDecoration(
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 10,
+                                  ),
+                                ),
+                                items: const [
+                                  DropdownMenuItem(value: 'offline', child: Text('Offline')),
+                                  DropdownMenuItem(value: 'online', child: Text('Online')),
+                                  DropdownMenuItem(value: 'hybrid', child: Text('Hybrid')),
+                                ],
+                                onChanged: (v) {
+                                  if (v != null) setDialogState(() => selectedTipevent = v);
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Tipe Akses
+                    Text(
+                      'Tipe Akses',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey[700],
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    DropdownButtonFormField<String>(
+                      value: selectedTipeAkses,
+                      decoration: InputDecoration(
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'public', child: Text('Publik (Semua user)')),
+                        DropdownMenuItem(value: 'member_only', child: Text('Member Only')),
+                      ],
+                      onChanged: (v) {
+                        if (v != null) setDialogState(() => selectedTipeAkses = v);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: isSaving ? null : () => Navigator.pop(dialogContext),
+              child: Text(
+                'Batal',
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[700],
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: isSaving
+                  ? null
+                  : () async {
+                      if (!formKey.currentState!.validate()) return;
+
+                      setDialogState(() => isSaving = true);
+
+                      try {
+                        await _eventService.updateEvent(
+                          eventId: widget.eventId,
+                          namaEvent: namaController.text.trim(),
+                          deskripsi: deskripsiController.text.trim(),
+                          lokasi: lokasiController.text.trim(),
+                          tanggalMulai: tanggalMulai,
+                          tanggalAkhir: tanggalAkhir,
+                          maxParticipant: int.tryParse(maxParticipantController.text) ?? 0,
+                          tipevent: selectedTipevent,
+                          tipeAkses: selectedTipeAkses,
+                        );
+
+                        if (mounted) {
+                          Navigator.pop(dialogContext);
+                          await _loadEventDetails();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Row(
+                                children: [
+                                  const Icon(Icons.check_circle, color: Colors.white),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    'Event berhasil diupdate!',
+                                    style: GoogleFonts.inter(fontWeight: FontWeight.w500),
+                                  ),
+                                ],
+                              ),
+                              backgroundColor: Colors.green,
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        setDialogState(() => isSaving = false);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Gagal update event: $e'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      }
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4169E1),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: isSaving
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : Text(
+                      'Simpan',
+                      style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    namaController.dispose();
+    deskripsiController.dispose();
+    lokasiController.dispose();
+    maxParticipantController.dispose();
+  }
+
   Future<void> _deleteEvent() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -1008,6 +1509,19 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
         icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
         onPressed: () => Navigator.pop(context),
       ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.edit_rounded, color: Colors.white),
+          onPressed: _showEditEventDialog,
+          tooltip: 'Edit Event',
+        ),
+        IconButton(
+          icon: const Icon(Icons.delete_outline_rounded, color: Colors.white),
+          onPressed: _deleteEvent,
+          tooltip: 'Hapus Event',
+        ),
+        const SizedBox(width: 8),
+      ],
       flexibleSpace: LayoutBuilder(
         builder: (BuildContext context, BoxConstraints constraints) {
           final double collapseRatio =
@@ -2902,8 +3416,244 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
               ],
             ),
           ),
+          
+          // Attendance List Section
+          const SizedBox(height: 24),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(
+                        Icons.people_rounded,
+                        color: Colors.green,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Daftar Kehadiran',
+                            style: GoogleFonts.inter(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            '${_pesertaList.length} peserta telah absen',
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                const Divider(),
+                const SizedBox(height: 12),
+                
+                if (_pesertaList.isEmpty)
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(32),
+                      child: Column(
+                        children: [
+                          Icon(
+                            Icons.people_outline_rounded,
+                            size: 48,
+                            color: Colors.grey[300],
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Belum ada peserta yang absen',
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else ...[
+                  // Paginated list
+                  ..._buildPaginatedAttendanceList(),
+                  
+                  // Pagination controls
+                  if (_pesertaList.length > _attendanceItemsPerPage) ...[
+                    const SizedBox(height: 16),
+                    _buildAttendancePagination(),
+                  ],
+                ],
+              ],
+            ),
+          ),
         ],
       ),
+    );
+  }
+
+  List<Widget> _buildPaginatedAttendanceList() {
+    final totalPages = (_pesertaList.length / _attendanceItemsPerPage).ceil();
+    final startIndex = (_attendanceCurrentPage - 1) * _attendanceItemsPerPage;
+    final endIndex = (startIndex + _attendanceItemsPerPage).clamp(0, _pesertaList.length);
+    final pageItems = _pesertaList.sublist(startIndex, endIndex);
+
+    return pageItems.map((participant) {
+      final user = participant['users'] as Map<String, dynamic>?;
+      final tanggal = participant['tanggal'] != null
+          ? DateTime.tryParse(participant['tanggal'])
+          : null;
+      final status = participant['status'] ?? 'hadir';
+
+      return Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.grey[50],
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.grey[200]!),
+        ),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 20,
+              backgroundColor: const Color(0xFF4169E1).withOpacity(0.1),
+              child: Text(
+                (user?['username'] ?? 'U')[0].toUpperCase(),
+                style: GoogleFonts.inter(
+                  color: const Color(0xFF4169E1),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    user?['username'] ?? '-',
+                    style: GoogleFonts.inter(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    user?['nim'] ?? user?['email'] ?? '-',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: status == 'hadir' || status == 'diterima'
+                        ? Colors.green.withOpacity(0.1)
+                        : Colors.orange.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    status == 'hadir' || status == 'diterima' ? 'Hadir' : status,
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: status == 'hadir' || status == 'diterima'
+                          ? Colors.green[700]
+                          : Colors.orange[700],
+                    ),
+                  ),
+                ),
+                if (tanggal != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    DateFormat('dd/MM HH:mm').format(tanggal),
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: Colors.grey[500],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      );
+    }).toList();
+  }
+
+  Widget _buildAttendancePagination() {
+    final totalPages = (_pesertaList.length / _attendanceItemsPerPage).ceil();
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        IconButton(
+          onPressed: _attendanceCurrentPage > 1
+              ? () => setState(() => _attendanceCurrentPage--)
+              : null,
+          icon: const Icon(Icons.chevron_left),
+          iconSize: 20,
+          color: const Color(0xFF4169E1),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: const Color(0xFF4169E1).withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            '$_attendanceCurrentPage / $totalPages',
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFF4169E1),
+            ),
+          ),
+        ),
+        IconButton(
+          onPressed: _attendanceCurrentPage < totalPages
+              ? () => setState(() => _attendanceCurrentPage++)
+              : null,
+          icon: const Icon(Icons.chevron_right),
+          iconSize: 20,
+          color: const Color(0xFF4169E1),
+        ),
+      ],
     );
   }
 
