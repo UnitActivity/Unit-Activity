@@ -474,7 +474,7 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
       case 'notifikasi':
         return const NotifikasiUKMPage();
       case 'profile':
-        return const AkunUKMPage();
+        return AkunUKMPage(onProfileUpdated: _loadDashboardData);
       default:
         return _buildDashboardContent(isDesktop);
     }

@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:unit_activity/services/custom_auth_service.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:typed_data';
 
 class AkunUKMPage extends StatefulWidget {
-  const AkunUKMPage({super.key});
+  final VoidCallback? onProfileUpdated;
+  
+  const AkunUKMPage({super.key, this.onProfileUpdated});
 
   @override
   State<AkunUKMPage> createState() => _AkunUKMPageState();
@@ -25,6 +30,7 @@ class _AkunUKMPageState extends State<AkunUKMPage> {
   Map<String, dynamic>? _ukmData;
 
   // Controllers for edit mode
+  final TextEditingController _namaUkmController = TextEditingController();
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
@@ -34,6 +40,9 @@ class _AkunUKMPageState extends State<AkunUKMPage> {
   // Password visibility
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  
+  // Image uploading
+  bool _isUploadingImage = false;
 
   @override
   void initState() {
@@ -43,6 +52,7 @@ class _AkunUKMPageState extends State<AkunUKMPage> {
 
   @override
   void dispose() {
+    _namaUkmController.dispose();
     _usernameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
@@ -90,6 +100,7 @@ class _AkunUKMPageState extends State<AkunUKMPage> {
             setState(() {
               _userData = adminData;
               _ukmData = ukmData;
+              _namaUkmController.text = ukmData?['nama_ukm'] ?? '';
               _usernameController.text = adminData['username_admin'] ?? '';
               _emailController.text = adminData['email_admin'] ?? '';
               _isLoading = false;
@@ -148,6 +159,16 @@ class _AkunUKMPageState extends State<AkunUKMPage> {
           })
           .eq('id_admin', userId!);
 
+      // Update UKM name if ukmData exists
+      if (_ukmData != null) {
+        await _supabase
+            .from('ukm')
+            .update({
+              'nama_ukm': _namaUkmController.text,
+            })
+            .eq('id_ukm', _ukmData!['id_ukm']);
+      }
+
       // Update password if changed
       if (_changePassword && _passwordController.text.isNotEmpty) {
         await _supabase.auth.updateUser(
@@ -171,6 +192,9 @@ class _AkunUKMPageState extends State<AkunUKMPage> {
         });
 
         await _loadUserProfile();
+        
+        // Notify parent to refresh dashboard data
+        widget.onProfileUpdated?.call();
       }
     } catch (e) {
       print('Error saving profile: $e');
@@ -193,6 +217,7 @@ class _AkunUKMPageState extends State<AkunUKMPage> {
     setState(() {
       _isEditMode = false;
       _changePassword = false;
+      _namaUkmController.text = _ukmData?['nama_ukm'] ?? '';
       _usernameController.text = _userData?['username_admin'] ?? '';
       _emailController.text = _userData?['email_admin'] ?? '';
       _passwordController.clear();
@@ -204,6 +229,110 @@ class _AkunUKMPageState extends State<AkunUKMPage> {
     if (logoPath == null || logoPath.isEmpty) return null;
     if (logoPath.startsWith('http')) return logoPath;
     return _supabase.storage.from('ukm-logos').getPublicUrl(logoPath);
+  }
+
+  Future<void> _pickAndUploadLogo() async {
+    if (_ukmData == null) return;
+
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 512,
+        maxHeight: 512,
+        imageQuality: 80,
+      );
+
+      if (image == null) return;
+
+      setState(() => _isUploadingImage = true);
+
+      // Read image bytes
+      final Uint8List bytes = await image.readAsBytes();
+      final String ukmId = _ukmData!['id_ukm'];
+      final String fileName = '${ukmId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+
+      debugPrint('📤 UKM PROFILE: Uploading logo for UKM: $ukmId');
+      debugPrint('📤 UKM PROFILE: File name: $fileName');
+      debugPrint('📤 UKM PROFILE: File size: ${(bytes.length / 1024).toStringAsFixed(2)} KB');
+
+      // Upload to Supabase Storage
+      await _supabase.storage.from('ukm-logos').uploadBinary(
+            fileName,
+            bytes,
+            fileOptions: const FileOptions(
+              cacheControl: '3600',
+              upsert: true,
+            ),
+          );
+
+      debugPrint('✅ UKM PROFILE: Logo uploaded to storage');
+
+      // Get public URL
+      final String logoUrl = _supabase.storage.from('ukm-logos').getPublicUrl(fileName);
+
+      debugPrint('📸 UKM PROFILE: Public URL: $logoUrl');
+
+      // Update UKM table with new logo URL
+      await _supabase.from('ukm').update({
+        'logo': logoUrl,
+      }).eq('id_ukm', ukmId);
+
+      debugPrint('✅ UKM PROFILE: Database updated with new logo URL');
+
+      // Update local state
+      if (mounted) {
+        setState(() {
+          _ukmData!['logo'] = logoUrl;
+          _isUploadingImage = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Logo UKM berhasil diupload!',
+                    style: GoogleFonts.inter(),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.green[600],
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        
+        // Notify parent to refresh dashboard data
+        widget.onProfileUpdated?.call();
+      }
+    } catch (e) {
+      debugPrint('❌ UKM PROFILE: Error uploading logo: $e');
+      if (mounted) {
+        setState(() => _isUploadingImage = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Gagal mengupload logo: ${e.toString()}',
+                    style: GoogleFonts.inter(),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red[600],
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -321,30 +450,76 @@ class _AkunUKMPageState extends State<AkunUKMPage> {
             ),
             child: Column(
               children: [
-                // Avatar with UKM Name
-                CircleAvatar(
-                  radius: isMobile ? 50 : 60,
-                  backgroundColor: const Color(0xFF4169E1).withOpacity(0.1),
-                  backgroundImage: _ukmData != null &&
-                          _getUkmLogoUrl(_ukmData!['logo']) != null
-                      ? NetworkImage(_getUkmLogoUrl(_ukmData!['logo'])!)
-                      : null,
-                  child: (_ukmData == null ||
-                          _ukmData!['logo'] == null ||
-                          _ukmData!['logo'] == '')
-                      ? Icon(
-                          Icons.group,
-                          size: isMobile ? 50 : 60,
+                // Avatar with UKM Name and Edit Button
+                Stack(
+                  children: [
+                    CircleAvatar(
+                      radius: isMobile ? 50 : 60,
+                      backgroundColor: const Color(0xFF4169E1).withOpacity(0.1),
+                      backgroundImage: _ukmData != null &&
+                              _getUkmLogoUrl(_ukmData!['logo']) != null
+                          ? NetworkImage(_getUkmLogoUrl(_ukmData!['logo'])!)
+                          : null,
+                      child: _isUploadingImage
+                          ? const CircularProgressIndicator(
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Color(0xFF4169E1),
+                              ),
+                            )
+                          : (_ukmData == null ||
+                                  _ukmData!['logo'] == null ||
+                                  _ukmData!['logo'] == '')
+                              ? Icon(
+                                  Icons.group,
+                                  size: isMobile ? 50 : 60,
+                                  color: const Color(0xFF4169E1),
+                                )
+                              : null,
+                    ),
+                    // Camera button overlay
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: Container(
+                        decoration: BoxDecoration(
                           color: const Color(0xFF4169E1),
-                        )
-                      : null,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white,
+                            width: 2,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.2),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: InkWell(
+                          onTap: _isUploadingImage ? null : _pickAndUploadLogo,
+                          borderRadius: BorderRadius.circular(20),
+                          child: Padding(
+                            padding: EdgeInsets.all(isMobile ? 6 : 8),
+                            child: Icon(
+                              Icons.camera_alt,
+                              color: Colors.white,
+                              size: isMobile ? 16 : 18,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 SizedBox(height: isMobile ? 12 : 16),
 
-                // UKM Name
+                // UKM Name (displays from controller for live update)
                 if (_ukmData != null)
                   Text(
-                    _ukmData!['nama_ukm'] ?? 'UKM',
+                    _namaUkmController.text.isNotEmpty 
+                        ? _namaUkmController.text 
+                        : 'UKM',
                     style: GoogleFonts.inter(
                       fontSize: isMobile ? 18 : 20,
                       fontWeight: FontWeight.bold,
@@ -380,8 +555,18 @@ class _AkunUKMPageState extends State<AkunUKMPage> {
                 SizedBox(height: isMobile ? 20 : 24),
 
                 // Form Fields
+                // UKM Name Field
                 _buildProfileField(
-                  label: 'Username',
+                  label: 'Nama UKM',
+                  controller: _namaUkmController,
+                  icon: Icons.business,
+                  enabled: _isEditMode,
+                  isMobile: isMobile,
+                ),
+                SizedBox(height: isMobile ? 12 : 16),
+                
+                _buildProfileField(
+                  label: 'Username Admin',
                   controller: _usernameController,
                   icon: Icons.person_outline,
                   enabled: _isEditMode,
