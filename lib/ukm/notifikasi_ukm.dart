@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:unit_activity/ukm/send_notifikasi_ukm_page.dart';
+import 'package:unit_activity/ukm/edit_notifikasi_ukm_page.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:unit_activity/services/ukm_dashboard_service.dart';
 
@@ -84,8 +85,27 @@ class _NotifikasiUKMPageState extends State<NotifikasiUKMPage> {
             .eq('id_ukm', _currentUkmId!)
             .order('create_at', ascending: false);
 
+        // Deduplicate notifications - group by judul+pesan+type+create_at
+        // This ensures notifications sent to multiple users appear only once
+        final Map<String, Map<String, dynamic>> uniqueNotifications = {};
+        
+        for (var notif in notifications) {
+          final judul = notif['judul'] ?? '';
+          final pesan = notif['pesan'] ?? '';
+          final type = notif['type'] ?? '';
+          final createAt = notif['create_at'] ?? '';
+          
+          // Create unique key based on notification content
+          final uniqueKey = '$judul|$pesan|$type|$createAt';
+          
+          // Only keep the first occurrence (they're all the same content anyway)
+          if (!uniqueNotifications.containsKey(uniqueKey)) {
+            uniqueNotifications[uniqueKey] = Map<String, dynamic>.from(notif);
+          }
+        }
+
         setState(() {
-          _notifikasiList = List<Map<String, dynamic>>.from(notifications);
+          _notifikasiList = uniqueNotifications.values.toList();
           _isLoading = false;
         });
       } else {
@@ -361,123 +381,158 @@ class _NotifikasiUKMPageState extends State<NotifikasiUKMPage> {
     );
   }
 
+
   Widget _buildNotificationCard(Map<String, dynamic> notif) {
     final type = notif['type'] ?? 'info';
     final isWarning =
         type.toLowerCase() == 'warning' || type.toLowerCase() == 'peringatan';
     final isMobile = MediaQuery.of(context).size.width < 600;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: EdgeInsets.all(isMobile ? 12 : 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isWarning
-              ? Colors.red.withOpacity(0.2)
-              : const Color(0xFF4169E1).withOpacity(0.2),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: isWarning
-                ? Colors.red.withOpacity(0.08)
-                : const Color(0xFF4169E1).withOpacity(0.08),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
+    return InkWell(
+      onTap: () async {
+        final result = await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => EditNotifikasiUKMPage(notification: notif),
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: EdgeInsets.all(isMobile ? 8 : 12),
-                decoration: BoxDecoration(
-                  color: isWarning ? Colors.red : const Color(0xFF4169E1),
-                  borderRadius: BorderRadius.circular(8),
+        );
+        if (result == true) {
+          _loadNotifications();
+        }
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: EdgeInsets.all(isMobile ? 12 : 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isWarning
+                ? Colors.red.withOpacity(0.2)
+                : const Color(0xFF4169E1).withOpacity(0.2),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: isWarning
+                  ? Colors.red.withOpacity(0.08)
+                  : const Color(0xFF4169E1).withOpacity(0.08),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: EdgeInsets.all(isMobile ? 8 : 12),
+                  decoration: BoxDecoration(
+                    color: isWarning ? Colors.red : const Color(0xFF4169E1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    isWarning ? Icons.warning_rounded : Icons.info_rounded,
+                    color: Colors.white,
+                    size: isMobile ? 18 : 24,
+                  ),
                 ),
-                child: Icon(
-                  isWarning ? Icons.warning_rounded : Icons.info_rounded,
-                  color: Colors.white,
-                  size: isMobile ? 18 : 24,
-                ),
-              ),
-              SizedBox(width: isMobile ? 10 : 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: isMobile ? 6 : 10,
-                            vertical: isMobile ? 2 : 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isWarning
-                                ? Colors.red
-                                : const Color(0xFF4169E1),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            isWarning ? 'PERINGATAN' : 'INFO',
-                            style: GoogleFonts.inter(
-                              fontSize: isMobile ? 9 : 11,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
+                SizedBox(width: isMobile ? 10 : 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: isMobile ? 6 : 10,
+                              vertical: isMobile ? 2 : 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isWarning
+                                  ? Colors.red
+                                  : const Color(0xFF4169E1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              isWarning ? 'PERINGATAN' : 'INFO',
+                              style: GoogleFonts.inter(
+                                fontSize: isMobile ? 9 : 11,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
+                          const Spacer(),
+                          if (!isMobile) ...[
+                            Icon(
+                              Icons.access_time,
+                              size: 14,
+                              color: Colors.grey[500],
+                            ),
+                            const SizedBox(width: 4),
+                          ],
+                          Text(
+                            _getTimeAgo(notif['create_at']),
+                            style: GoogleFonts.inter(
+                              fontSize: isMobile ? 10 : 12,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        notif['judul'] ?? 'Tanpa Judul',
+                        style: GoogleFonts.inter(
+                          fontSize: isMobile ? 13 : 15,
+                          fontWeight: FontWeight.w700,
+                          color: isWarning ? Colors.red : const Color(0xFF4169E1),
                         ),
-                        const Spacer(),
-                        if (!isMobile) ...[
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        notif['pesan'] ?? '-',
+                        style: GoogleFonts.inter(
+                          fontSize: isMobile ? 12 : 14,
+                          color: Colors.grey[700],
+                        ),
+                        maxLines: isMobile ? 2 : 3,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
                           Icon(
-                            Icons.access_time,
+                            Icons.edit_outlined,
                             size: 14,
-                            color: Colors.grey[500],
+                            color: Colors.grey[400],
                           ),
                           const SizedBox(width: 4),
-                        ],
-                        Text(
-                          _getTimeAgo(notif['create_at']),
-                          style: GoogleFonts.inter(
-                            fontSize: isMobile ? 10 : 12,
-                            color: Colors.grey[500],
+                          Text(
+                            'Tap untuk edit & kirim ulang',
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              color: Colors.grey[400],
+                              fontStyle: FontStyle.italic,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      notif['judul'] ?? 'Tanpa Judul',
-                      style: GoogleFonts.inter(
-                        fontSize: isMobile ? 13 : 15,
-                        fontWeight: FontWeight.w700,
-                        color: isWarning ? Colors.red : const Color(0xFF4169E1),
+                        ],
                       ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      notif['pesan'] ?? '-',
-                      style: GoogleFonts.inter(
-                        fontSize: isMobile ? 12 : 14,
-                        color: Colors.grey[700],
-                      ),
-                      maxLines: isMobile ? 2 : 3,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
