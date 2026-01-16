@@ -444,7 +444,7 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
       debugPrint('📤 PROFILE: File size: ${(fileBytes.length / 1024).toStringAsFixed(2)} KB');
 
       // Upload to Supabase Storage
-      await _supabase.storage.from('profile-pictures').uploadBinary(
+      await _supabase.storage.from('profile').uploadBinary(
             fileName,
             fileBytes,
             fileOptions: const FileOptions(
@@ -456,7 +456,7 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
       debugPrint('✅ PROFILE: Image uploaded to storage');
 
       // Get public URL
-      final imageUrl = _supabase.storage.from('profile-pictures').getPublicUrl(fileName);
+      final imageUrl = _supabase.storage.from('profile').getPublicUrl(fileName);
 
       debugPrint('📸 PROFILE: Public URL: $imageUrl');
 
@@ -541,7 +541,7 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
       debugPrint('📤 PROFILE WEB: File size: ${(bytes.length / 1024).toStringAsFixed(2)} KB');
 
       // Upload to Supabase Storage
-      await _supabase.storage.from('profile-pictures').uploadBinary(
+      await _supabase.storage.from('profile').uploadBinary(
             fileName,
             bytes,
             fileOptions: const FileOptions(
@@ -553,7 +553,7 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
       debugPrint('✅ PROFILE WEB: Image uploaded to storage');
 
       // Get public URL
-      final imageUrl = _supabase.storage.from('profile-pictures').getPublicUrl(fileName);
+      final imageUrl = _supabase.storage.from('profile').getPublicUrl(fileName);
 
       debugPrint('📸 PROFILE WEB: Public URL: $imageUrl');
 

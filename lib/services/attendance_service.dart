@@ -44,6 +44,22 @@ class AttendanceService {
         return {'success': false, 'message': 'Event sudah tidak aktif.'};
       }
 
+      // Check if event has started (Date validation)
+      if (eventResponse['tanggal_mulai'] != null) {
+        final startDate = DateTime.parse(eventResponse['tanggal_mulai']);
+        final now = DateTime.now();
+        // Compare dates only
+        final today = DateTime(now.year, now.month, now.day);
+        final eventDate = DateTime(startDate.year, startDate.month, startDate.day);
+
+        if (today.isBefore(eventDate)) {
+           return {
+             'success': false, 
+             'message': 'Absensi belum dibuka.\n\nEvent ini baru dimulai pada ${_formatDate(eventResponse['tanggal_mulai'])}.'
+           };
+        }
+      }
+
       // Check registration and attendance status in absen_event
       // User must have registered first (via Event page) before scanning QR
       final attendanceRecord = await _supabase
@@ -133,6 +149,22 @@ class AttendanceService {
 
       if (pertemuanResponse == null) {
         return {'success': false, 'message': 'Pertemuan tidak ditemukan.'};
+      }
+
+      // Check if pertemuan has started (Date validation)
+      if (pertemuanResponse['tanggal'] != null) {
+        final date = DateTime.parse(pertemuanResponse['tanggal']);
+        final now = DateTime.now();
+        // Compare dates only
+        final today = DateTime(now.year, now.month, now.day);
+        final pertemuanDate = DateTime(date.year, date.month, date.day);
+
+        if (today.isBefore(pertemuanDate)) {
+           return {
+             'success': false, 
+             'message': 'Absensi belum dibuka.\n\nPertemuan ini dilaksanakan pada ${_formatDate(pertemuanResponse['tanggal'])}.'
+           };
+        }
       }
 
       // Check if user is member of the UKM
@@ -406,6 +438,17 @@ class AttendanceService {
     } catch (e) {
       print('Error loading attendance history: $e');
       return [];
+    }
+  }
+  String _formatDate(String? dateString) {
+    if (dateString == null) return '-';
+    try {
+      final date = DateTime.parse(dateString);
+      final days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+      final months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+      return '${days[date.weekday % 7]}, ${date.day} ${months[date.month - 1]} ${date.year}';
+    } catch (e) {
+      return dateString;
     }
   }
 }

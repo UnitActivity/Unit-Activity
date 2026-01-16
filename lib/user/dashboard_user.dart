@@ -1377,305 +1377,332 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: Stack(
-              children: [
-                // Image and content
-                Positioned.fill(
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () {
-                        // Navigate based on source
-                        final currentItem = _sliderEvents[_currentSlideIndex];
-                        final source = currentItem['source'];
+            child: GestureDetector(
+              onHorizontalDragEnd: (details) {
+                if (_sliderEvents.length <= 1) return;
+                
+                // Swipe Left -> Next
+                if (details.primaryVelocity! < 0) {
+                  _autoSlideTimer?.cancel();
+                  setState(() {
+                    _currentSlideIndex = (_currentSlideIndex + 1) % _sliderEvents.length;
+                  });
+                  _startAutoSlide();
+                }
+                // Swipe Right -> Previous
+                else if (details.primaryVelocity! > 0) {
+                  _autoSlideTimer?.cancel();
+                  setState(() {
+                    _currentSlideIndex = (_currentSlideIndex - 1 + _sliderEvents.length) % _sliderEvents.length;
+                  });
+                  _startAutoSlide();
+                }
+              },
+              child: Stack(
+                children: [
+                  // Image and content
+                  Positioned.fill(
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          // Navigate based on source
+                          final currentItem = _sliderEvents[_currentSlideIndex];
+                          final source = currentItem['source'];
 
-                        print('🔘 Carousel Item Clicked: ${currentItem['title']} ($source)');
+                          print('🔘 Carousel Item Clicked: ${currentItem['title']} ($source)');
 
-                        if (source == 'ukm') {
-                          // Navigate to UKM Page with specific UKM selected
-                          final ukmId = currentItem['id_ukm'];
-                          if (ukmId != null) {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => UserUKMPage(initialUkmId: ukmId),
-                              ),
-                            );
+                          if (source == 'ukm') {
+                            // Navigate to UKM Page with specific UKM selected
+                            final ukmId = currentItem['id_ukm'];
+                            if (ukmId != null) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => UserUKMPage(initialUkmId: ukmId),
+                                ),
+                              );
+                            } else {
+                              // Fallback if no ID
+                               _navigateToInformasiDetail(currentItem);
+                            }
+                          } else if (source == 'event') {
+                             // Navigate to Event Detail
+                             if (currentItem['id'] != null) {
+                               Navigator.push(
+                                 context,
+                                 MaterialPageRoute(
+                                   builder: (context) => UserEventDetailPage(eventId: currentItem['id'].toString()),
+                                 ),
+                               );
+                             }
                           } else {
-                            // Fallback if no ID
-                             _navigateToInformasiDetail(currentItem);
+                            // Admin or other - show standard detail modal
+                            _navigateToInformasiDetail(currentItem);
                           }
-                        } else if (source == 'event') {
-                           // Navigate to Event Detail
-                           if (currentItem['id'] != null) {
-                             Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => UserEventDetailPage(eventId: currentItem['id'].toString()),
-                              ),
-                            );
-                           }
-                        } else {
-                          // Admin or other - show standard detail modal
-                          _navigateToInformasiDetail(currentItem);
-                        }
-                      },
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          // Background image - prioritize imageUrl from database
-                          _sliderEvents[_currentSlideIndex]['imageUrl'] != null
-                              ? Image.network(
-                                  _sliderEvents[_currentSlideIndex]['imageUrl']!,
-                                  fit: BoxFit.cover,
-                                  loadingBuilder: (context, child, loadingProgress) {
-                                    if (loadingProgress == null) return child;
-                                    return Container(
-                                      color: Colors.grey[200],
-                                      child: Center(
-                                        child: CircularProgressIndicator(
-                                          value:
-                                              loadingProgress.expectedTotalBytes !=
-                                                  null
-                                              ? loadingProgress
-                                                        .cumulativeBytesLoaded /
-                                                    loadingProgress
-                                                        .expectedTotalBytes!
-                                              : null,
+                        },
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            // Background image - prioritize imageUrl from database
+                            _sliderEvents[_currentSlideIndex]['imageUrl'] != null
+                                ? Image.network(
+                                    _sliderEvents[_currentSlideIndex]['imageUrl']!,
+                                    fit: BoxFit.cover,
+                                    loadingBuilder: (context, child, loadingProgress) {
+                                      if (loadingProgress == null) return child;
+                                      return Container(
+                                        color: Colors.grey[200],
+                                        child: Center(
+                                          child: CircularProgressIndicator(
+                                            value:
+                                                loadingProgress.expectedTotalBytes !=
+                                                    null
+                                                ? loadingProgress
+                                                          .cumulativeBytesLoaded /
+                                                      loadingProgress
+                                                          .expectedTotalBytes!
+                                                : null,
+                                          ),
                                         ),
-                                      ),
-                                    );
-                                  },
-                                  errorBuilder: (context, error, stackTrace) {
-                                    // Show placeholder if image fails to load
-                                    return Container(
-                                      color: Colors.blue[300],
-                                      child: Center(
-                                        child: Icon(
-                                          Icons.info,
-                                          size: 80,
-                                          color: Colors.white.withOpacity(0.3),
+                                      );
+                                    },
+                                    errorBuilder: (context, error, stackTrace) {
+                                      // Show placeholder if image fails to load
+                                      return Container(
+                                        color: Colors.blue[300],
+                                        child: Center(
+                                          child: Icon(
+                                            Icons.info,
+                                            size: 80,
+                                            color: Colors.white.withOpacity(0.3),
+                                          ),
                                         ),
+                                      );
+                                    },
+                                  )
+                                : Container(
+                                    color: Colors.blue[300],
+                                    child: Center(
+                                      child: Icon(
+                                        Icons.info,
+                                        size: 80,
+                                        color: Colors.white.withOpacity(0.3),
                                       ),
-                                    );
-                                  },
-                                )
-                              : Container(
-                                  color: Colors.blue[300],
-                                  child: Center(
-                                    child: Icon(
-                                      Icons.info,
-                                      size: 80,
-                                      color: Colors.white.withOpacity(0.3),
                                     ),
                                   ),
+                            // Dark gradient overlay
+                            Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Colors.transparent,
+                                    Colors.black.withValues(alpha: 0.7),
+                                  ],
                                 ),
-                          // Dark gradient overlay
-                          Container(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [
-                                  Colors.transparent,
-                                  Colors.black.withValues(alpha: 0.7),
+                              ),
+                            ),
+                            // Title and info
+                            Positioned(
+                              bottom: isMobile ? 12 : 24,
+                              left: isMobile ? 12 : 24,
+                              right: isMobile ? 60 : 24,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Source badge (Admin or UKM)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color:
+                                          _sliderEvents[_currentSlideIndex]['source'] ==
+                                              'admin'
+                                          ? Colors.purple.withOpacity(0.9)
+                                          : Colors.blue.withOpacity(0.9),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          _sliderEvents[_currentSlideIndex]['source'] ==
+                                                  'admin'
+                                              ? Icons.admin_panel_settings
+                                              : Icons.school,
+                                          size: 12,
+                                          color: Colors.white,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          _sliderEvents[_currentSlideIndex]['subtitle'] ??
+                                              '',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    _sliderEvents[_currentSlideIndex]['title'] ?? '',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: isMobile ? 14 : 20,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    _sliderEvents[_currentSlideIndex]['date'] ?? '',
+                                    style: TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: isMobile ? 10 : 12,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  
+                  // Previous button (left) - Hide on Mobile
+                  if (!isMobile)
+                  Positioned(
+                    left: 16,
+                    top: 0,
+                    bottom: 0,
+                    child: Center(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.4),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: IconButton(
+                          onPressed: _sliderEvents.length > 1
+                              ? () {
+                                  print('⬅️ Previous button clicked');
+                                  _autoSlideTimer?.cancel(); // Pause auto-slide
+                                  setState(() {
+                                    final oldIndex = _currentSlideIndex;
+                                    _currentSlideIndex =
+                                        (_currentSlideIndex -
+                                            1 +
+                                            _sliderEvents.length) %
+                                        _sliderEvents.length;
+                                    print(
+                                      '   Index: $oldIndex → $_currentSlideIndex',
+                                    );
+                                  });
+                                  _startAutoSlide(); // Restart auto-slide
+                                }
+                              : null,
+                          icon: const Icon(
+                            Icons.chevron_left,
+                            color: Colors.white,
                           ),
-                          // Title and info
-                          Positioned(
-                            bottom: isMobile ? 12 : 24,
-                            left: isMobile ? 12 : 24,
-                            right: isMobile ? 60 : 24,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // Source badge (Admin or UKM)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color:
-                                        _sliderEvents[_currentSlideIndex]['source'] ==
-                                            'admin'
-                                        ? Colors.purple.withOpacity(0.9)
-                                        : Colors.blue.withOpacity(0.9),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        _sliderEvents[_currentSlideIndex]['source'] ==
-                                                'admin'
-                                            ? Icons.admin_panel_settings
-                                            : Icons.school,
-                                        size: 12,
-                                        color: Colors.white,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        _sliderEvents[_currentSlideIndex]['subtitle'] ??
-                                            '',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  _sliderEvents[_currentSlideIndex]['title'] ?? '',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: isMobile ? 14 : 20,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  _sliderEvents[_currentSlideIndex]['date'] ?? '',
-                                  style: TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: isMobile ? 10 : 12,
-                                  ),
-                                ),
-                              ],
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(
+                            minWidth: 36,
+                            minHeight: 36,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  
+                  // Next button (right) - Hide on Mobile
+                  if (!isMobile)
+                  Positioned(
+                    right: 16,
+                    top: 0,
+                    bottom: 0,
+                    child: Center(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.4),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: IconButton(
+                          onPressed: _sliderEvents.length > 1
+                              ? () {
+                                  print('➡️ Next button clicked');
+                                  _autoSlideTimer?.cancel(); // Pause auto-slide
+                                  setState(() {
+                                    final oldIndex = _currentSlideIndex;
+                                    _currentSlideIndex =
+                                        (_currentSlideIndex + 1) %
+                                        _sliderEvents.length;
+                                    print(
+                                      '   Index: $oldIndex → $_currentSlideIndex',
+                                    );
+                                  });
+                                  _startAutoSlide(); // Restart auto-slide
+                                }
+                              : null,
+                          icon: const Icon(
+                            Icons.chevron_right,
+                            color: Colors.white,
+                          ),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(
+                            minWidth: 36,
+                            minHeight: 36,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  
+                  // Dot indicators - Always show count
+                  Positioned(
+                    bottom: 8,
+                    left: 0,
+                    right: 0,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(
+                        _sliderEvents.length,
+                        (index) => GestureDetector(
+                          onTap: () {
+                            print('🔘 Dot $index clicked');
+                            _autoSlideTimer?.cancel();
+                            setState(() {
+                              final oldIndex = _currentSlideIndex;
+                              _currentSlideIndex = index;
+                              print('   Index: $oldIndex → $_currentSlideIndex');
+                            });
+                            _startAutoSlide();
+                          },
+                          child: Container(
+                            width: 8,
+                            height: 8,
+                            margin: const EdgeInsets.symmetric(horizontal: 3),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: _currentSlideIndex == index
+                                  ? Colors.white
+                                  : Colors.white.withValues(alpha: 0.4),
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                // Previous button (left) - Always show
-                Positioned(
-                  left: isMobile ? 8 : 16,
-                  top: 0,
-                  bottom: 0,
-                  child: Center(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.4),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: IconButton(
-                        onPressed: _sliderEvents.length > 1
-                            ? () {
-                                print('⬅️ Previous button clicked');
-                                _autoSlideTimer?.cancel(); // Pause auto-slide
-                                setState(() {
-                                  final oldIndex = _currentSlideIndex;
-                                  _currentSlideIndex =
-                                      (_currentSlideIndex -
-                                          1 +
-                                          _sliderEvents.length) %
-                                      _sliderEvents.length;
-                                  print(
-                                    '   Index: $oldIndex → $_currentSlideIndex',
-                                  );
-                                });
-                                _startAutoSlide(); // Restart auto-slide
-                              }
-                            : null,
-                        icon: const Icon(
-                          Icons.chevron_left,
-                          color: Colors.white,
-                        ),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(
-                          minWidth: 36,
-                          minHeight: 36,
                         ),
                       ),
                     ),
                   ),
-                ),
-                // Next button (right) - Always show
-                Positioned(
-                  right: isMobile ? 8 : 16,
-                  top: 0,
-                  bottom: 0,
-                  child: Center(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.4),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: IconButton(
-                        onPressed: _sliderEvents.length > 1
-                            ? () {
-                                print('➡️ Next button clicked');
-                                _autoSlideTimer?.cancel(); // Pause auto-slide
-                                setState(() {
-                                  final oldIndex = _currentSlideIndex;
-                                  _currentSlideIndex =
-                                      (_currentSlideIndex + 1) %
-                                      _sliderEvents.length;
-                                  print(
-                                    '   Index: $oldIndex → $_currentSlideIndex',
-                                  );
-                                });
-                                _startAutoSlide(); // Restart auto-slide
-                              }
-                            : null,
-                        icon: const Icon(
-                          Icons.chevron_right,
-                          color: Colors.white,
-                        ),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(
-                          minWidth: 36,
-                          minHeight: 36,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                // Dot indicators - Always show count
-                Positioned(
-                  bottom: 8,
-                  left: 0,
-                  right: 0,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(
-                      _sliderEvents.length,
-                      (index) => GestureDetector(
-                        onTap: () {
-                          print('🔘 Dot $index clicked');
-                          _autoSlideTimer?.cancel();
-                          setState(() {
-                            final oldIndex = _currentSlideIndex;
-                            _currentSlideIndex = index;
-                            print('   Index: $oldIndex → $_currentSlideIndex');
-                          });
-                          _startAutoSlide();
-                        },
-                        child: Container(
-                          width: 8,
-                          height: 8,
-                          margin: const EdgeInsets.symmetric(horizontal: 3),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: _currentSlideIndex == index
-                                ? Colors.white
-                                : Colors.white.withValues(alpha: 0.4),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

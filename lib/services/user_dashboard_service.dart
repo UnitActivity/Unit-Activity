@@ -285,6 +285,7 @@ class UserDashboardService {
             jam_akhir,
             lokasi,
             tipevent,
+            gambar,
             ukm(id_ukm, nama_ukm)
           ''')
           .eq('status', true)
@@ -301,6 +302,7 @@ class UserDashboardService {
           'title': event['ukm']?['nama_ukm'] ?? 'UKM',
           'subtitle': event['nama_event'] ?? 'Event',
           'date': event['tanggal_mulai'],
+          'image': event['gambar'],
           'time': '${event['jam_mulai'] ?? ''} - ${event['jam_akhir'] ?? ''}',
           'location': event['lokasi'] ?? '',
           'icon': 'event',
@@ -461,6 +463,7 @@ class UserDashboardService {
             jam_akhir,
             tipevent,
             max_participant,
+            gambar,
             status,
             ukm(id_ukm, nama_ukm, logo)
           ''')
@@ -499,6 +502,7 @@ class UserDashboardService {
             jam_akhir,
             tipevent,
             max_participant,
+            gambar,
             logbook,
             status,
             ukm(id_ukm, nama_ukm, logo, description)

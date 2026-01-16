@@ -2619,7 +2619,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
   Widget _buildFilterChipsMobile() {
     final filters = ['Semua', 'Bergabung', 'Belum', 'Aktif', 'Populer'];
     return SizedBox(
-      height: 32,
+      height: 36,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         itemCount: filters.length,
@@ -2627,13 +2627,29 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
           final filter = filters[index];
           final isSelected = _selectedFilter == filter;
           return Padding(
-            padding: const EdgeInsets.only(right: 6),
+            padding: const EdgeInsets.only(right: 8),
             child: FilterChip(
-              label: Text(
-                filter,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: isSelected ? Colors.white : Colors.grey[700],
+              selected: isSelected, // Critical fix: Ensure chip knows it is selected
+              showCheckmark: false,
+              label: Container(
+                 constraints: const BoxConstraints(minWidth: 40),
+                 child: Text(
+                  filter,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                    color: isSelected ? Colors.white : Colors.grey[700],
+                  ),
+                ),
+              ),
+              labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: BorderSide(
+                  color: isSelected ? Colors.transparent : Colors.grey[300]!,
+                  width: 1,
                 ),
               ),
               onSelected: (selected) {
@@ -2641,7 +2657,10 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
                   _selectedFilter = filter;
                 });
               },
-              backgroundColor: isSelected ? Colors.blue[700] : Colors.grey[200],
+              backgroundColor: Colors.white,
+              selectedColor: Colors.blue[600],
+              elevation: 0,
+              pressElevation: 0,
             ),
           );
         },

@@ -916,25 +916,6 @@ class _UserEventDetailPageState extends State<UserEventDetailPage>
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.green.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      '${_participants.length} Hadir',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.green[700],
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ],
@@ -1013,17 +994,15 @@ class _UserEventDetailPageState extends State<UserEventDetailPage>
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: hasAttended ? Colors.green[50] : Colors.blue[50],
+                        color: Colors.blue[50],
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
-                        hasAttended ? 'Hadir' : 'Terdaftar',
+                        'Terdaftar',
                         style: GoogleFonts.inter(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
-                          color: hasAttended
-                              ? Colors.green[700]
-                              : Colors.blue[700],
+                          color: Colors.blue[700],
                         ),
                       ),
                     ),

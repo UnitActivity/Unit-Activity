@@ -689,6 +689,8 @@ class _UserEventPageState extends State<UserEventPage>
                 Tab(height: 42, text: 'Event Diikuti'),
                 Tab(height: 42, text: 'UKM Saya'),
               ],
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
             ),
           ),
           const SizedBox(height: 12),

@@ -12,6 +12,7 @@ import 'package:unit_activity/user/event.dart';
 import 'package:unit_activity/user/ukm.dart';
 import 'package:unit_activity/services/user_dashboard_service.dart';
 import 'package:unit_activity/services/attendance_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
@@ -1516,29 +1517,45 @@ class _HistoryDetailPageState extends State<HistoryDetailPage>
     setState(() => _isDownloading = true);
 
     try {
-      final logbookUrl = widget.activity['logbook_url'];
+      final logbookPath = widget.activity['logbook_url'];
 
-      if (logbookUrl != null && logbookUrl.isNotEmpty) {
-        // In a real implementation, you would use url_launcher or download the file
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.download_done, color: Colors.white),
-                const SizedBox(width: 8),
-                const Expanded(child: Text('Logbook berhasil didownload!')),
-              ],
+      if (logbookPath != null && logbookPath.isNotEmpty) {
+        // Construct the public URL for the logbook
+        // Assuming the bucket name is 'event-logbook'
+        final String publicUrl = Supabase.instance.client.storage
+            .from('event-logbook')
+            .getPublicUrl(logbookPath);
+
+        print('DEBUG: Opening logbook at $publicUrl');
+
+        final uri = Uri.parse(publicUrl);
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+          
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.open_in_new, color: Colors.white),
+                  const SizedBox(width: 8),
+                  const Expanded(child: Text('Membuka logbook...')),
+                ],
+              ),
+              backgroundColor: Colors.blue[600],
+              duration: const Duration(seconds: 1),
             ),
-            backgroundColor: Colors.green[600],
-            duration: const Duration(seconds: 2),
-          ),
-        );
+          );
+        } else {
+          throw 'Could not launch $publicUrl';
+        }
       } else {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
               children: [
-                const Icon(Icons.info, color: Colors.white),
+                const Icon(Icons.info_outline, color: Colors.white),
                 const SizedBox(width: 8),
                 const Expanded(
                   child: Text('Logbook belum tersedia untuk event ini'),
@@ -1551,14 +1568,18 @@ class _HistoryDetailPageState extends State<HistoryDetailPage>
         );
       }
     } catch (e) {
+      print('Error downloading logbook: $e');
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error downloading logbook: $e'),
+          content: Text('Gagal membuka logbook: $e'),
           backgroundColor: Colors.red[600],
         ),
       );
     } finally {
-      setState(() => _isDownloading = false);
+      if (mounted) {
+        setState(() => _isDownloading = false);
+      }
     }
   }
 
@@ -1884,7 +1905,7 @@ class _HistoryDetailPageState extends State<HistoryDetailPage>
                           )
                         : const Icon(Icons.download),
                     label: Text(
-                      _isDownloading ? 'Downloading...' : 'Download Logbook',
+                      _isDownloading ? 'Membuka...' : 'Lihat Logbook',
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blue[600],
