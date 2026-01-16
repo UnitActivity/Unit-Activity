@@ -849,8 +849,11 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
         ? DateTime.tryParse(_event!['tanggal_akhir'])
         : null;
 
-    String selectedTipeAkses = _event!['tipe_akses'] ?? 'public';
-    String selectedTipevent = _event!['tipevent'] ?? 'offline';
+    String selectedTipeAkses = _event!['tipe_akses'] ?? 'anggota';
+    String selectedTipevent = _event!['tipevent'] ?? 'Internal';
+    
+    // Tipe Event options (same as add event form)
+    final tipeEventOptions = ['Internal', 'Eksternal', 'Kompetisi', 'Workshop', 'Seminar', 'Gathering', 'Lainnya'];
 
     final formKey = GlobalKey<FormState>();
     bool isSaving = false;
@@ -1173,7 +1176,7 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
                               ),
                               const SizedBox(height: 6),
                               DropdownButtonFormField<String>(
-                                value: selectedTipevent,
+                                value: tipeEventOptions.contains(selectedTipevent) ? selectedTipevent : tipeEventOptions.first,
                                 decoration: InputDecoration(
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(8),
@@ -1183,11 +1186,12 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
                                     vertical: 10,
                                   ),
                                 ),
-                                items: const [
-                                  DropdownMenuItem(value: 'offline', child: Text('Offline')),
-                                  DropdownMenuItem(value: 'online', child: Text('Online')),
-                                  DropdownMenuItem(value: 'hybrid', child: Text('Hybrid')),
-                                ],
+                                items: tipeEventOptions.map((String value) {
+                                  return DropdownMenuItem<String>(
+                                    value: value,
+                                    child: Text(value, style: GoogleFonts.inter(fontSize: 13)),
+                                  );
+                                }).toList(),
                                 onChanged: (v) {
                                   if (v != null) setDialogState(() => selectedTipevent = v);
                                 },
@@ -1210,7 +1214,7 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
                     ),
                     const SizedBox(height: 6),
                     DropdownButtonFormField<String>(
-                      value: selectedTipeAkses,
+                      value: (selectedTipeAkses == 'umum' || selectedTipeAkses == 'anggota') ? selectedTipeAkses : 'anggota',
                       decoration: InputDecoration(
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
@@ -1220,9 +1224,15 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
                           vertical: 10,
                         ),
                       ),
-                      items: const [
-                        DropdownMenuItem(value: 'public', child: Text('Publik (Semua user)')),
-                        DropdownMenuItem(value: 'member_only', child: Text('Member Only')),
+                      items: [
+                        DropdownMenuItem(
+                          value: 'anggota',
+                          child: Text('Khusus Anggota UKM', style: GoogleFonts.inter(fontSize: 13)),
+                        ),
+                        DropdownMenuItem(
+                          value: 'umum',
+                          child: Text('Terbuka untuk Umum', style: GoogleFonts.inter(fontSize: 13)),
+                        ),
                       ],
                       onChanged: (v) {
                         if (v != null) setDialogState(() => selectedTipeAkses = v);
@@ -3088,6 +3098,109 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
   }
 
   Widget _buildQRAttendanceTab(bool isDesktop) {
+    // Check event status time-based
+    final now = DateTime.now();
+    DateTime? startDate;
+    DateTime? endDate;
+
+    if (_event!['tanggal_mulai'] != null) {
+      startDate = DateTime.tryParse(_event!['tanggal_mulai']);
+    }
+    
+    if (_event!['tanggal_akhir'] != null) {
+      endDate = DateTime.tryParse(_event!['tanggal_akhir']);
+    }
+
+    // STATE: Not Started
+    if (startDate != null && now.isBefore(startDate)) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.watch_later_outlined,
+                  size: 64,
+                  color: Colors.blue[700],
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Sesi Absen Belum Dibuka',
+                style: GoogleFonts.inter(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue[900],
+                ),
+              ),
+              const SizedBox(height: 12),
+               Text(
+                'Absensi hanya dapat dilakukan saat event berlangsung.\nEvent dimulai: ${_formatDate(_event!['tanggal_mulai'])}',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: Colors.grey[600],
+                  height: 1.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // STATE: Finished
+    if (endDate != null && now.isAfter(endDate)) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.event_busy_rounded,
+                  size: 64,
+                  color: Colors.grey[600],
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Sesi Absen Sudah Ditutup',
+                style: GoogleFonts.inter(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey[800],
+                ),
+              ),
+              const SizedBox(height: 12),
+               Text(
+                'Event ini telah berakhir pada ${_formatDate(_event!['tanggal_akhir'])}.\nQR Code tidak dapat dibuat untuk event yang sudah selesai.',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: Colors.grey[600],
+                  height: 1.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(

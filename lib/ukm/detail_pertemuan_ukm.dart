@@ -679,8 +679,110 @@ class _DetailPertemuanUKMPageState extends State<DetailPertemuanUKMPage>
   }
 
   Widget _buildQRTab(bool isMobile) {
-    // Check if meeting is completed
+    // Parsing start and end times
+    final now = DateTime.now();
+    DateTime? startDateTime;
+    DateTime? endDateTime;
+
+    try {
+      final tanggalStr = widget.pertemuan['tanggalRaw'] ?? widget.pertemuan['tanggal']; // Prefer raw ISO date if available
+      final jamMulaiStr = widget.pertemuan['jamMulai'];
+      final jamAkhirStr = widget.pertemuan['jamAkhir'];
+
+      if (tanggalStr != null) {
+        final date = DateTime.parse(tanggalStr);
+        
+        if (jamMulaiStr != null) {
+          final timeParts = jamMulaiStr.toString().split(':');
+          startDateTime = DateTime(
+            date.year,
+            date.month,
+            date.day,
+            int.parse(timeParts[0]),
+            int.parse(timeParts[1]),
+          );
+        }
+
+        if (jamAkhirStr != null) {
+          final timeParts = jamAkhirStr.toString().split(':');
+          endDateTime = DateTime(
+            date.year,
+            date.month,
+            date.day,
+            int.parse(timeParts[0]),
+            int.parse(timeParts[1]),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Error parsing meeting times: $e');
+    }
+
+    // STATE: Not Started
+    if (startDateTime != null && now.isBefore(startDateTime)) {
+       return SingleChildScrollView(
+        padding: EdgeInsets.all(isMobile ? 16 : 24),
+        child: Container(
+          padding: EdgeInsets.all(isMobile ? 32 : 48),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.watch_later_outlined,
+                  size: 80,
+                  color: Colors.blue[600],
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Sesi Absen Belum Dibuka',
+                style: GoogleFonts.inter(
+                  fontSize: isMobile ? 18 : 22,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue[900],
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Absensi hanya dapat dilakukan saat pertemuan berlangsung.\nDimulai pukul: ${widget.pertemuan['jamMulai'] ?? '-'}',
+                style: GoogleFonts.inter(
+                  fontSize: isMobile ? 14 : 16,
+                  color: Colors.grey[600],
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Check if meeting is completed (using both flag/date logic AND strict time)
+    bool isExpired = false;
     if (_isMeetingCompleted) {
+      isExpired = true;
+    } else if (endDateTime != null && now.isAfter(endDateTime)) {
+      isExpired = true;
+    }
+
+    if (isExpired) {
       return SingleChildScrollView(
         padding: EdgeInsets.all(isMobile ? 16 : 24),
         child: Container(
