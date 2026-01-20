@@ -397,18 +397,20 @@ class _EventUKMPageState extends State<EventUKMPage> {
             const SizedBox(height: 16),
 
             // Filter Status Chips
-            Row(
-              children: [
-                Text(
-                  'Status: ',
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey[700],
+            if (isMobile)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                   Text(
+                    'Status:',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[700],
+                    ),
                   ),
-                ),
-                Expanded(
-                  child: Wrap(
+                  const SizedBox(height: 8),
+                  Wrap(
                     spacing: 8,
                     runSpacing: 8,
                     children: ['Semua', 'Mendatang', 'Berlangsung', 'Selesai'].map((
@@ -419,7 +421,7 @@ class _EventUKMPageState extends State<EventUKMPage> {
                         label: Text(
                           filter,
                           style: GoogleFonts.inter(
-                            fontSize: 13,
+                            fontSize: 12,
                             fontWeight: FontWeight.w600,
                             color: isSelected ? Colors.white : Colors.grey[700],
                           ),
@@ -437,28 +439,83 @@ class _EventUKMPageState extends State<EventUKMPage> {
                               ? const Color(0xFF4169E1)
                               : Colors.grey[300]!,
                         ),
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+                        labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       );
                     }).toList(),
                   ),
-                ),
-              ],
-            ),
-            
-            const SizedBox(height: 12),
-
-            // Filter Jenis Akses Chips (TAMBAHAN BARU)
-            Row(
-              children: [
-                Text(
-                  'Jenis Akses: ',
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey[700],
+                ],
+              )
+            else
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8), // Align with chip text
+                    child: Text(
+                      'Status: ',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey[700],
+                      ),
+                    ),
                   ),
-                ),
-                Expanded(
-                  child: Wrap(
+                  Expanded(
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: ['Semua', 'Mendatang', 'Berlangsung', 'Selesai'].map((
+                        filter,
+                      ) {
+                        final isSelected = _selectedFilter == filter;
+                        return FilterChip(
+                          label: Text(
+                            filter,
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: isSelected ? Colors.white : Colors.grey[700],
+                            ),
+                          ),
+                          selected: isSelected,
+                          onSelected: (selected) {
+                            setState(() => _selectedFilter = filter);
+                            _applyFilters();
+                          },
+                          backgroundColor: Colors.white,
+                          selectedColor: const Color(0xFF4169E1),
+                          checkmarkColor: Colors.white,
+                          side: BorderSide(
+                            color: isSelected
+                                ? const Color(0xFF4169E1)
+                                : Colors.grey[300]!,
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ],
+              ),
+            
+            const SizedBox(height: 16), // Increased spacing between sections
+
+            // Filter Jenis Akses Chips
+            if (isMobile)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Jenis Akses:',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[700],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
                     spacing: 8,
                     runSpacing: 8,
                     children: ['Semua', 'Umum', 'Anggota'].map((
@@ -469,7 +526,7 @@ class _EventUKMPageState extends State<EventUKMPage> {
                         label: Text(
                           filter,
                           style: GoogleFonts.inter(
-                            fontSize: 13,
+                            fontSize: 12,
                             fontWeight: FontWeight.w600,
                             color: isSelected ? Colors.white : Colors.grey[700],
                           ),
@@ -480,19 +537,72 @@ class _EventUKMPageState extends State<EventUKMPage> {
                           _applyFilters();
                         },
                         backgroundColor: Colors.white,
-                        selectedColor: Colors.green.shade600, // Warna berbeda untuk membedakan
+                        selectedColor: Colors.green.shade600,
                         checkmarkColor: Colors.white,
                         side: BorderSide(
                           color: isSelected
                               ? Colors.green.shade600
                               : Colors.grey[300]!,
                         ),
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+                        labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       );
                     }).toList(),
                   ),
-                ),
-              ],
-            ),
+                ],
+              )
+            else
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      'Jenis Akses: ',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey[700],
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: ['Semua', 'Umum', 'Anggota'].map((
+                        filter,
+                      ) {
+                        final isSelected = _selectedAccessFilter == filter;
+                        return FilterChip(
+                          label: Text(
+                            filter,
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: isSelected ? Colors.white : Colors.grey[700],
+                            ),
+                          ),
+                          selected: isSelected,
+                          onSelected: (selected) {
+                            setState(() => _selectedAccessFilter = filter);
+                            _applyFilters();
+                          },
+                          backgroundColor: Colors.white,
+                          selectedColor: Colors.green.shade600,
+                          checkmarkColor: Colors.white,
+                          side: BorderSide(
+                            color: isSelected
+                                ? Colors.green.shade600
+                                : Colors.grey[300]!,
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ],
+              ),
           ],
         ),
         const SizedBox(height: 16),

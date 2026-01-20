@@ -1486,7 +1486,7 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
                         const SizedBox(height: 20),
 
                         // Tab Bar
-                        _buildTabBar(),
+                        _buildTabBar(isDesktop),
                       ],
                     ),
                   ),
@@ -1843,7 +1843,7 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
     );
   }
 
-  Widget _buildTabBar() {
+  Widget _buildTabBar(bool isDesktop) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -1877,20 +1877,23 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
           fontWeight: FontWeight.w500,
         ),
         padding: const EdgeInsets.all(4),
-        tabs: const [
+        tabs: [
           Tab(
-            icon: Icon(Icons.info_outline_rounded, size: 20),
-            text: 'Informasi',
+            icon: const Icon(Icons.info_outline_rounded, size: 20),
+            text: isDesktop ? 'Informasi' : null,
           ),
           Tab(
-            icon: Icon(Icons.people_outline_rounded, size: 20),
-            text: 'Peserta',
+            icon: const Icon(Icons.people_outline_rounded, size: 20),
+            text: isDesktop ? 'Peserta' : null,
           ),
           Tab(
-            icon: Icon(Icons.qr_code_2_rounded, size: 20),
-            text: 'QR Absensi',
+            icon: const Icon(Icons.qr_code_2_rounded, size: 20),
+            text: isDesktop ? 'QR Absensi' : null,
           ),
-          Tab(icon: Icon(Icons.folder_open_rounded, size: 20), text: 'Dokumen'),
+          Tab(
+            icon: const Icon(Icons.folder_open_rounded, size: 20),
+            text: isDesktop ? 'Dokumen' : null,
+          ),
         ],
       ),
     );
@@ -2543,18 +2546,20 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
                 ),
               ),
               const SizedBox(width: 12),
-              Text(
-                'Dokumen Event',
-                style: GoogleFonts.inter(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.black87,
+              Expanded(
+                child: Text(
+                  'Dokumen Event',
+                  style: GoogleFonts.inter(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black87,
+                  ),
                 ),
               ),
-              const Spacer(),
+              // Spacer renamed to just SizedBox if needed, or keep Spacer/Expanded logic
               Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
+                  horizontal: 10,
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
@@ -2562,7 +2567,7 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  '${_dokumenProposal.length + _dokumenLpj.length} Dokumen',
+                  '${_dokumenProposal.length + _dokumenLpj.length} File', // Shortened text
                   style: GoogleFonts.inter(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
@@ -2661,16 +2666,19 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              title,
-              style: GoogleFonts.inter(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: Colors.black87,
+            Expanded(
+              child: Text(
+                title,
+                style: GoogleFonts.inter(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.black87,
+                ),
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
@@ -2686,7 +2694,7 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
                   Text(
                     statusText,
                     style: GoogleFonts.inter(
-                      fontSize: 12,
+                      fontSize: 11,
                       fontWeight: FontWeight.w600,
                       color: statusColor,
                     ),
@@ -2794,24 +2802,18 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
         statusColor = const Color(0xFF9CA3AF);
         statusLabel = 'Draft';
         break;
+      case 'revisi':
+        statusColor = const Color(0xFFFF6B6B);
+        statusLabel = 'Revisi';
+        break;
       default:
         statusColor = const Color(0xFFF59E0B);
         statusLabel = 'Menunggu';
     }
 
-    // Get filename (unified table uses specific field names)
-    String filename = '';
-    if (documentType == 'proposal') {
-      filename = doc['original_filename_proposal'] ?? 'proposal.pdf';
-    } else if (documentType == 'logbook') {
-      filename = doc['original_filename_logbook'] ?? 'logbook.pdf';
-    } else if (documentType == 'lpj_laporan') {
-      filename = doc['original_filename_laporan'] ?? 'laporan.pdf';
-    } else if (documentType == 'lpj_keuangan') {
-      filename = doc['original_filename_keuangan'] ?? 'keuangan.pdf';
-    } else {
-      filename = doc['original_filename_laporan'] ?? 'document.pdf';
-    }
+    // Get filename & size
+    String filename = _getOriginalFilename(doc, documentType);
+    String fileSize = _getFileSize(doc, documentType);
 
     // Check if document can be viewed (not draft)
     final canViewDetail = status != 'draft';
@@ -2837,230 +2839,182 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: statusColor.withOpacity(0.3), width: 1.5),
-          boxShadow: [
-            BoxShadow(
-              color: statusColor.withOpacity(0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
+          border: Border.all(color: Colors.grey[200]!),
         ),
-        child: Row(
+        child: Column(
           children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: statusColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(
-                Icons.description_rounded,
-                color: statusColor,
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    filename,
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Diupload: ${_formatDate(doc['tanggal_pengajuan'])}',
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      color: Colors.grey[600],
-                    ),
+                  child: const Icon(
+                    Icons.insert_drive_file_outlined,
+                    color: Color(0xFF4169E1),
+                    size: 24,
                   ),
-                  if (documentType == 'lpj') ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      'File Keuangan: ${doc['original_filename_keuangan'] ?? 'keuangan.pdf'}',
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: Colors.grey[500],
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        filename,
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                  ],
-                  if (doc['catatan_admin'] != null &&
-                      doc['catatan_admin'].toString().isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.amber[50],
-                        borderRadius: BorderRadius.circular(8),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Size: $fileSize • ${status == 'draft' ? 'Draft' : _formatDate(doc['tanggal_pengajuan'])}',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                        ),
                       ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(
-                            Icons.info_outline_rounded,
-                            size: 16,
-                            color: Colors.amber[900],
+                      if (doc['catatan_admin'] != null &&
+                          doc['catatan_admin'].toString().isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.amber[50],
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Catatan Admin: ${doc['catatan_admin']}',
-                              style: GoogleFonts.inter(
-                                fontSize: 12,
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                Icons.info_outline_rounded,
+                                size: 14,
                                 color: Colors.amber[900],
                               ),
-                            ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  '${doc['catatan_admin']}',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 11,
+                                    color: Colors.amber[900],
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ],
-              ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 12),
-
-            // Action buttons for draft status
-            if (status == 'draft') ...[
-              Column(
-                children: [
-                  // Submit button
-                  SizedBox(
-                    width: 100,
-                    child: ElevatedButton.icon(
-                      onPressed: () => _submitDocument(docId, documentType),
-                      icon: const Icon(Icons.send_rounded, size: 16),
-                      label: Text(
-                        'Ajukan',
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF4169E1),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 8,
-                          horizontal: 12,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        elevation: 0,
-                      ),
-                    ),
+            const SizedBox(height: 12),
+            Divider(height: 1, color: Colors.grey[100]),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(6),
                   ),
-                  const SizedBox(height: 8),
-                  // Delete button
-                  SizedBox(
-                    width: 100,
-                    child: OutlinedButton.icon(
-                      onPressed: () => _deleteDocument(docId, documentType),
-                      icon: const Icon(Icons.delete_outline_rounded, size: 16),
-                      label: Text(
-                        'Hapus',
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.red,
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 8,
-                          horizontal: 12,
-                        ),
-                        side: const BorderSide(color: Colors.red),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ] else
-              Column(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
+                  child: Text(
+                    statusLabel,
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
                       color: statusColor,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      statusLabel,
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  // Lihat Detail button for non-draft documents
-                  InkWell(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => DetailDocumentUKMPage(
-                            documentId: docId,
-                            documentType: documentType,
+                ),
+                Row(
+                  children: [
+                    if (status == 'draft' || status == 'ditolak' || status == 'revisi')
+                      InkWell(
+                        onTap: () => _deleteDocument(docId, documentType),
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withOpacity(0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.delete_outline_rounded,
+                            color: Colors.red,
+                            size: 16,
                           ),
                         ),
-                      ).then((_) => _loadEventDetails());
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
                       ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF4169E1).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.visibility_rounded,
-                            size: 14,
-                            color: Color(0xFF4169E1),
+                    if (status == 'draft' || status == 'revisi') ...[
+                      const SizedBox(width: 8),
+                      InkWell(
+                        onTap: () => _submitDocument(docId, documentType),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF4169E1),
+                            borderRadius: BorderRadius.circular(6),
                           ),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Detail',
-                            style: GoogleFonts.inter(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFF4169E1),
-                            ),
+                          child: Row(
+                            children: [
+                              Text(
+                                'Ajukan',
+                                style: GoogleFonts.inter(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
-                    ),
-                  ),
-                ],
-              ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
           ],
         ),
       ),
     );
   }
+
+  String _getOriginalFilename(Map<String, dynamic> doc, String type) {
+    if (type == 'proposal') return doc['original_filename_proposal'] ?? 'Proposal';
+    if (type == 'lpj_laporan') return doc['original_filename_laporan'] ?? 'Laporan';
+    if (type == 'lpj_keuangan') return doc['original_filename_keuangan'] ?? 'Keuangan';
+    if (type == 'logbook') return doc['original_filename_logbook'] ?? 'Logbook';
+    return 'Dokumen';
+  }
+
+  String _getFileSize(Map<String, dynamic> doc, String type) {
+    int? size;
+    if (type == 'proposal') size = doc['file_size_proposal'];
+    else if (type == 'lpj_laporan') size = doc['file_size_laporan'];
+    else if (type == 'lpj_keuangan') size = doc['file_size_keuangan'];
+    else if (type == 'logbook') size = doc['file_size_logbook'];
+    
+    if (size == null) return '-';
+    if (size < 1024) return '$size B';
+    if (size < 1024 * 1024) return '${(size / 1024).toStringAsFixed(1)} KB';
+    return '${(size / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
+
 
   Widget _buildErrorState() {
     return Center(
@@ -3114,43 +3068,45 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
     // STATE: Not Started
     if (startDate != null && now.isBefore(startDate)) {
       return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.1),
-                  shape: BoxShape.circle,
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.watch_later_outlined,
+                    size: 64,
+                    color: Colors.blue[700],
+                  ),
                 ),
-                child: Icon(
-                  Icons.watch_later_outlined,
-                  size: 64,
-                  color: Colors.blue[700],
+                const SizedBox(height: 24),
+                Text(
+                  'Sesi Absen Belum Dibuka',
+                  style: GoogleFonts.inter(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue[900],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'Sesi Absen Belum Dibuka',
-                style: GoogleFonts.inter(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.blue[900],
+                const SizedBox(height: 12),
+                 Text(
+                  'Absensi hanya dapat dilakukan saat event berlangsung.\nEvent dimulai: ${_formatDate(_event!['tanggal_mulai'])}',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                    height: 1.5,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-               Text(
-                'Absensi hanya dapat dilakukan saat event berlangsung.\nEvent dimulai: ${_formatDate(_event!['tanggal_mulai'])}',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  color: Colors.grey[600],
-                  height: 1.5,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       );
@@ -3159,43 +3115,45 @@ class _DetailEventUkmPageState extends State<DetailEventUkmPage>
     // STATE: Finished
     if (endDate != null && now.isAfter(endDate)) {
       return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.grey.withOpacity(0.1),
-                  shape: BoxShape.circle,
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.event_busy_rounded,
+                    size: 64,
+                    color: Colors.grey[600],
+                  ),
                 ),
-                child: Icon(
-                  Icons.event_busy_rounded,
-                  size: 64,
-                  color: Colors.grey[600],
+                const SizedBox(height: 24),
+                Text(
+                  'Sesi Absen Sudah Ditutup',
+                  style: GoogleFonts.inter(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey[800],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'Sesi Absen Sudah Ditutup',
-                style: GoogleFonts.inter(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey[800],
+                const SizedBox(height: 12),
+                 Text(
+                  'Event ini telah berakhir pada ${_formatDate(_event!['tanggal_akhir'])}.\nQR Code tidak dapat dibuat untuk event yang sudah selesai.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                    height: 1.5,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-               Text(
-                'Event ini telah berakhir pada ${_formatDate(_event!['tanggal_akhir'])}.\nQR Code tidak dapat dibuat untuk event yang sudah selesai.',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  color: Colors.grey[600],
-                  height: 1.5,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       );

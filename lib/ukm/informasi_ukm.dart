@@ -412,7 +412,7 @@ class _InformasiUKMPageState extends State<InformasiUKMPage> {
         crossAxisCount: crossAxisCount,
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
-        childAspectRatio: isMobile ? 1.2 : 0.85,
+        childAspectRatio: isMobile ? 0.9 : 0.85,
       ),
       itemCount: _paginatedInformasi.length,
       itemBuilder: (context, index) => _buildGridCard(_paginatedInformasi[index]),
