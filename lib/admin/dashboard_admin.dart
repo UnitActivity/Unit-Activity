@@ -1,12 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:unit_activity/components/admin_sidebar.dart';
-import 'package:unit_activity/components/admin_header.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'package:unit_activity/widgets/admin_sidebar.dart';
+import 'package:unit_activity/widgets/admin_header.dart';
 import 'package:unit_activity/admin/pengguna.dart';
 import 'package:unit_activity/admin/ukm.dart';
 import 'package:unit_activity/admin/event.dart';
 import 'package:unit_activity/admin/periode.dart';
+import 'package:unit_activity/admin/notifikasi.dart';
 import 'package:unit_activity/admin/informasi.dart';
+import 'package:unit_activity/admin/profile_admin.dart';
+import 'package:unit_activity/services/dashboard_service.dart';
+import 'package:unit_activity/services/custom_auth_service.dart';
+import 'package:unit_activity/auth/login.dart';
 
 class DashboardAdminPage extends StatefulWidget {
   const DashboardAdminPage({super.key});
@@ -18,11 +25,129 @@ class DashboardAdminPage extends StatefulWidget {
 class _DashboardAdminPageState extends State<DashboardAdminPage> {
   String _selectedMenu = 'dashboard';
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  final DashboardService _dashboardService = DashboardService();
+  final CustomAuthService _authService = CustomAuthService();
+
+  // Dashboard stats
+  Map<String, dynamic>? _dashboardStats;
+  bool _isLoadingStats = true;
+  String? _errorMessage;
+
+  // Additional dashboard data
+  Map<String, dynamic>? _eventsByMonth;
+  List<dynamic>? _ukmRanking;
+  Map<String, dynamic>? _followerTrend;
+  List<dynamic>? _recentActivities;
+  List<dynamic>? _upcomingEvents;
+  List<dynamic>? _alerts;
+  List<dynamic>? _eventLeaderboard;
+
+  // Filter states
+  String _eventTrendPeriod = 'hari_ini';
+  String _followerTrendPeriod = 'hari_ini';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDashboardStats();
+  }
+
+  Future<void> _loadDashboardStats() async {
+    setState(() {
+      _isLoadingStats = true;
+      _errorMessage = null;
+    });
+
+    // Load all dashboard data in parallel
+    final results = await Future.wait([
+      _dashboardService.getDashboardStats(),
+      _dashboardService.getEventsByMonth(_eventTrendPeriod),
+      _dashboardService.getUkmRanking(),
+      _dashboardService.getFollowerTrend(_followerTrendPeriod),
+      _dashboardService.getRecentActivities(),
+      _dashboardService.getUpcomingEvents(),
+      _dashboardService.getAlerts(),
+      _dashboardService.getEventLeaderboard(_eventTrendPeriod),
+    ]);
+
+    if (mounted) {
+      setState(() {
+        // Main stats
+        if (results[0]['success'] == true) {
+          _dashboardStats = results[0]['data'];
+        }
+
+        // Events by month
+        if (results[1]['success'] == true) {
+          _eventsByMonth = results[1]['data'];
+        }
+
+        // UKM ranking
+        if (results[2]['success'] == true) {
+          _ukmRanking = results[2]['data'];
+        }
+
+        // Follower trend
+        if (results[3]['success'] == true) {
+          _followerTrend = results[3]['data'];
+        }
+
+        // Recent activities
+        if (results[4]['success'] == true) {
+          _recentActivities = results[4]['data'];
+        }
+
+        // Upcoming events
+        if (results[5]['success'] == true) {
+          _upcomingEvents = results[5]['data'];
+        }
+
+        // Alerts
+        if (results[6]['success'] == true) {
+          _alerts = results[6]['data'];
+        }
+
+        // Event leaderboard
+        if (results[7]['success'] == true) {
+          _eventLeaderboard = results[7]['data'];
+        }
+
+        _isLoadingStats = false;
+      });
+    }
+  }
+
+  Future<void> _reloadEventTrend() async {
+    final result = await _dashboardService.getEventLeaderboard(
+      _eventTrendPeriod,
+    );
+    if (mounted && result['success'] == true) {
+      setState(() {
+        _eventLeaderboard = result['data'];
+      });
+    }
+  }
+
+  Future<void> _reloadFollowerTrend() async {
+    final result = await _dashboardService.getFollowerTrend(
+      _followerTrendPeriod,
+    );
+    if (mounted && result['success'] == true) {
+      setState(() {
+        _followerTrend = result['data'];
+      });
+    }
+  }
 
   void _handleMenuSelected(String menu) {
+    print('========== MENU SELECTED ==========');
+    print('Menu value: $menu');
+    print('Previous menu: $_selectedMenu');
     setState(() {
       _selectedMenu = menu;
     });
+    print('New menu set to: $_selectedMenu');
+    print('===================================');
     // Close drawer on mobile
     if (_scaffoldKey.currentState?.isDrawerOpen ?? false) {
       Navigator.pop(context);
@@ -42,10 +167,16 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
             child: const Text('Batal'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              // Navigate to login page
-              Navigator.pushReplacementNamed(context, '/login');
+              await _authService.logout();
+              if (mounted) {
+                // Navigate to login page
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => const LoginPage()),
+                );
+              }
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Keluar'),
@@ -88,11 +219,11 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
                 // Content Area
                 Positioned.fill(
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.only(
-                      left: 24,
-                      right: 24,
-                      top: 100, // Space for floating header
-                      bottom: 24,
+                    padding: EdgeInsets.only(
+                      left: isDesktop ? 20 : 12,
+                      right: isDesktop ? 20 : 12,
+                      top: isDesktop ? 95 : 70,
+                      bottom: isDesktop ? 20 : 12,
                     ),
                     child: _buildContent(),
                   ),
@@ -108,6 +239,7 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
                       _scaffoldKey.currentState?.openDrawer();
                     },
                     onLogout: _handleLogout,
+                    onProfilePressed: _handleMenuSelected,
                   ),
                 ),
               ],
@@ -119,6 +251,7 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
   }
 
   Widget _buildContent() {
+    print('Building content for menu: $_selectedMenu');
     switch (_selectedMenu) {
       case 'dashboard':
         return _buildDashboardContent();
@@ -130,14 +263,131 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
         return const EventPage();
       case 'periode':
         return const PeriodePage();
+      case 'notifikasi':
+        return const NotifikasiPage();
       case 'informasi':
         return const InformasiPage();
+      case 'profile':
+        print('Returning ProfileAdminPage');
+        return const ProfileAdminPage();
       default:
         return _buildDashboardContent();
     }
   }
 
   Widget _buildDashboardContent() {
+    if (_isLoadingStats) {
+      final size = MediaQuery.of(context).size;
+      final isMobile = size.width < 768;
+
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const SizedBox(height: 24),
+            SizedBox(
+              width: isMobile ? 40 : 50,
+              height: isMobile ? 40 : 50,
+              child: const CircularProgressIndicator(
+                strokeWidth: 3,
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4169E1)),
+              ),
+            ),
+            SizedBox(height: isMobile ? 16 : 20),
+            Text(
+              'Memuat dashboard...',
+              style: GoogleFonts.inter(
+                fontSize: isMobile ? 14 : 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[700],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_dashboardStats == null) {
+      final size = MediaQuery.of(context).size;
+      final isMobile = size.width < 768;
+
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: EdgeInsets.all(isMobile ? 18 : 24),
+              decoration: BoxDecoration(
+                color: Colors.red[50],
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.error_outline,
+                size: isMobile ? 48 : 60,
+                color: Colors.red[400],
+              ),
+            ),
+            SizedBox(height: isMobile ? 16 : 24),
+            Text(
+              'Gagal memuat data dashboard',
+              style: GoogleFonts.inter(
+                color: Colors.grey[800],
+                fontSize: isMobile ? 15 : 18,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            if (_errorMessage != null) const SizedBox(height: 12),
+            if (_errorMessage != null)
+              Container(
+                padding: const EdgeInsets.all(16),
+                margin: const EdgeInsets.symmetric(horizontal: 32),
+                decoration: BoxDecoration(
+                  color: Colors.red[50],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.red[200]!, width: 1.5),
+                ),
+                child: Text(
+                  _errorMessage!,
+                  style: GoogleFonts.inter(
+                    color: Colors.red[700],
+                    fontSize: 13,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: _loadDashboardStats,
+              icon: const Icon(Icons.refresh, size: 20),
+              label: Text(
+                'Coba Lagi',
+                style: GoogleFonts.inter(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4169E1),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 14,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                elevation: 0,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final totalUkm = _dashboardStats!['totalUkm'] ?? 0;
+    final totalUsers = _dashboardStats!['totalUsers'] ?? 0;
+    final totalEvent = _dashboardStats!['totalEvent'] ?? 0;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final isLargeScreen = constraints.maxWidth > 1200;
@@ -147,7 +397,9 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Stats Cards
+            SizedBox(height: isMobile ? 16 : 24),
+
+            // Stats Cards in Modern Grid
             GridView.count(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -155,35 +407,277 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
               crossAxisSpacing: isMobile ? 12 : 16,
               mainAxisSpacing: isMobile ? 12 : 16,
               childAspectRatio: isLargeScreen
-                  ? 2.5
-                  : (isMediumScreen ? 2.2 : 3.2),
+                  ? 2.2
+                  : (isMediumScreen ? 2.5 : 2.5),
               children: [
-                _buildStatCard(
+                _buildModernStatCard(
                   title: 'Total UKM',
-                  value: '13',
-                  icon: Icons.groups,
-                  color: const Color(0xFF4169E1),
+                  value: '$totalUkm',
+                  icon: Icons.groups_rounded,
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF4169E1), Color(0xFF5B7FE8)],
+                  ),
                   isMobile: isMobile,
                 ),
-                _buildStatCard(
+                _buildModernStatCard(
                   title: 'Total Mahasiswa',
-                  value: '1800',
-                  icon: Icons.people,
-                  color: const Color(0xFF10B981),
+                  value: '$totalUsers',
+                  icon: Icons.people_rounded,
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF10B981), Color(0xFF34D399)],
+                  ),
                   isMobile: isMobile,
                 ),
-                _buildStatCard(
-                  title: 'Total Event Periode ini',
-                  value: '6',
-                  icon: Icons.event,
-                  color: const Color(0xFFF59E0B),
+                _buildModernStatCard(
+                  title: 'Total Event',
+                  value: '$totalEvent',
+                  icon: Icons.event_rounded,
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFF59E0B), Color(0xFFFBBF24)],
+                  ),
                   isMobile: isMobile,
                 ),
               ],
             ),
+
+            SizedBox(height: isMobile ? 16 : 24),
+
+            // Alerts Section
+            if (_alerts != null && _alerts!.isNotEmpty) ...[
+              _buildSectionTitle('⚠️ Alerts & Warnings', isMobile),
+              SizedBox(height: isMobile ? 6 : 8),
+              ..._alerts!.map((alert) => _buildAlertCard(alert, isMobile)),
+              SizedBox(height: isMobile ? 10 : 14),
+            ],
+
+            // Charts Row
+            if (isLargeScreen)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildSectionTitleWithDropdown(
+                          '📊 Event Trend',
+                          _eventTrendPeriod,
+                          (newPeriod) {
+                            setState(() {
+                              _eventTrendPeriod = newPeriod!;
+                            });
+                            _reloadEventTrend();
+                          },
+                          isMobile,
+                        ),
+                        const SizedBox(height: 6),
+                        _buildEventChart(isMobile),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              '🏆 Top UKM',
+                              style: GoogleFonts.inter(
+                                fontSize: isMobile ? 14 : 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 17),
+                        _buildUkmRanking(isMobile),
+                      ],
+                    ),
+                  ),
+                ],
+              )
+            else
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildSectionTitleWithDropdown(
+                    '📊 Event Trend',
+                    _eventTrendPeriod,
+                    (newPeriod) {
+                      setState(() {
+                        _eventTrendPeriod = newPeriod!;
+                      });
+                      _reloadEventTrend();
+                    },
+                    isMobile,
+                  ),
+                  SizedBox(height: isMobile ? 6 : 8),
+                  _buildEventChart(isMobile),
+                  SizedBox(height: isMobile ? 10 : 14),
+                  _buildSectionTitle('🏆 Top UKM', isMobile),
+                  SizedBox(height: isMobile ? 6 : 8),
+                  _buildUkmRanking(isMobile),
+                ],
+              ),
+
+            SizedBox(height: isMobile ? 10 : 14),
+
+            // Follower Trend Chart
+            _buildSectionTitleWithDropdown(
+              '📈 Pertumbuhan Anggota',
+              _followerTrendPeriod,
+              (newPeriod) {
+                setState(() {
+                  _followerTrendPeriod = newPeriod!;
+                });
+                _reloadFollowerTrend();
+              },
+              isMobile,
+            ),
+            SizedBox(height: isMobile ? 6 : 8),
+            _buildFollowerTrendChart(isMobile),
+
+            SizedBox(height: isMobile ? 10 : 14),
+
+            // Recent Activities and Upcoming Events
+            if (isLargeScreen)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildSectionTitle('🕐 Recent Activities', isMobile),
+                        const SizedBox(height: 6),
+                        _buildRecentActivities(isMobile),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildSectionTitle('📅 Upcoming Events', isMobile),
+                        const SizedBox(height: 6),
+                        _buildUpcomingEvents(isMobile),
+                      ],
+                    ),
+                  ),
+                ],
+              )
+            else
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildSectionTitle('🕐 Recent Activities', isMobile),
+                  SizedBox(height: isMobile ? 6 : 8),
+                  _buildRecentActivities(isMobile),
+                  SizedBox(height: isMobile ? 10 : 14),
+                  _buildSectionTitle('📅 Upcoming Events', isMobile),
+                  SizedBox(height: isMobile ? 6 : 8),
+                  _buildUpcomingEvents(isMobile),
+                ],
+              ),
           ],
         );
       },
+    );
+  }
+
+  Widget _buildModernStatCard({
+    required String title,
+    required String value,
+    required IconData icon,
+    required Gradient gradient,
+    required bool isMobile,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: gradient,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          // Background Pattern
+          Positioned(
+            right: -20,
+            top: -20,
+            child: Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.1),
+              ),
+            ),
+          ),
+          // Content
+          Padding(
+            padding: EdgeInsets.all(isMobile ? 16 : 20),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.25),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        icon,
+                        color: Colors.white,
+                        size: isMobile ? 24 : 28,
+                      ),
+                    ),
+                    Icon(
+                      Icons.trending_up_rounded,
+                      color: Colors.white.withOpacity(0.7),
+                      size: 20,
+                    ),
+                  ],
+                ),
+                const Spacer(),
+                Text(
+                  value,
+                  style: GoogleFonts.inter(
+                    fontSize: isMobile ? 28 : 36,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    height: 1,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  title,
+                  style: GoogleFonts.inter(
+                    fontSize: isMobile ? 13 : 14,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.white.withOpacity(0.95),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -195,59 +689,1276 @@ class _DashboardAdminPageState extends State<DashboardAdminPage> {
     required bool isMobile,
   }) {
     return Container(
-      padding: EdgeInsets.all(isMobile ? 16 : 24),
+      padding: EdgeInsets.all(isMobile ? 14 : 18),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
                   title,
                   style: GoogleFonts.inter(
                     fontSize: isMobile ? 12 : 14,
                     color: Colors.grey[600],
                     fontWeight: FontWeight.w500,
                   ),
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: EdgeInsets.all(isMobile ? 8 : 10),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: color, size: isMobile ? 20 : 24),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: GoogleFonts.inter(
+              fontSize: isMobile ? 24 : 32,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionTitle(String title, bool isMobile) {
+    return Text(
+      title,
+      style: GoogleFonts.inter(
+        fontSize: isMobile ? 14 : 16,
+        fontWeight: FontWeight.bold,
+        color: Colors.black87,
+      ),
+    );
+  }
+
+  Widget _buildSectionTitleWithDropdown(
+    String title,
+    String selectedPeriod,
+    ValueChanged<String?> onChanged,
+    bool isMobile,
+  ) {
+    final periodOptions = {
+      'hari_ini': 'Hari Ini',
+      'minggu_ini': 'Minggu Ini',
+      'bulan_ini': 'Bulan Ini',
+      '3_bulan': '3 Bulan',
+      '6_bulan': '6 Bulan',
+      'tahun_ini': 'Tahun Ini',
+    };
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          title,
+          style: GoogleFonts.inter(
+            fontSize: isMobile ? 14 : 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
+        ),
+        Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: isMobile ? 8 : 12,
+            vertical: isMobile ? 3 : 4,
+          ),
+          decoration: BoxDecoration(
+            color: Colors.grey[100],
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey[300]!),
+          ),
+          child: DropdownButton<String>(
+            value: selectedPeriod,
+            underline: const SizedBox(),
+            isDense: true,
+            style: GoogleFonts.inter(
+              fontSize: isMobile ? 10 : 12,
+              color: Colors.black87,
+            ),
+            items: periodOptions.entries.map((entry) {
+              return DropdownMenuItem<String>(
+                value: entry.key,
+                child: Text(entry.value),
+              );
+            }).toList(),
+            onChanged: onChanged,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAlertCard(Map<String, dynamic> alert, bool isMobile) {
+    Color alertColor;
+    Color alertTextColor;
+    IconData alertIcon;
+
+    switch (alert['type']) {
+      case 'danger':
+        alertColor = Colors.red;
+        alertTextColor = Colors.red[700]!;
+        alertIcon = Icons.error;
+        break;
+      case 'warning':
+        alertColor = Colors.orange;
+        alertTextColor = Colors.orange[700]!;
+        alertIcon = Icons.warning;
+        break;
+      case 'info':
+        alertColor = Colors.blue;
+        alertTextColor = Colors.blue[700]!;
+        alertIcon = Icons.info;
+        break;
+      default:
+        alertColor = Colors.grey;
+        alertTextColor = Colors.grey[700]!;
+        alertIcon = Icons.notifications;
+    }
+
+    return GestureDetector(
+      onTap: () => _showAlertDetailModal(alert, isMobile),
+      child: Container(
+        margin: EdgeInsets.only(bottom: isMobile ? 8 : 10),
+        padding: EdgeInsets.all(isMobile ? 12 : 14),
+        decoration: BoxDecoration(
+          color: alertColor.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: alertColor.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          children: [
+            Icon(alertIcon, color: alertColor, size: isMobile ? 20 : 24),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    alert['title'] ?? '',
+                    style: GoogleFonts.inter(
+                      fontSize: isMobile ? 13 : 14,
+                      fontWeight: FontWeight.w600,
+                      color: alertTextColor,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    alert['message'] ?? '',
+                    style: GoogleFonts.inter(
+                      fontSize: isMobile ? 12 : 13,
+                      color: alertTextColor.withValues(alpha: 0.8),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (alert['count'] != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: alertColor,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '${alert['count']}',
                   style: GoogleFonts.inter(
-                    fontSize: isMobile ? 24 : 36,
+                    fontSize: 12,
                     fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            const SizedBox(width: 8),
+            Icon(
+              Icons.arrow_forward_ios,
+              color: alertColor.withValues(alpha: 0.6),
+              size: 16,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showAlertDetailModal(Map<String, dynamic> alert, bool isMobile) {
+    final alertId = alert['alertId'] ?? '';
+    final events = alert['events'] as List? ?? [];
+    final documents = alert['documents'] as List? ?? [];
+
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Container(
+          width: isMobile ? double.infinity : 600,
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.7,
+            maxWidth: 600,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: _getAlertColor(alert['type']).withValues(alpha: 0.1),
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(16),
+                    topRight: Radius.circular(16),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      _getAlertIcon(alert['type']),
+                      color: _getAlertColor(alert['type']),
+                      size: 28,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            alert['title'] ?? 'Alert Detail',
+                            style: GoogleFonts.inter(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            alert['message'] ?? '',
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Content - Event/Document List
+              Flexible(
+                child: alertId == 'pending_review'
+                    ? _buildDocumentList(documents, isMobile)
+                    : _buildEventList(events, alertId, isMobile),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _getAlertColor(String? type) {
+    switch (type) {
+      case 'danger':
+        return Colors.red;
+      case 'warning':
+        return Colors.orange;
+      case 'info':
+        return Colors.blue;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  IconData _getAlertIcon(String? type) {
+    switch (type) {
+      case 'danger':
+        return Icons.error;
+      case 'warning':
+        return Icons.warning;
+      case 'info':
+        return Icons.info;
+      default:
+        return Icons.notifications;
+    }
+  }
+
+  Widget _buildEventList(List events, String alertId, bool isMobile) {
+    if (events.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.all(32),
+        child: Text(
+          'Tidak ada data event',
+          style: GoogleFonts.inter(color: Colors.grey[600]),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      shrinkWrap: true,
+      padding: const EdgeInsets.all(16),
+      itemCount: events.length,
+      separatorBuilder: (_, __) => const Divider(height: 1),
+      itemBuilder: (context, index) {
+        final event = events[index];
+        final eventName = event['nama_event'] ?? 'Unknown Event';
+        final ukmName = event['ukm']?['nama_ukm'] ?? 'Unknown UKM';
+        final eventId = event['id_events'];
+        final ukmId = event['id_ukm'];
+
+        return ListTile(
+          contentPadding: const EdgeInsets.symmetric(
+            vertical: 8,
+            horizontal: 8,
+          ),
+          leading: Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF4169E1).withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.event, color: Color(0xFF4169E1), size: 24),
+          ),
+          title: Text(
+            eventName,
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
+          ),
+          subtitle: Row(
+            children: [
+              Icon(Icons.groups, size: 14, color: Colors.grey[500]),
+              const SizedBox(width: 4),
+              Text(
+                ukmName,
+                style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600]),
+              ),
+            ],
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // View Event button
+              IconButton(
+                icon: const Icon(Icons.visibility, color: Color(0xFF4169E1)),
+                tooltip: 'Lihat Event',
+                onPressed: () {
+                  Navigator.pop(context);
+                  _handleMenuSelected('event');
+                },
+              ),
+              // Send Reminder button
+              IconButton(
+                icon: const Icon(
+                  Icons.notifications_active,
+                  color: Colors.orange,
+                ),
+                tooltip: 'Kirim Pengingat',
+                onPressed: () => _sendReminderNotification(
+                  eventId: eventId,
+                  eventName: eventName,
+                  ukmId: ukmId,
+                  ukmName: ukmName,
+                  alertType: alertId,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDocumentList(List documents, bool isMobile) {
+    if (documents.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.all(32),
+        child: Text(
+          'Tidak ada dokumen menunggu review',
+          style: GoogleFonts.inter(color: Colors.grey[600]),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      shrinkWrap: true,
+      padding: const EdgeInsets.all(16),
+      itemCount: documents.length,
+      separatorBuilder: (_, __) => const Divider(height: 1),
+      itemBuilder: (context, index) {
+        final doc = documents[index];
+        final docType = doc['document_type'] ?? 'unknown';
+        final eventData = doc['events'];
+        final eventName = eventData?['nama_event'] ?? 'Unknown Event';
+        final ukmName = eventData?['ukm']?['nama_ukm'] ?? 'Unknown UKM';
+
+        return ListTile(
+          contentPadding: const EdgeInsets.symmetric(
+            vertical: 8,
+            horizontal: 8,
+          ),
+          leading: Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: docType == 'proposal'
+                  ? Colors.blue.withValues(alpha: 0.1)
+                  : Colors.green.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              Icons.description,
+              color: docType == 'proposal' ? Colors.blue : Colors.green,
+              size: 24,
+            ),
+          ),
+          title: Text(
+            docType == 'proposal' ? 'Proposal' : 'LPJ',
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                eventName,
+                style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[700]),
+              ),
+              Row(
+                children: [
+                  Icon(Icons.groups, size: 12, color: Colors.grey[500]),
+                  const SizedBox(width: 4),
+                  Text(
+                    ukmName,
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          trailing: ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _handleMenuSelected('event');
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF4169E1),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: Text(
+              'Review',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _sendReminderNotification({
+    required String eventId,
+    required String eventName,
+    required String ukmId,
+    required String ukmName,
+    required String alertType,
+  }) async {
+    final supabase = Supabase.instance.client;
+
+    String notifTitle;
+    String notifMessage;
+
+    if (alertType == 'no_proposal') {
+      notifTitle = '📋 Pengingat: Upload Proposal';
+      notifMessage =
+          'Event "$eventName" belum memiliki proposal. Silakan upload proposal event secepatnya.';
+    } else if (alertType == 'overdue_lpj') {
+      notifTitle = '📄 Pengingat: Upload LPJ';
+      notifMessage =
+          'Event "$eventName" sudah selesai. Silakan upload LPJ secepatnya.';
+    } else {
+      notifTitle = '📢 Pengingat Dokumen';
+      notifMessage = 'Harap lengkapi dokumen untuk event "$eventName".';
+    }
+
+    try {
+      // Insert notification for UKM
+      await supabase.from('notification_preference').insert({
+        'type': 'reminder',
+        'judul': notifTitle,
+        'pesan': notifMessage,
+        'id_ukm': ukmId,
+        'id_events': eventId,
+        'is_broadcast': false,
+        'target_audience': 'specific_ukm',
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Pengingat berhasil dikirim ke $ukmName'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal mengirim pengingat: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Widget _buildEventChart(bool isMobile) {
+    if (_eventLeaderboard == null || _eventLeaderboard!.isEmpty) {
+      return _buildEmptyCard('Tidak ada data event', isMobile);
+    }
+
+    return Container(
+      padding: EdgeInsets.all(isMobile ? 12 : 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Table Header
+          Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: isMobile ? 8 : 12,
+              vertical: isMobile ? 8 : 10,
+            ),
+            decoration: BoxDecoration(
+              color: const Color(0xFF4169E1).withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: isMobile ? 35 : 45,
+                  child: Text(
+                    'No',
+                    style: GoogleFonts.inter(
+                      fontSize: isMobile ? 11 : 12,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF4169E1),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+                Expanded(
+                  flex: 2,
+                  child: Text(
+                    'Nama UKM',
+                    style: GoogleFonts.inter(
+                      fontSize: isMobile ? 11 : 12,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF4169E1),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 3,
+                  child: Text(
+                    'Nama Event',
+                    style: GoogleFonts.inter(
+                      fontSize: isMobile ? 11 : 12,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF4169E1),
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: isMobile ? 60 : 80,
+                  child: Text(
+                    'Peserta',
+                    style: GoogleFonts.inter(
+                      fontSize: isMobile ? 11 : 12,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF4169E1),
+                    ),
+                    textAlign: TextAlign.center,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 12),
-          Container(
-            padding: EdgeInsets.all(isMobile ? 8 : 10),
+          const SizedBox(height: 8),
+          // Table Rows
+          ..._eventLeaderboard!.asMap().entries.map((entry) {
+            final index = entry.key;
+            final event = entry.value;
+            final rank = index + 1;
+
+            // Ranking badge colors for top 3
+            Color? badgeColor;
+            if (rank == 1) badgeColor = const Color(0xFFFFD700); // Gold
+            if (rank == 2) badgeColor = const Color(0xFFC0C0C0); // Silver
+            if (rank == 3) badgeColor = const Color(0xFFCD7F32); // Bronze
+
+            return Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: isMobile ? 8 : 12,
+                vertical: isMobile ? 10 : 12,
+              ),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(color: Colors.grey[200]!, width: 1),
+                ),
+              ),
+              child: Row(
+                children: [
+                  // Rank number with badge for top 3
+                  SizedBox(
+                    width: isMobile ? 35 : 45,
+                    child: badgeColor != null
+                        ? Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: badgeColor,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Text(
+                              '$rank',
+                              style: GoogleFonts.inter(
+                                fontSize: isMobile ? 11 : 12,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          )
+                        : Text(
+                            '$rank',
+                            style: GoogleFonts.inter(
+                              fontSize: isMobile ? 12 : 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[700],
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                  ),
+                  // UKM Name
+                  Expanded(
+                    flex: 2,
+                    child: Text(
+                      event['nama_ukm'] ?? '-',
+                      style: GoogleFonts.inter(
+                        fontSize: isMobile ? 11 : 12,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey[700],
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  // Event Name
+                  Expanded(
+                    flex: 3,
+                    child: Text(
+                      event['nama_event'] ?? '-',
+                      style: GoogleFonts.inter(
+                        fontSize: isMobile ? 11 : 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  // Participants count
+                  SizedBox(
+                    width: isMobile ? 60 : 80,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF4169E1).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${event['participants'] ?? 0}',
+                        style: GoogleFonts.inter(
+                          fontSize: isMobile ? 11 : 12,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF4169E1),
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUkmRanking(bool isMobile) {
+    if (_ukmRanking == null || _ukmRanking!.isEmpty) {
+      return _buildEmptyCard('Tidak ada data UKM', isMobile);
+    }
+
+    return Container(
+      padding: EdgeInsets.all(isMobile ? 12 : 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: _ukmRanking!.asMap().entries.map((entry) {
+          final index = entry.key;
+          final ukm = entry.value;
+          final rank = index + 1;
+
+          Color rankColor;
+          if (rank == 1) {
+            rankColor = const Color(0xFFFFD700); // Gold
+          } else if (rank == 2)
+            rankColor = const Color(0xFFC0C0C0); // Silver
+          else if (rank == 3)
+            rankColor = const Color(0xFFCD7F32); // Bronze
+          else
+            rankColor = Colors.grey;
+
+          return Container(
+            margin: EdgeInsets.only(bottom: isMobile ? 6 : 8),
+            padding: EdgeInsets.all(isMobile ? 10 : 12),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: Colors.grey[50],
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(icon, color: color, size: isMobile ? 24 : 28),
+            child: Row(
+              children: [
+                Container(
+                  width: isMobile ? 24 : 28,
+                  height: isMobile ? 24 : 28,
+                  decoration: BoxDecoration(
+                    color: rankColor,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Text(
+                      '$rank',
+                      style: GoogleFonts.inter(
+                        fontSize: isMobile ? 11 : 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(width: isMobile ? 10 : 12),
+                Expanded(
+                  child: Text(
+                    ukm['name'] ?? 'Unknown',
+                    style: GoogleFonts.inter(
+                      fontSize: isMobile ? 12 : 13,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.black87,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                Text(
+                  '${ukm['members']} anggota',
+                  style: GoogleFonts.inter(
+                    fontSize: isMobile ? 11 : 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildFollowerTrendChart(bool isMobile) {
+    if (_followerTrend == null || _followerTrend!.isEmpty) {
+      return _buildEmptyCard('Tidak ada data pertumbuhan anggota', isMobile);
+    }
+
+    final sortedEntries = _followerTrend!.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+
+    // Prepare data for fl_chart LineChart
+    final spots = <FlSpot>[];
+    double maxY = 0;
+
+    for (int i = 0; i < sortedEntries.length; i++) {
+      final count = (sortedEntries[i].value as int).toDouble();
+      if (count > maxY) maxY = count;
+      spots.add(FlSpot(i.toDouble(), count));
+    }
+
+    return Container(
+      padding: EdgeInsets.all(isMobile ? 12 : 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          SizedBox(
+            height: isMobile ? 180 : 220,
+            child: LineChart(
+              LineChartData(
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  horizontalInterval: maxY > 0 ? maxY / 4 : 1,
+                  getDrawingHorizontalLine: (value) {
+                    return FlLine(color: Colors.grey[200]!, strokeWidth: 1);
+                  },
+                ),
+                titlesData: FlTitlesData(
+                  show: true,
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      getTitlesWidget: (value, meta) {
+                        if (value.toInt() >= sortedEntries.length ||
+                            value.toInt() < 0) {
+                          return const SizedBox.shrink();
+                        }
+                        final month = sortedEntries[value.toInt()].key;
+                        // Format month label
+                        String label = month;
+                        if (month.contains('-')) {
+                          final parts = month.split('-');
+                          if (parts.length >= 2) {
+                            final monthNum = int.tryParse(parts[1]) ?? 1;
+                            const monthNames = [
+                              'Jan',
+                              'Feb',
+                              'Mar',
+                              'Apr',
+                              'May',
+                              'Jun',
+                              'Jul',
+                              'Aug',
+                              'Sep',
+                              'Oct',
+                              'Nov',
+                              'Dec',
+                            ];
+                            label = monthNames[(monthNum - 1).clamp(0, 11)];
+                          }
+                        }
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            label,
+                            style: GoogleFonts.inter(
+                              fontSize: isMobile ? 10 : 11,
+                              color: Colors.grey[600],
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        );
+                      },
+                      reservedSize: 30,
+                    ),
+                  ),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 35,
+                      getTitlesWidget: (value, meta) {
+                        return Text(
+                          value.toInt().toString(),
+                          style: GoogleFonts.inter(
+                            fontSize: 10,
+                            color: Colors.grey[500],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                ),
+                borderData: FlBorderData(show: false),
+                minX: 0,
+                maxX: (sortedEntries.length - 1).toDouble(),
+                minY: 0,
+                maxY: maxY + (maxY * 0.2),
+                lineTouchData: LineTouchData(
+                  enabled: true,
+                  touchTooltipData: LineTouchTooltipData(
+                    getTooltipItems: (touchedSpots) {
+                      return touchedSpots.map((spot) {
+                        final month = sortedEntries[spot.x.toInt()].key;
+                        return LineTooltipItem(
+                          '$month\n${spot.y.toInt()} anggota',
+                          GoogleFonts.inter(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                          ),
+                        );
+                      }).toList();
+                    },
+                  ),
+                ),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: spots,
+                    isCurved: true,
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF4169E1), Color(0xFF5B7FE8)],
+                    ),
+                    barWidth: 3,
+                    isStrokeCapRound: true,
+                    dotData: FlDotData(
+                      show: true,
+                      getDotPainter: (spot, percent, barData, index) {
+                        return FlDotCirclePainter(
+                          radius: 4,
+                          color: Colors.white,
+                          strokeWidth: 2,
+                          strokeColor: const Color(0xFF4169E1),
+                        );
+                      },
+                    ),
+                    belowBarData: BarAreaData(
+                      show: true,
+                      gradient: LinearGradient(
+                        colors: [
+                          const Color(0xFF4169E1).withValues(alpha: 0.3),
+                          const Color(0xFF4169E1).withValues(alpha: 0.05),
+                        ],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildRecentActivities(bool isMobile) {
+    if (_recentActivities == null || _recentActivities!.isEmpty) {
+      return _buildEmptyCard('Tidak ada aktivitas terbaru', isMobile);
+    }
+
+    return Container(
+      padding: EdgeInsets.all(isMobile ? 12 : 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: _recentActivities!.map((activity) {
+          final createdAt = activity['create_at'] != null
+              ? DateTime.parse(activity['create_at'])
+              : null;
+          final timeAgo = createdAt != null
+              ? _getTimeAgo(createdAt)
+              : 'Unknown';
+
+          return Container(
+            margin: EdgeInsets.only(bottom: isMobile ? 6 : 8),
+            padding: EdgeInsets.all(isMobile ? 10 : 12),
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF4169E1).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.event_note,
+                    color: Color(0xFF4169E1),
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        activity['nama_event'] ?? 'Unknown Event',
+                        style: GoogleFonts.inter(
+                          fontSize: isMobile ? 12 : 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        activity['ukm']?['nama_ukm'] ?? 'Unknown UKM',
+                        style: GoogleFonts.inter(
+                          fontSize: isMobile ? 11 : 12,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Text(
+                  timeAgo,
+                  style: GoogleFonts.inter(
+                    fontSize: isMobile ? 10 : 11,
+                    color: Colors.grey[500],
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildUpcomingEvents(bool isMobile) {
+    if (_upcomingEvents == null || _upcomingEvents!.isEmpty) {
+      return _buildEmptyCard('Tidak ada event mendatang', isMobile);
+    }
+
+    return Container(
+      padding: EdgeInsets.all(isMobile ? 12 : 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: _upcomingEvents!.map((event) {
+          final tanggalMulai = event['tanggal_mulai'] != null
+              ? DateTime.parse(event['tanggal_mulai'])
+              : null;
+          final dateStr = tanggalMulai != null
+              ? '${tanggalMulai.day}/${tanggalMulai.month}/${tanggalMulai.year}'
+              : 'TBD';
+
+          return Container(
+            margin: EdgeInsets.only(bottom: isMobile ? 6 : 8),
+            padding: EdgeInsets.all(isMobile ? 10 : 12),
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF59E0B).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.calendar_today,
+                    color: Color(0xFFF59E0B),
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        event['nama_event'] ?? 'Unknown Event',
+                        style: GoogleFonts.inter(
+                          fontSize: isMobile ? 12 : 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        event['ukm']?['nama_ukm'] ?? 'Unknown UKM',
+                        style: GoogleFonts.inter(
+                          fontSize: isMobile ? 11 : 12,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                      if (event['lokasi'] != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          event['lokasi'],
+                          style: GoogleFonts.inter(
+                            fontSize: isMobile ? 10 : 11,
+                            color: Colors.grey[500],
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                Text(
+                  dateStr,
+                  style: GoogleFonts.inter(
+                    fontSize: isMobile ? 10 : 11,
+                    fontWeight: FontWeight.w500,
+                    color: const Color(0xFFF59E0B),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildEmptyCard(String message, bool isMobile) {
+    return Container(
+      padding: EdgeInsets.all(isMobile ? 20 : 24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Center(
+        child: Column(
+          children: [
+            Icon(
+              Icons.inbox_outlined,
+              size: isMobile ? 40 : 48,
+              color: Colors.grey[400],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              message,
+              style: GoogleFonts.inter(
+                fontSize: isMobile ? 12 : 14,
+                color: Colors.grey[500],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _getTimeAgo(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+
+    if (difference.inDays > 0) {
+      return '${difference.inDays}h yang lalu';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours}j yang lalu';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes}m yang lalu';
+    } else {
+      return 'Baru saja';
+    }
   }
 }

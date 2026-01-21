@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'detail_event_page.dart';
 
 class EventPage extends StatefulWidget {
   const EventPage({super.key});
@@ -9,76 +12,218 @@ class EventPage extends StatefulWidget {
 }
 
 class _EventPageState extends State<EventPage> {
-  String _sortBy = 'Urutkan';
+  final SupabaseClient _supabase = Supabase.instance.client;
   String _searchQuery = '';
   int _currentPage = 1;
-  final int _totalPages = 1;
-  final int _itemsPerPage = 5;
+  final int _itemsPerPage = 10;
+  bool _isLoading = false;
 
-  // Sample data - replace with actual data from API/database
-  final List<Map<String, dynamic>> _allEvents = [
-    {
-      'namaEvent': 'Sparing w/ UWIKA',
-      'tipeEvent': 'Sparing',
-      'lokasi': 'Lapangan Basket',
-      'tanggal': '22-12-2025',
-      'jam': '17:00',
-      'dibuat': '20-12-2025',
-      'detail': 'Lihat',
-    },
-    {
-      'namaEvent': 'Friendly Match Futsal Kampus',
-      'tipeEvent': 'Sparing',
-      'lokasi': 'Lapangan Futsal',
-      'tanggal': '1-12-2025',
-      'jam': '15:00',
-      'dibuat': '28-11-2025',
-      'detail': 'Lihat',
-    },
-    {
-      'namaEvent': 'Mini Tournament Badminton',
-      'tipeEvent': 'Turnamen Internal',
-      'lokasi': 'Merr badminton Court',
-      'tanggal': '5-12-2025',
-      'jam': '10:00',
-      'dibuat': '4-12-2025',
-      'detail': 'Lihat',
-    },
-    {
-      'namaEvent': 'Pentas Musik Akustik',
-      'tipeEvent': 'Penampilan',
-      'lokasi': 'Vidya Loka Lt2',
-      'tanggal': '14-12-2025',
-      'jam': '18:00',
-      'dibuat': '10-12-2025',
-      'detail': 'Lihat',
-    },
-    {
-      'namaEvent': 'E-Sport Scrim Mobile legend',
-      'tipeEvent': 'Sparing',
-      'lokasi': 'Ruangan 5 A',
-      'tanggal': '26-12-2025',
-      'jam': '17:00',
-      'dibuat': '23-12-2025',
-      'detail': 'Lihat',
-    },
-  ];
+  // Data from database
+  List<Map<String, dynamic>> _allEvents = [];
+
+  // Realtime subscription
+  RealtimeChannel? _eventsChannel;
+  RealtimeChannel? _documentsChannel;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadEvents();
+    _subscribeToRealtimeUpdates();
+  }
+
+  @override
+  void dispose() {
+    _eventsChannel?.unsubscribe();
+    _documentsChannel?.unsubscribe();
+    super.dispose();
+  }
+
+  /// Subscribe to realtime updates for events and documents
+  void _subscribeToRealtimeUpdates() {
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+
+    // Subscribe to event_documents changes
+    _documentsChannel = _supabase
+        .channel('event_documents_admin_$timestamp')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'event_documents',
+          callback: (payload) {
+            print('📄 Document change detected: ${payload.eventType}');
+            print('📄 Payload: ${payload.newRecord}');
+            // Reload events when document status changes
+            if (mounted) {
+              _loadEvents();
+            }
+          },
+        )
+        .subscribe((status, error) {
+          print('📄 Documents subscription status: $status');
+          if (error != null) {
+            print('📄 Documents subscription error: $error');
+          }
+        });
+
+    // Subscribe to events table changes
+    _eventsChannel = _supabase
+        .channel('events_admin_$timestamp')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'events',
+          callback: (payload) {
+            print('📅 Event change detected: ${payload.eventType}');
+            print('📅 Payload: ${payload.newRecord}');
+            // Reload events when event data changes
+            if (mounted) {
+              _loadEvents();
+            }
+          },
+        )
+        .subscribe((status, error) {
+          print('📅 Events subscription status: $status');
+          if (error != null) {
+            print('📅 Events subscription error: $error');
+          }
+        });
+
+    print('✅ Realtime subscriptions initiated for events and documents');
+  }
+
+  Future<void> _loadEvents() async {
+    if (!mounted) return;
+    setState(() => _isLoading = true);
+
+    try {
+      // Load events with related data
+      final eventData = await _supabase
+          .from('events')
+          .select('*, ukm(nama_ukm), users(username)')
+          .order('tanggal_mulai', ascending: false);
+
+      // Load all periode separately
+      final periodeData = await _supabase
+          .from('periode_ukm')
+          .select('id_periode, nama_periode');
+
+      // Load all event documents to get actual document status
+      final documentsData = await _supabase
+          .from('event_documents')
+          .select('id_event, document_type, status');
+
+      // Load participant count from absen_event for each event
+      final absenData = await _supabase.from('absen_event').select('id_event');
+
+      // Create participant count map: id_event -> count
+      final participantCountMap = <String, int>{};
+      for (var absen in (absenData as List)) {
+        final eventId = absen['id_event']?.toString();
+        if (eventId != null) {
+          participantCountMap[eventId] =
+              (participantCountMap[eventId] ?? 0) + 1;
+        }
+      }
+
+      final periodeMap = <String, String>{};
+      for (var p in periodeData) {
+        periodeMap[p['id_periode']] = p['nama_periode'];
+      }
+
+      // Create document status map: id_event -> {proposal: status, lpj: status}
+      final docStatusMap = <String, Map<String, String>>{};
+      for (var doc in (documentsData as List)) {
+        final eventId = doc['id_event'];
+        final docType = doc['document_type'];
+        final status = doc['status'] ?? 'menunggu';
+
+        if (eventId != null) {
+          docStatusMap[eventId] ??= {};
+          docStatusMap[eventId]![docType] = status;
+        }
+      }
+
+      // Manually attach periode and document status to events
+      final events = List<Map<String, dynamic>>.from(eventData);
+      for (var event in events) {
+        final eventId = event['id_events'];
+
+        // Attach periode
+        if (event['id_periode'] != null &&
+            periodeMap.containsKey(event['id_periode'])) {
+          event['periode_ukm'] = {
+            'nama_periode': periodeMap[event['id_periode']],
+          };
+        }
+
+        // Reconcile document status from event_documents table
+        // If document exists in event_documents, use that status
+        // Otherwise, use the status from events table (default: belum_ajukan)
+        if (docStatusMap.containsKey(eventId)) {
+          final docStatus = docStatusMap[eventId]!;
+
+          // Update proposal status if document exists
+          if (docStatus.containsKey('proposal')) {
+            event['status_proposal'] = docStatus['proposal'];
+          }
+
+          // Update LPJ status if document exists
+          if (docStatus.containsKey('lpj')) {
+            event['status_lpj'] = docStatus['lpj'];
+          }
+        }
+
+        // Attach participant count from absen_event
+        event['registered_count'] = participantCountMap[eventId] ?? 0;
+
+        // Ensure default values
+        event['status_proposal'] ??= 'belum_ajukan';
+        event['status_lpj'] ??= 'belum_ajukan';
+      }
+
+      if (mounted) {
+        setState(() {
+          _allEvents = events;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading events: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal memuat data event: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
 
   List<Map<String, dynamic>> get _filteredEvents {
     var events = _allEvents.where((event) {
       if (_searchQuery.isEmpty) return true;
-      return event['namaEvent'].toString().toLowerCase().contains(
-            _searchQuery.toLowerCase(),
-          ) ||
-          event['tipeEvent'].toString().toLowerCase().contains(
-            _searchQuery.toLowerCase(),
-          ) ||
-          event['lokasi'].toString().toLowerCase().contains(
-            _searchQuery.toLowerCase(),
-          );
+      final namaEvent = event['nama_event']?.toString().toLowerCase() ?? '';
+      final ukmName =
+          (event['ukm'] as Map<String, dynamic>?)?['nama_ukm']
+              ?.toString()
+              .toLowerCase() ??
+          '';
+      final lokasi = event['lokasi']?.toString().toLowerCase() ?? '';
+      final search = _searchQuery.toLowerCase();
+
+      return namaEvent.contains(search) ||
+          ukmName.contains(search) ||
+          lokasi.contains(search);
     }).toList();
 
     return events;
+  }
+
+  int get _totalPages {
+    return (_filteredEvents.length / _itemsPerPage).ceil();
   }
 
   List<Map<String, dynamic>> get _paginatedEvents {
@@ -93,583 +238,501 @@ class _EventPageState extends State<EventPage> {
   @override
   Widget build(BuildContext context) {
     final isDesktop = MediaQuery.of(context).size.width >= 768;
+    final isMobile = MediaQuery.of(context).size.width < 600;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Header
-        Text(
-          'Daftar Event',
-          style: GoogleFonts.inter(
-            fontSize: isDesktop ? 24 : 20,
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
+    if (_isLoading) {
+      return Center(
+        child: Padding(
+          padding: EdgeInsets.all(isMobile ? 20 : 40),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: isMobile ? 50 : 60,
+                height: isMobile ? 50 : 60,
+                child: const CircularProgressIndicator(
+                  strokeWidth: 4,
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4169E1)),
+                ),
+              ),
+              SizedBox(height: isMobile ? 16 : 24),
+              Text(
+                'Memuat data event...',
+                style: GoogleFonts.inter(
+                  fontSize: isMobile ? 16 : 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[700],
+                ),
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 24),
+      );
+    }
 
-        // Search and Filter Bar
-        _buildSearchAndFilterBar(isDesktop),
-        const SizedBox(height: 24),
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 24),
+          // Modern Header with Gradient
+          _buildModernHeader(isDesktop),
+          const SizedBox(height: 24),
 
-        // Table
-        if (isDesktop) _buildDesktopTable() else _buildMobileList(),
+          // Modern Search Bar with Add Button
+          _buildModernSearchBar(isDesktop),
+          const SizedBox(height: 8),
 
-        const SizedBox(height: 24),
+          // Event Cards
+          if (_filteredEvents.isEmpty)
+            _buildEmptyState()
+          else if (isDesktop)
+            _buildModernDesktopCards()
+          else
+            _buildModernMobileCards(),
 
-        // Pagination
-        _buildPagination(),
-      ],
+          const SizedBox(height: 24),
+
+          // Modern Pagination
+          if (_filteredEvents.isNotEmpty) _buildModernPagination(),
+          const SizedBox(height: 24),
+        ],
+      ),
     );
   }
 
-  Widget _buildSearchAndFilterBar(bool isDesktop) {
-    return Wrap(
-      spacing: 12,
-      runSpacing: 12,
-      alignment: WrapAlignment.spaceBetween,
-      children: [
-        // Search Bar
-        SizedBox(
-          width: isDesktop ? 400 : double.infinity,
-          child: TextField(
-            onChanged: (value) {
-              setState(() {
-                _searchQuery = value;
-                _currentPage = 1; // Reset to first page on search
-              });
-            },
-            decoration: InputDecoration(
-              hintText: 'Cari Data',
-              hintStyle: GoogleFonts.inter(
-                fontSize: 14,
-                color: Colors.grey[500],
-              ),
-              prefixIcon: Icon(Icons.search, color: Colors.grey[600]),
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: Colors.grey[300]!),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: Colors.grey[300]!),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: Color(0xFF4169E1)),
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 12,
+  Widget _buildModernHeader(bool isDesktop) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
+    return Container(
+      padding: EdgeInsets.all(isMobile ? 16 : (isDesktop ? 32 : 24)),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [const Color(0xFF4169E1), const Color(0xFF5B7FE8)],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF4169E1).withValues(alpha: 0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: EdgeInsets.all(isMobile ? 12 : 16),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              Icons.event_rounded,
+              color: Colors.white,
+              size: isMobile ? 24 : (isDesktop ? 32 : 28),
+            ),
+          ),
+          const SizedBox(width: 20),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Daftar Event',
+                  style: GoogleFonts.inter(
+                    fontSize: isDesktop ? 28 : 24,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Total ${_filteredEvents.length} Event',
+                  style: GoogleFonts.inter(
+                    fontSize: isDesktop ? 16 : 14,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.white.withValues(alpha: 0.9),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModernSearchBar(bool isDesktop) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              onChanged: (value) {
+                setState(() {
+                  _searchQuery = value;
+                  _currentPage = 1;
+                });
+              },
+              decoration: InputDecoration(
+                hintText: 'Cari event berdasarkan nama, UKM, atau lokasi...',
+                hintStyle: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: Colors.grey[400],
+                ),
+                prefixIcon: Icon(Icons.search_rounded, color: Colors.grey[400]),
+                filled: true,
+                fillColor: Colors.grey[50],
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
               ),
             ),
           ),
-        ),
-
-        // Filter Dropdown
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            border: Border.all(color: Colors.grey[300]!),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: DropdownButton<String>(
-            value: _sortBy,
-            underline: const SizedBox(),
-            icon: Icon(Icons.keyboard_arrow_down, color: Colors.grey[700]),
-            style: GoogleFonts.inter(fontSize: 14, color: Colors.black87),
-            items: ['Urutkan', 'Nama Event', 'Tipe Event', 'Lokasi', 'Tanggal']
-                .map((String value) {
-                  return DropdownMenuItem<String>(
-                    value: value,
-                    child: Text(value),
-                  );
-                })
-                .toList(),
-            onChanged: (String? newValue) {
-              setState(() {
-                _sortBy = newValue!;
-              });
-            },
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
-  Widget _buildDesktopTable() {
+  Widget _buildEmptyState() {
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.all(48),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.event_busy_rounded, size: 80, color: Colors.grey[300]),
+            const SizedBox(height: 16),
+            Text(
+              'Tidak ada event ditemukan',
+              style: GoogleFonts.inter(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[600],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Coba ubah kata kunci pencarian',
+              style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[500]),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModernDesktopCards() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Calculate card width based on screen width
+        final cardWidth =
+            (constraints.maxWidth - 20) / 2; // 2 columns with 20px gap
+
+        return Wrap(
+          spacing: 20,
+          runSpacing: 20,
+          children: _paginatedEvents.map((event) {
+            return SizedBox(
+              width: cardWidth,
+              child: _buildEventCard(event, true),
+            );
+          }).toList(),
+        );
+      },
+    );
+  }
+
+  Widget _buildModernMobileCards() {
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: _paginatedEvents.length,
+      itemBuilder: (context, index) {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: _buildEventCard(_paginatedEvents[index], false),
+        );
+      },
+    );
+  }
+
+  Widget _buildEventCard(Map<String, dynamic> event, bool isDesktop) {
+    // Get event image URL
+    final String? imageUrl = event['gambar'];
+
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white,
+            const Color(0xFF4169E1).withValues(alpha: 0.03),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFF4169E1).withValues(alpha: 0.2),
+          width: 1.5,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: const Color(0xFF4169E1).withValues(alpha: 0.08),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Table Header
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            decoration: BoxDecoration(
-              color: Colors.grey[50],
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(12),
-                topRight: Radius.circular(12),
-              ),
-            ),
-            child: Row(
-              children: [
-                // Checkbox
-                SizedBox(
-                  width: 50,
-                  child: Checkbox(
-                    value: false,
-                    onChanged: (value) {},
-                    activeColor: const Color(0xFF4169E1),
-                  ),
-                ),
-                // Nama Event
-                Expanded(
-                  flex: 3,
-                  child: Text(
-                    'Nama Event',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey[700],
+          // Event Image
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+            child: AspectRatio(
+              aspectRatio: 16 / 9,
+              child: imageUrl != null && imageUrl.isNotEmpty
+                  ? Image.network(
+                      imageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          color: const Color(0xFF4169E1).withValues(alpha: 0.1),
+                          child: const Center(
+                            child: Icon(
+                              Icons.event_rounded,
+                              size: 48,
+                              color: Color(0xFF4169E1),
+                            ),
+                          ),
+                        );
+                      },
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return Container(
+                          color: Colors.grey[100],
+                          child: const Center(
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        );
+                      },
+                    )
+                  : Container(
+                      color: const Color(0xFF4169E1).withValues(alpha: 0.1),
+                      child: const Center(
+                        child: Icon(
+                          Icons.event_rounded,
+                          size: 48,
+                          color: Color(0xFF4169E1),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                // Tipe Event
-                Expanded(
-                  flex: 2,
-                  child: Text(
-                    'Tipe Event',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                ),
-                // Lokasi
-                Expanded(
-                  flex: 2,
-                  child: Text(
-                    'lokasi',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                ),
-                // Tanggal
-                Expanded(
-                  flex: 2,
-                  child: Text(
-                    'tanggal',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                ),
-                // Jam
-                Expanded(
-                  flex: 1,
-                  child: Text(
-                    'Jam',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                ),
-                // Dibuat
-                Expanded(
-                  flex: 2,
-                  child: Text(
-                    'Dibuat',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                ),
-                // Detail
-                Expanded(
-                  flex: 1,
-                  child: Text(
-                    'Detail',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                ),
-              ],
             ),
           ),
 
-          // Table Rows
-          ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _paginatedEvents.length,
-            itemBuilder: (context, index) {
-              final event = _paginatedEvents[index];
-              final isEven = index % 2 == 0;
-
-              return Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 16,
-                ),
-                decoration: BoxDecoration(
-                  color: isEven ? Colors.white : Colors.grey[50],
-                ),
-                child: Row(
+          // Content
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header with Icon and Title
+                Row(
                   children: [
-                    // Checkbox
-                    SizedBox(
-                      width: 50,
-                      child: Checkbox(
-                        value: false,
-                        onChanged: (value) {},
-                        activeColor: const Color(0xFF4169E1),
-                      ),
-                    ),
-                    // Nama Event
-                    Expanded(
-                      flex: 3,
-                      child: Text(
-                        event['namaEvent'],
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          color: Colors.black87,
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF4169E1), Color(0xFF5B7FE8)],
                         ),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(
+                        Icons.event_rounded,
+                        color: Colors.white,
+                        size: 16,
                       ),
                     ),
-                    // Tipe Event
+                    const SizedBox(width: 10),
                     Expanded(
-                      flex: 2,
-                      child: Text(
-                        event['tipeEvent'],
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          color: Colors.black87,
-                        ),
-                      ),
-                    ),
-                    // Lokasi
-                    Expanded(
-                      flex: 2,
-                      child: Text(
-                        event['lokasi'],
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          color: Colors.black87,
-                        ),
-                      ),
-                    ),
-                    // Tanggal
-                    Expanded(
-                      flex: 2,
-                      child: Text(
-                        event['tanggal'],
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          color: Colors.black87,
-                        ),
-                      ),
-                    ),
-                    // Jam
-                    Expanded(
-                      flex: 1,
-                      child: Text(
-                        event['jam'],
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          color: Colors.black87,
-                        ),
-                      ),
-                    ),
-                    // Dibuat
-                    Expanded(
-                      flex: 2,
-                      child: Text(
-                        event['dibuat'],
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          color: Colors.black87,
-                        ),
-                      ),
-                    ),
-                    // Detail Button
-                    Expanded(
-                      flex: 1,
-                      child: TextButton(
-                        onPressed: () {
-                          _showDetailDialog(event);
-                        },
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            event['nama_event'] ?? '-',
+                            style: GoogleFonts.inter(
+                              fontSize: isDesktop ? 14 : 13,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.black87,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          backgroundColor: Colors.grey[100],
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(6),
+                          const SizedBox(height: 3),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(
+                                0xFF4169E1,
+                              ).withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              event['tipevent'] ?? '-',
+                              style: GoogleFonts.inter(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFF4169E1),
+                              ),
+                            ),
                           ),
-                        ),
-                        child: Text(
-                          event['detail'],
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            color: Colors.black87,
+                        ],
+                      ),
+                    ),
+                    // View Button
+                    IconButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => DetailEventPage(event: event),
                           ),
+                        );
+                      },
+                      icon: const Icon(Icons.visibility_outlined),
+                      color: const Color(0xFF4169E1),
+                      tooltip: 'Lihat Detail',
+                      style: IconButton.styleFrom(
+                        backgroundColor: const Color(
+                          0xFF4169E1,
+                        ).withValues(alpha: 0.1),
+                        padding: const EdgeInsets.all(8),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Divider(color: Colors.grey[200], height: 1),
+                const SizedBox(height: 8),
+
+                // Event Details
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildInfoChip(
+                        icon: Icons.groups_rounded,
+                        label: 'UKM',
+                        value:
+                            (event['ukm']
+                                as Map<String, dynamic>?)?['nama_ukm'] ??
+                            '-',
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildInfoChip(
+                        icon: Icons.location_on_outlined,
+                        label: 'Lokasi',
+                        value: event['lokasi'] ?? '-',
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildInfoChip(
+                        icon: Icons.calendar_today_outlined,
+                        label: 'Tanggal',
+                        value: _formatDate(event['tanggal_mulai']),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildInfoChip(
+                        icon: Icons.access_time_rounded,
+                        label: 'Jam',
+                        value: _formatTimeRange(
+                          event['jam_mulai'],
+                          event['jam_akhir'],
                         ),
                       ),
                     ),
                   ],
                 ),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMobileList() {
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: _paginatedEvents.length,
-      itemBuilder: (context, index) {
-        final event = _paginatedEvents[index];
-
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF4169E1).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
+                const SizedBox(height: 6),
+                // Participant Count Row
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildInfoChip(
+                        icon: Icons.people_rounded,
+                        label: 'Peserta',
+                        value:
+                            '${event['registered_count'] ?? 0}/${event['max_participant'] ?? '-'}',
+                      ),
                     ),
-                    child: const Icon(
-                      Icons.event,
-                      color: Color(0xFF4169E1),
-                      size: 24,
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildInfoChip(
+                        icon: Icons.category_outlined,
+                        label: 'Tipe Akses',
+                        value: event['tipe_akses'] ?? 'anggota',
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          event['namaEvent'],
-                          style: GoogleFonts.inter(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black87,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          event['tipeEvent'],
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Checkbox(
-                    value: false,
-                    onChanged: (value) {},
-                    activeColor: const Color(0xFF4169E1),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              const Divider(),
-              const SizedBox(height: 8),
-              _buildMobileInfoRow(Icons.location_on_outlined, event['lokasi']),
-              const SizedBox(height: 8),
-              _buildMobileInfoRow(
-                Icons.calendar_today_outlined,
-                '${event['tanggal']} - ${event['jam']}',
-              ),
-              const SizedBox(height: 8),
-              _buildMobileInfoRow(
-                Icons.access_time_outlined,
-                'Dibuat: ${event['dibuat']}',
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    _showDetailDialog(event);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4169E1),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: Text(
-                    'Lihat Detail',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  ],
                 ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
+                const SizedBox(height: 8),
 
-  Widget _buildMobileInfoRow(IconData icon, String text) {
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: Colors.grey[600]),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            text,
-            style: GoogleFonts.inter(fontSize: 14, color: Colors.black87),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPagination() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        // Previous Button
-        IconButton(
-          onPressed: _currentPage > 1
-              ? () {
-                  setState(() {
-                    _currentPage--;
-                  });
-                }
-              : null,
-          icon: const Icon(Icons.chevron_left),
-          color: const Color(0xFF4169E1),
-          disabledColor: Colors.grey[400],
-        ),
-
-        const SizedBox(width: 16),
-
-        // Page Indicator
-        Text(
-          '$_currentPage Dari $_totalPages',
-          style: GoogleFonts.inter(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: Colors.black87,
-          ),
-        ),
-
-        const SizedBox(width: 16),
-
-        // Next Button
-        IconButton(
-          onPressed: _currentPage < _totalPages
-              ? () {
-                  setState(() {
-                    _currentPage++;
-                  });
-                }
-              : null,
-          icon: const Icon(Icons.chevron_right),
-          color: const Color(0xFF4169E1),
-          disabledColor: Colors.grey[400],
-        ),
-      ],
-    );
-  }
-
-  void _showDetailDialog(Map<String, dynamic> event) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          'Detail Event',
-          style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.bold),
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildDetailRow('Nama Event', event['namaEvent']),
-              const SizedBox(height: 12),
-              _buildDetailRow('Tipe Event', event['tipeEvent']),
-              const SizedBox(height: 12),
-              _buildDetailRow('Lokasi', event['lokasi']),
-              const SizedBox(height: 12),
-              _buildDetailRow('Tanggal', event['tanggal']),
-              const SizedBox(height: 12),
-              _buildDetailRow('Jam', event['jam']),
-              const SizedBox(height: 12),
-              _buildDetailRow('Dibuat pada', event['dibuat']),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Tutup',
-              style: GoogleFonts.inter(
-                color: const Color(0xFF4169E1),
-                fontWeight: FontWeight.w600,
-              ),
+                // Document Status Badges
+                Divider(color: Colors.grey[200], height: 1),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    // Proposal Status
+                    Expanded(
+                      child: _buildDocumentStatusBadge(
+                        label: 'Proposal',
+                        status: event['status_proposal'] ?? 'belum_ajukan',
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // LPJ Status
+                    Expanded(
+                      child: _buildDocumentStatusBadge(
+                        label: 'LPJ',
+                        status: event['status_lpj'] ?? 'belum_ajukan',
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ],
@@ -677,28 +740,365 @@ class _EventPageState extends State<EventPage> {
     );
   }
 
-  Widget _buildDetailRow(String label, String value) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.inter(
-            fontSize: 12,
-            color: Colors.grey[600],
-            fontWeight: FontWeight.w500,
+  Widget _buildDocumentStatusBadge({
+    required String label,
+    required String status,
+  }) {
+    Color bgColor;
+    Color textColor;
+    IconData icon;
+    String statusText;
+
+    switch (status) {
+      case 'disetujui':
+        bgColor = Colors.green.withValues(alpha: 0.1);
+        textColor = Colors.green[700]!;
+        icon = Icons.check_circle;
+        statusText = 'Disetujui';
+        break;
+      case 'menunggu':
+        bgColor = Colors.orange.withValues(alpha: 0.1);
+        textColor = Colors.orange[700]!;
+        icon = Icons.hourglass_empty;
+        statusText = 'Menunggu';
+        break;
+      case 'ditolak':
+        bgColor = Colors.red.withValues(alpha: 0.1);
+        textColor = Colors.red[700]!;
+        icon = Icons.cancel;
+        statusText = 'Ditolak';
+        break;
+      case 'revisi':
+        bgColor = Colors.purple.withValues(alpha: 0.1);
+        textColor = Colors.purple[700]!;
+        icon = Icons.edit;
+        statusText = 'Revisi';
+        break;
+      default: // belum_ajukan
+        bgColor = Colors.grey.withValues(alpha: 0.1);
+        textColor = Colors.grey[600]!;
+        icon = Icons.file_upload_outlined;
+        statusText = 'Belum Ajukan';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: textColor.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: textColor),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: GoogleFonts.inter(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w500,
+                    color: textColor.withValues(alpha: 0.7),
+                  ),
+                ),
+                Text(
+                  statusText,
+                  style: GoogleFonts.inter(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: GoogleFonts.inter(
-            fontSize: 14,
-            color: Colors.black87,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
+        ],
+      ),
     );
+  }
+
+  Widget _buildInfoChip({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 14, color: Colors.grey[600]),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModernPagination() {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
+    return Container(
+      padding: EdgeInsets.all(isMobile ? 12 : 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: isMobile
+          ? Column(
+              children: [
+                // Results Info - mobile
+                Text(
+                  'Halaman $_currentPage dari $_totalPages',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey[700],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // Page Navigation
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Previous Button
+                    _buildPageButton(
+                      icon: Icons.chevron_left_rounded,
+                      enabled: _currentPage > 1,
+                      onPressed: () {
+                        setState(() {
+                          _currentPage--;
+                        });
+                      },
+                    ),
+                    const SizedBox(width: 12),
+                    // Page Numbers
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            const Color(0xFF4169E1).withValues(alpha: 0.1),
+                            const Color(0xFF4169E1).withValues(alpha: 0.05),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: const Color(0xFF4169E1).withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Text(
+                        '$_currentPage / $_totalPages',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF4169E1),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Next Button
+                    _buildPageButton(
+                      icon: Icons.chevron_right_rounded,
+                      enabled: _currentPage < _totalPages,
+                      onPressed: () {
+                        setState(() {
+                          _currentPage++;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                // Total events info
+                Text(
+                  '${(_currentPage - 1) * _itemsPerPage + 1}-${(_currentPage * _itemsPerPage) > _filteredEvents.length ? _filteredEvents.length : (_currentPage * _itemsPerPage)} dari ${_filteredEvents.length}',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            )
+          : Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // Results Info
+                Text(
+                  'Menampilkan ${(_currentPage - 1) * _itemsPerPage + 1} - ${(_currentPage * _itemsPerPage) > _filteredEvents.length ? _filteredEvents.length : (_currentPage * _itemsPerPage)} dari ${_filteredEvents.length} Event',
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey[700],
+                  ),
+                ),
+
+                // Page Navigation
+                Row(
+                  children: [
+                    // Previous Button
+                    _buildPageButton(
+                      icon: Icons.chevron_left_rounded,
+                      enabled: _currentPage > 1,
+                      onPressed: () {
+                        setState(() {
+                          _currentPage--;
+                        });
+                      },
+                    ),
+
+                    const SizedBox(width: 12),
+
+                    // Page Numbers
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            const Color(0xFF4169E1).withValues(alpha: 0.1),
+                            const Color(0xFF4169E1).withValues(alpha: 0.05),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: const Color(0xFF4169E1).withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Text(
+                        '$_currentPage / $_totalPages',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF4169E1),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(width: 12),
+
+                    // Next Button
+                    _buildPageButton(
+                      icon: Icons.chevron_right_rounded,
+                      enabled: _currentPage < _totalPages,
+                      onPressed: () {
+                        setState(() {
+                          _currentPage++;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildPageButton({
+    required IconData icon,
+    required bool enabled,
+    required VoidCallback onPressed,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: enabled
+            ? const Color(0xFF4169E1).withValues(alpha: 0.1)
+            : Colors.grey[100],
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: enabled
+              ? const Color(0xFF4169E1).withValues(alpha: 0.3)
+              : Colors.grey[300]!,
+        ),
+      ),
+      child: IconButton(
+        onPressed: enabled ? onPressed : null,
+        icon: Icon(icon, size: 20),
+        color: enabled ? const Color(0xFF4169E1) : Colors.grey[400],
+        padding: const EdgeInsets.all(8),
+      ),
+    );
+  }
+
+  String _formatDate(String? dateStr) {
+    if (dateStr == null) return '-';
+    try {
+      final date = DateTime.parse(dateStr);
+      return DateFormat('dd MMM yyyy', 'id_ID').format(date);
+    } catch (e) {
+      return '-';
+    }
+  }
+
+  String _formatTime(String? timeStr) {
+    if (timeStr == null || timeStr.isEmpty) return '00:00';
+    try {
+      // Check if it's a time string (HH:mm:ss format)
+      if (timeStr.contains(':') && !timeStr.contains('T')) {
+        // It's already a time string, just format it
+        final parts = timeStr.split(':');
+        if (parts.length >= 2) {
+          return '${parts[0]}:${parts[1]}';
+        }
+        return timeStr;
+      }
+      // Otherwise try to parse as datetime
+      final date = DateTime.parse(timeStr);
+      return DateFormat('HH:mm', 'id_ID').format(date);
+    } catch (e) {
+      return '00:00';
+    }
+  }
+
+  /// Format time range (jam_mulai - jam_akhir)
+  String _formatTimeRange(String? startTime, String? endTime) {
+    final start = _formatTime(startTime);
+    final end = _formatTime(endTime);
+    return '$start - $end';
   }
 }
