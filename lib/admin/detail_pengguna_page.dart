@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:unit_activity/admin/edit_pengguna_page.dart';
 
 class DetailPenggunaPage extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -14,20 +15,9 @@ class DetailPenggunaPage extends StatefulWidget {
 
 class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
   final SupabaseClient _supabase = Supabase.instance.client;
-  bool _isEditMode = false;
-  bool _isSaving = false;
-  bool _changePassword = false;
 
-  // Controllers for edit mode
-  late TextEditingController _usernameController;
-  late TextEditingController _emailController;
-  late TextEditingController _nimController;
-  late TextEditingController _passwordController;
-  late TextEditingController _confirmPasswordController;
-
-  // Password visibility
-  bool _obscurePassword = true;
-  bool _obscureConfirmPassword = true;
+  // User data that can be updated
+  late Map<String, dynamic> _userData;
 
   // Activity data
   List<Map<String, dynamic>> _eventAttendance = [];
@@ -39,11 +29,7 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
   @override
   void initState() {
     super.initState();
-    _usernameController = TextEditingController(text: widget.user['username']);
-    _emailController = TextEditingController(text: widget.user['email']);
-    _nimController = TextEditingController(text: widget.user['nim']);
-    _passwordController = TextEditingController();
-    _confirmPasswordController = TextEditingController();
+    _userData = Map<String, dynamic>.from(widget.user);
     _loadActivities();
   }
 
@@ -51,12 +37,10 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
     setState(() => _isLoadingActivities = true);
 
     try {
-      final userId = widget.user['id_user'];
+      final userId = _userData['id_user'];
 
       // Load event attendance with event and UKM details
-      final eventData = await _supabase
-          .from('absen_event')
-          .select('''
+      final eventData = await _supabase.from('absen_event').select('''
             *,
             events!absen_event_id_event_fkey(
               id_events,
@@ -65,14 +49,10 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
               jam_mulai,
               ukm(nama_ukm)
             )
-          ''')
-          .eq('id_user', userId)
-          .order('create_at', ascending: false);
+          ''').eq('id_user', userId).order('create_at', ascending: false);
 
       // Load meeting attendance with meeting details
-      final meetingData = await _supabase
-          .from('absen_pertemuan')
-          .select('''
+      final meetingData = await _supabase.from('absen_pertemuan').select('''
             *,
             pertemuan!absen_pertemuan_id_pertemuan_fkey(
               id_pertemuan,
@@ -81,19 +61,13 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
               jam_mulai,
               ukm(nama_ukm)
             )
-          ''')
-          .eq('id_user', userId)
-          .order('create_at', ascending: false);
+          ''').eq('id_user', userId).order('create_at', ascending: false);
 
       // Load UKM memberships
-      final ukmData = await _supabase
-          .from('user_halaman_ukm')
-          .select('''
+      final ukmData = await _supabase.from('user_halaman_ukm').select('''
             *,
             ukm(nama_ukm, logo, description)
-          ''')
-          .eq('id_user', userId)
-          .order('follow', ascending: false);
+          ''').eq('id_user', userId).order('follow', ascending: false);
 
       // Build comprehensive activity log
       final logs = <Map<String, dynamic>>[];
@@ -164,149 +138,36 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
     }
   }
 
-  @override
-  void dispose() {
-    _usernameController.dispose();
-    _emailController.dispose();
-    _nimController.dispose();
-    _passwordController.dispose();
-    _confirmPasswordController.dispose();
-    super.dispose();
-  }
-
-  String? _validatePassword(String password) {
-    if (password.isEmpty) return null; // Optional if not changing
-    if (password.length < 8) {
-      return 'Password minimal 8 karakter';
-    }
-    if (!RegExp(r'[A-Z]').hasMatch(password)) {
-      return 'Password harus mengandung huruf besar';
-    }
-    if (!RegExp(r'[a-z]').hasMatch(password)) {
-      return 'Password harus mengandung huruf kecil';
-    }
-    if (!RegExp(r'[0-9]').hasMatch(password)) {
-      return 'Password harus mengandung angka';
-    }
-    return null;
-  }
-
-  Future<void> _saveChanges() async {
-    if (_usernameController.text.trim().isEmpty ||
-        _emailController.text.trim().isEmpty ||
-        _nimController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Semua field harus diisi'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    // Validate password if changing
-    if (_changePassword) {
-      if (_passwordController.text.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Password tidak boleh kosong'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
-
-      final passwordError = _validatePassword(_passwordController.text);
-      if (passwordError != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(passwordError), backgroundColor: Colors.red),
-        );
-        return;
-      }
-
-      if (_passwordController.text != _confirmPasswordController.text) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Password dan konfirmasi password tidak sama'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
-    }
-
-    setState(() => _isSaving = true);
-
+  Future<void> _refreshUserData() async {
     try {
-      // Update user data
-      final updateData = {
-        'username': _usernameController.text.trim(),
-        'email': _emailController.text.trim(),
-        'nim': _nimController.text.trim(),
-      };
-
-      await _supabase
+      final response = await _supabase
           .from('users')
-          .update(updateData)
-          .eq('id_user', widget.user['id_user']);
-
-      // Update password if changed
-      if (_changePassword && _passwordController.text.isNotEmpty) {
-        await _supabase.auth.admin.updateUserById(
-          widget.user['id_user'],
-          attributes: AdminUserAttributes(password: _passwordController.text),
-        );
-      }
-
-      // Update local data
-      widget.user['username'] = _usernameController.text.trim();
-      widget.user['email'] = _emailController.text.trim();
-      widget.user['nim'] = _nimController.text.trim();
+          .select()
+          .eq('id_user', _userData['id_user'])
+          .single();
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              _changePassword
-                  ? 'Data dan password berhasil diperbarui'
-                  : 'Data berhasil diperbarui',
-            ),
-            backgroundColor: Colors.green,
-          ),
-        );
         setState(() {
-          _isEditMode = false;
-          _isSaving = false;
-          _changePassword = false;
-          _passwordController.clear();
-          _confirmPasswordController.clear();
+          _userData = response;
         });
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Gagal memperbarui data: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        setState(() => _isSaving = false);
-      }
+      print('Error refreshing user data: $e');
     }
   }
 
-  void _cancelEdit() {
-    // Reset controllers to original values
-    _usernameController.text = widget.user['username'] ?? '';
-    _emailController.text = widget.user['email'] ?? '';
-    _nimController.text = widget.user['nim'] ?? '';
-    _passwordController.clear();
-    _confirmPasswordController.clear();
+  Future<void> _navigateToEditPage() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EditPenggunaPage(user: _userData),
+      ),
+    );
 
-    setState(() {
-      _isEditMode = false;
-      _changePassword = false;
-    });
+    // If edit was successful, refresh user data
+    if (result == true) {
+      await _refreshUserData();
+    }
   }
 
   @override
@@ -320,57 +181,23 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black87),
-          onPressed: () => Navigator.pop(context, _isEditMode ? null : true),
+          onPressed: () => Navigator.pop(context, true),
         ),
         title: Text(
-          _isEditMode ? 'Edit Pengguna' : 'Detail Pengguna',
+          'Detail Pengguna',
           style: GoogleFonts.inter(
             color: Colors.black87,
             fontWeight: FontWeight.w600,
           ),
         ),
-        actions: _isEditMode
-            ? [
-                // Cancel button
-                TextButton(
-                  onPressed: _isSaving ? null : _cancelEdit,
-                  child: Text(
-                    'Batal',
-                    style: GoogleFonts.inter(
-                      color: Colors.grey[700],
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                // Save button
-                TextButton(
-                  onPressed: _isSaving ? null : _saveChanges,
-                  child: _isSaving
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Text(
-                          'Simpan',
-                          style: GoogleFonts.inter(
-                            color: const Color(0xFF4169E1),
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                ),
-                const SizedBox(width: 8),
-              ]
-            : [
-                IconButton(
-                  icon: const Icon(Icons.edit, color: Color(0xFF4169E1)),
-                  onPressed: () {
-                    setState(() => _isEditMode = true);
-                  },
-                  tooltip: 'Edit Pengguna',
-                ),
-                const SizedBox(width: 8),
-              ],
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit, color: Color(0xFF4169E1)),
+            onPressed: _navigateToEditPage,
+            tooltip: 'Edit Pengguna',
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: SingleChildScrollView(
         child: Center(
@@ -418,15 +245,13 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
           CircleAvatar(
             radius: isDesktop ? 60 : (isMobile ? 45 : 50),
             backgroundImage:
-                widget.user['picture'] != null &&
-                    widget.user['picture'].isNotEmpty
-                ? NetworkImage(widget.user['picture'])
-                : null,
+                _userData['picture'] != null && _userData['picture'].isNotEmpty
+                    ? NetworkImage(_userData['picture'])
+                    : null,
             backgroundColor: const Color(0xFF4169E1),
-            child:
-                widget.user['picture'] == null || widget.user['picture'].isEmpty
+            child: _userData['picture'] == null || _userData['picture'].isEmpty
                 ? Text(
-                    _getInitials(_usernameController.text),
+                    _getInitials(_userData['username'] ?? ''),
                     style: GoogleFonts.inter(
                       fontSize: isDesktop ? 32 : (isMobile ? 22 : 28),
                       fontWeight: FontWeight.bold,
@@ -437,51 +262,15 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
           ),
           const SizedBox(height: 16),
 
-          // Username - Centered (Editable in edit mode)
-          if (_isEditMode)
-            SizedBox(
-              width: 300,
-              child: TextField(
-                controller: _usernameController,
-                textAlign: TextAlign.center,
-                style: GoogleFonts.inter(
-                  fontSize: isDesktop ? 24 : (isMobile ? 16 : 20),
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-                decoration: InputDecoration(
-                  hintText: 'Username',
-                  hintStyle: GoogleFonts.inter(color: Colors.grey[400]),
-                  filled: true,
-                  fillColor: Colors.grey[50],
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Colors.grey[300]!),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Colors.grey[300]!),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Color(0xFF4169E1)),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                ),
-              ),
-            )
-          else
-            Text(
-              _usernameController.text,
-              style: GoogleFonts.inter(
-                fontSize: isDesktop ? 24 : (isMobile ? 16 : 20),
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
+          // Username - Display only
+          Text(
+            _userData['username'] ?? '',
+            style: GoogleFonts.inter(
+              fontSize: isDesktop ? 24 : (isMobile ? 16 : 20),
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
             ),
+          ),
           const SizedBox(height: 8),
 
           // Role Badge - Centered
@@ -525,223 +314,31 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
           ),
           const SizedBox(height: 20),
 
-          // Information Rows (Editable in edit mode)
+          // Information Rows (Display only)
           _buildInfoRow(
             icon: Icons.badge_outlined,
             label: 'NIM',
-            value: _nimController.text,
+            value: _userData['nim'] ?? '-',
             isDesktop: isDesktop,
-            controller: _nimController,
+            controller: null,
           ),
           const Divider(height: 32),
 
           _buildInfoRow(
             icon: Icons.email_outlined,
             label: 'Email',
-            value: _emailController.text,
+            value: _userData['email'] ?? '-',
             isDesktop: isDesktop,
-            controller: _emailController,
+            controller: null,
           ),
           const Divider(height: 32),
 
           _buildInfoRow(
             icon: Icons.calendar_today_outlined,
             label: 'Bergabung Pada',
-            value: _formatDate(widget.user['create_at']),
+            value: _formatDate(_userData['create_at']),
             isDesktop: isDesktop,
-            controller: null, // Not editable
-          ),
-
-          // Password Change Section (only in edit mode)
-          if (_isEditMode) ...[
-            const Divider(height: 32),
-
-            // Change Password Checkbox
-            Row(
-              children: [
-                Checkbox(
-                  value: _changePassword,
-                  onChanged: (value) {
-                    setState(() {
-                      _changePassword = value ?? false;
-                      if (!_changePassword) {
-                        _passwordController.clear();
-                        _confirmPasswordController.clear();
-                      }
-                    });
-                  },
-                  activeColor: const Color(0xFF4169E1),
-                ),
-                Text(
-                  'Ubah Password',
-                  style: GoogleFonts.inter(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                  ),
-                ),
-              ],
-            ),
-
-            // Password Fields (shown when checkbox is checked)
-            if (_changePassword) ...[
-              const SizedBox(height: 16),
-
-              // New Password Field
-              TextField(
-                controller: _passwordController,
-                obscureText: _obscurePassword,
-                style: GoogleFonts.inter(
-                  fontSize: 15,
-                  color: Colors.black87,
-                  fontWeight: FontWeight.w600,
-                ),
-                decoration: InputDecoration(
-                  labelText: 'Password Baru',
-                  labelStyle: GoogleFonts.inter(color: Colors.grey[600]),
-                  hintText: 'Minimal 8 karakter, huruf besar, kecil, dan angka',
-                  hintStyle: GoogleFonts.inter(
-                    color: Colors.grey[400],
-                    fontSize: 12,
-                  ),
-                  filled: true,
-                  fillColor: Colors.grey[50],
-                  prefixIcon: const Icon(
-                    Icons.lock_outline,
-                    color: Color(0xFF4169E1),
-                  ),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscurePassword
-                          ? Icons.visibility_outlined
-                          : Icons.visibility_off_outlined,
-                      color: Colors.grey[600],
-                    ),
-                    onPressed: () {
-                      setState(() => _obscurePassword = !_obscurePassword);
-                    },
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Colors.grey[300]!),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Colors.grey[300]!),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Color(0xFF4169E1)),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 16,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Confirm Password Field
-              TextField(
-                controller: _confirmPasswordController,
-                obscureText: _obscureConfirmPassword,
-                style: GoogleFonts.inter(
-                  fontSize: 15,
-                  color: Colors.black87,
-                  fontWeight: FontWeight.w600,
-                ),
-                decoration: InputDecoration(
-                  labelText: 'Konfirmasi Password',
-                  labelStyle: GoogleFonts.inter(color: Colors.grey[600]),
-                  hintText: 'Masukkan ulang password baru',
-                  hintStyle: GoogleFonts.inter(
-                    color: Colors.grey[400],
-                    fontSize: 12,
-                  ),
-                  filled: true,
-                  fillColor: Colors.grey[50],
-                  prefixIcon: const Icon(
-                    Icons.lock_outline,
-                    color: Color(0xFF4169E1),
-                  ),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscureConfirmPassword
-                          ? Icons.visibility_outlined
-                          : Icons.visibility_off_outlined,
-                      color: Colors.grey[600],
-                    ),
-                    onPressed: () {
-                      setState(
-                        () =>
-                            _obscureConfirmPassword = !_obscureConfirmPassword,
-                      );
-                    },
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Colors.grey[300]!),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Colors.grey[300]!),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Color(0xFF4169E1)),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 16,
-                  ),
-                ),
-              ),
-
-              // Password Requirements Info
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.blue[50],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.blue[200]!),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Persyaratan Password:',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.blue[900],
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    _buildPasswordRequirement('Minimal 8 karakter'),
-                    _buildPasswordRequirement('Mengandung huruf besar (A-Z)'),
-                    _buildPasswordRequirement('Mengandung huruf kecil (a-z)'),
-                    _buildPasswordRequirement('Mengandung angka (0-9)'),
-                  ],
-                ),
-              ),
-            ],
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPasswordRequirement(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 4),
-      child: Row(
-        children: [
-          Icon(Icons.check_circle_outline, size: 14, color: Colors.blue[700]),
-          const SizedBox(width: 6),
-          Text(
-            text,
-            style: GoogleFonts.inter(fontSize: 11, color: Colors.blue[800]),
+            controller: null,
           ),
         ],
       ),
@@ -1254,8 +851,8 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
                       : Colors.red.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child:
-                    ukm?['logo'] != null && ukm!['logo'].toString().isNotEmpty
+                child: ukm?['logo'] != null &&
+                        ukm!['logo'].toString().isNotEmpty
                     ? ClipRRect(
                         borderRadius: BorderRadius.circular(4),
                         child: Image.network(
@@ -1265,9 +862,8 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
                           fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) => Icon(
                             Icons.groups,
-                            color: isActive
-                                ? Colors.green[700]
-                                : Colors.red[700],
+                            color:
+                                isActive ? Colors.green[700] : Colors.red[700],
                             size: 24,
                           ),
                         ),
@@ -1550,7 +1146,8 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
     required String label,
     required String value,
     required bool isDesktop,
-    TextEditingController? controller,
+    TextEditingController?
+        controller, // Keep parameter for compatibility but unused
   }) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1577,46 +1174,14 @@ class _DetailPenggunaPageState extends State<DetailPenggunaPage> {
                 ),
               ),
               const SizedBox(height: 4),
-              if (_isEditMode && controller != null)
-                TextField(
-                  controller: controller,
-                  style: GoogleFonts.inter(
-                    fontSize: 15,
-                    color: Colors.black87,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: label,
-                    hintStyle: GoogleFonts.inter(color: Colors.grey[400]),
-                    filled: true,
-                    fillColor: Colors.grey[50],
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: Colors.grey[300]!),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: Colors.grey[300]!),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: Color(0xFF4169E1)),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                  ),
-                )
-              else
-                Text(
-                  value,
-                  style: GoogleFonts.inter(
-                    fontSize: 15,
-                    color: Colors.black87,
-                    fontWeight: FontWeight.w600,
-                  ),
+              Text(
+                value,
+                style: GoogleFonts.inter(
+                  fontSize: 15,
+                  color: Colors.black87,
+                  fontWeight: FontWeight.w600,
                 ),
+              ),
             ],
           ),
         ),
