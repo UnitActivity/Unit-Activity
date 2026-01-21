@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -372,10 +373,13 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
         return;
       }
 
-      // Check if running on web
-      final isWeb = identical(0, 0.0); // Simple web detection
+      // Check if running on web or desktop
+      final bool isDesktop = !kIsWeb && 
+          (defaultTargetPlatform == TargetPlatform.windows || 
+           defaultTargetPlatform == TargetPlatform.linux || 
+           defaultTargetPlatform == TargetPlatform.macOS);
       
-      if (!isWeb) {
+      if (!kIsWeb && !isDesktop) {
         // Mobile: Use cropper
         debugPrint('📸 PROFILE: Running on mobile, using cropper');
         final croppedFile = await ImageCropper().cropImage(
@@ -407,8 +411,8 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
         debugPrint('📸 PROFILE: Image cropped successfully');
         await _uploadToSupabase(croppedFile);
       } else {
-        // Web: Skip cropper, upload directly using bytes
-        debugPrint('📸 PROFILE: Running on web, skipping crop');
+        // Web or Desktop: Skip cropper, upload directly using bytes
+        debugPrint('📸 PROFILE: Running on web/desktop, skipping crop');
         await _uploadToSupabaseWeb(bytes);
       }
     } catch (e) {
