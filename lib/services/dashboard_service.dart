@@ -33,9 +33,8 @@ class DashboardService {
 
       // ========== GET TOTAL EVENTS ==========
       try {
-        final eventResponse = await _supabase
-            .from('events')
-            .select('id_events');
+        final eventResponse =
+            await _supabase.from('events').select('id_events');
         eventCount = (eventResponse as List).length;
       } catch (e) {
         print('Error fetching Events: $e');
@@ -66,11 +65,12 @@ class DashboardService {
         openRegistrations = 0;
       }
 
-      // ========== GET TOTAL FOLLOWERS ==========
+      // ========== GET TOTAL FOLLOWERS (ACTIVE ONLY) ==========
       try {
         final followersResponse = await _supabase
             .from('user_halaman_ukm')
-            .select('id_follow');
+            .select('id_follow')
+            .isFilter('unfollow', null); // Only count active memberships
         totalFollowers = (followersResponse as List).length;
       } catch (e) {
         print('Error fetching Followers: $e');
@@ -201,14 +201,12 @@ class DashboardService {
         query = query.gte('tanggal_mulai', startDate.toIso8601String());
       }
 
-      final eventsResponse = await query
-          .order('tanggal_mulai', ascending: false)
-          .limit(50);
+      final eventsResponse =
+          await query.order('tanggal_mulai', ascending: false).limit(50);
 
       // Fetch participant counts from absen_event
-      final absenResponse = await _supabase
-          .from('absen_event')
-          .select('id_event');
+      final absenResponse =
+          await _supabase.from('absen_event').select('id_event');
 
       // Count participants per event
       final participantCounts = <String, int>{};
@@ -249,12 +247,14 @@ class DashboardService {
     }
   }
 
-  /// Get UKM ranking by member count
+  /// Get UKM ranking by member count (active members only)
   Future<Map<String, dynamic>> getUkmRanking() async {
     try {
+      // Only count active memberships (where unfollow is null)
       final response = await _supabase
           .from('user_halaman_ukm')
-          .select('id_ukm, ukm(nama_ukm)');
+          .select('id_ukm, ukm(nama_ukm)')
+          .isFilter('unfollow', null);
 
       // Count members per UKM
       Map<String, dynamic> ukmCounts = {};
@@ -324,9 +324,11 @@ class DashboardService {
           startDate = DateTime(now.year, now.month - 6, 1);
       }
 
+      // Only count active memberships (where unfollow is null)
       final response = await _supabase
           .from('user_halaman_ukm')
           .select('follow, created_at')
+          .isFilter('unfollow', null)
           .gte('created_at', startDate.toIso8601String())
           .order('created_at');
 
@@ -388,15 +390,41 @@ class DashboardService {
     try {
       List<Map<String, dynamic>> alerts = [];
 
-      // Check events without proposal
-      try {
-        final eventsNoProposal = await _supabase
-            .from('events')
-            .select('id_events, nama_event, id_ukm, ukm(nama_ukm)')
-            .or('status_proposal.is.null,status_proposal.eq.belum_ajukan')
-            .eq('status', true);
+      // Get all active events
+      final allActiveEvents = await _supabase
+          .from('events')
+          .select('id_events, nama_event, tanggal_akhir, id_ukm, ukm(nama_ukm)')
+          .eq('status', true);
 
-        if ((eventsNoProposal as List).isNotEmpty) {
+      // Get all submitted documents to check which events have documents
+      final allDocuments = await _supabase
+          .from('event_documents')
+          .select('id_event, document_type, status');
+
+      // Build sets of event IDs that have submitted proposal/LPJ
+      final Set<String> eventsWithProposal = {};
+      final Set<String> eventsWithLpj = {};
+
+      for (var doc in (allDocuments as List)) {
+        final eventId = doc['id_event']?.toString();
+        final docType = doc['document_type'];
+        if (eventId != null) {
+          if (docType == 'proposal') {
+            eventsWithProposal.add(eventId);
+          } else if (docType == 'lpj') {
+            eventsWithLpj.add(eventId);
+          }
+        }
+      }
+
+      // Check events without proposal (no proposal document submitted at all)
+      try {
+        final eventsNoProposal = (allActiveEvents as List).where((event) {
+          final eventId = event['id_events']?.toString();
+          return eventId != null && !eventsWithProposal.contains(eventId);
+        }).toList();
+
+        if (eventsNoProposal.isNotEmpty) {
           alerts.add({
             'type': 'warning',
             'title': 'Event Tanpa Proposal',
@@ -411,18 +439,23 @@ class DashboardService {
         print('Error checking events without proposal: $e');
       }
 
-      // Check overdue LPJ (events ended but no LPJ)
+      // Check overdue LPJ (events ended but no LPJ document submitted)
       try {
         final now = DateTime.now();
-        final overdueEvents = await _supabase
-            .from('events')
-            .select(
-              'id_events, nama_event, tanggal_akhir, id_ukm, ukm(nama_ukm)',
-            )
-            .lt('tanggal_akhir', now.toIso8601String())
-            .or('status_lpj.is.null,status_lpj.eq.belum_ajukan');
+        final overdueEvents = (allActiveEvents as List).where((event) {
+          final eventId = event['id_events']?.toString();
+          final tanggalAkhirStr = event['tanggal_akhir'];
 
-        if ((overdueEvents as List).isNotEmpty) {
+          if (eventId == null || tanggalAkhirStr == null) return false;
+
+          final tanggalAkhir = DateTime.tryParse(tanggalAkhirStr);
+          if (tanggalAkhir == null) return false;
+
+          // Event has ended AND no LPJ document exists
+          return tanggalAkhir.isBefore(now) && !eventsWithLpj.contains(eventId);
+        }).toList();
+
+        if (overdueEvents.isNotEmpty) {
           alerts.add({
             'type': 'danger',
             'title': 'LPJ Terlambat',
@@ -437,7 +470,7 @@ class DashboardService {
         print('Error checking overdue LPJ: $e');
       }
 
-      // Check pending document approvals
+      // Check pending document approvals (documents with status = 'menunggu')
       try {
         int pendingProposals = 0;
         int pendingLpj = 0;
@@ -497,10 +530,8 @@ class DashboardService {
   /// Get detailed stats for specific table
   Future<Map<String, dynamic>> getTableStats(String tableName) async {
     try {
-      final response = await _supabase
-          .from(tableName)
-          .select('*')
-          .count(CountOption.exact);
+      final response =
+          await _supabase.from(tableName).select('*').count(CountOption.exact);
 
       return {'success': true, 'count': response.count};
     } catch (e) {
