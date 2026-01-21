@@ -64,6 +64,10 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
   late String _statistikLabel2 = '';
   bool _isLoadingStats = true;
 
+  // User profile data for header
+  String? _pictureUrl;
+  String _username = '';
+
   @override
   void initState() {
     super.initState();
@@ -76,12 +80,37 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
   Future<void> _initializeAndLoad() async {
     // Ensure auth service is initialized (restores session from SharedPreferences)
     await CustomAuthService().initialize();
-    print('DEBUG: Auth initialized, userId: ${_dashboardService.currentUserId}');
-    
+    print(
+        'DEBUG: Auth initialized, userId: ${_dashboardService.currentUserId}');
+
     // Now load data that depends on userId
+    _loadUserProfile();
     _loadSliderEvents();
     _loadStatisticsData();
     _loadScheduleData();
+  }
+
+  /// Load user profile data for header display
+  Future<void> _loadUserProfile() async {
+    try {
+      final userId = _authService.currentUserId;
+      if (userId == null) return;
+
+      final userData = await _supabase
+          .from('users')
+          .select('username, picture')
+          .eq('id_user', userId)
+          .maybeSingle();
+
+      if (userData != null && mounted) {
+        setState(() {
+          _username = userData['username']?.toString() ?? '';
+          _pictureUrl = userData['picture'];
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading user profile: $e');
+    }
   }
 
   @override
@@ -420,9 +449,9 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
   Future<void> _loadStatisticsData() async {
     try {
       print('========== LOADING STATISTICS DATA (ATTENDANCE BASED) ==========');
-      
+
       final stats = await _dashboardService.getStatisticsData();
-      
+
       if (mounted) {
         setState(() {
           _statistikLabel1 = stats['label1'] ?? 'UKM 1';
@@ -521,12 +550,12 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
 
           final infoData = {
             'id': item['id_informasi'],
-            'id_ukm': item['id_ukm']?.toString(), // CAPTURE UKM ID for navigation
+            'id_ukm':
+                item['id_ukm']?.toString(), // CAPTURE UKM ID for navigation
             'title': item['judul'] ?? 'Informasi',
             'description': item['deskripsi'] ?? '',
-            'subtitle': isFromAdmin
-                ? 'Admin'
-                : (item['ukm']?['nama_ukm'] ?? 'UKM'),
+            'subtitle':
+                isFromAdmin ? 'Admin' : (item['ukm']?['nama_ukm'] ?? 'UKM'),
             'source': isFromAdmin ? 'admin' : 'ukm',
             'date': _formatDate(item['create_at']),
             'rawDate': item['create_at'] ?? '',
@@ -839,7 +868,7 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
     } catch (e) {
       debugPrint('Error signing out: $e');
     }
-    
+
     if (mounted) {
       Navigator.pushAndRemoveUntil(
         context,
@@ -1045,15 +1074,32 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
                       ),
                     ),
                   ],
-                  child: CircleAvatar(
-                    radius: 20,
-                    backgroundColor: const Color(0xFF4169E1).withOpacity(0.2),
-                    child: const Icon(
-                      Icons.person,
-                      color: Color(0xFF4169E1),
-                      size: 24,
-                    ),
-                  ),
+                  child: _pictureUrl != null && _pictureUrl!.isNotEmpty
+                      ? CircleAvatar(
+                          radius: 20,
+                          backgroundImage: NetworkImage(_pictureUrl!),
+                          backgroundColor:
+                              const Color(0xFF4169E1).withOpacity(0.2),
+                        )
+                      : CircleAvatar(
+                          radius: 20,
+                          backgroundColor:
+                              const Color(0xFF4169E1).withOpacity(0.2),
+                          child: _username.isNotEmpty
+                              ? Text(
+                                  _username[0].toUpperCase(),
+                                  style: const TextStyle(
+                                    color: Color(0xFF4169E1),
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.person,
+                                  color: Color(0xFF4169E1),
+                                  size: 24,
+                                ),
+                        ),
                 ),
               ],
             )
@@ -1128,15 +1174,32 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
                       ),
                     ),
                   ],
-                  child: CircleAvatar(
-                    radius: 20,
-                    backgroundColor: const Color(0xFF4169E1).withOpacity(0.2),
-                    child: const Icon(
-                      Icons.person,
-                      color: Color(0xFF4169E1),
-                      size: 24,
-                    ),
-                  ),
+                  child: _pictureUrl != null && _pictureUrl!.isNotEmpty
+                      ? CircleAvatar(
+                          radius: 20,
+                          backgroundImage: NetworkImage(_pictureUrl!),
+                          backgroundColor:
+                              const Color(0xFF4169E1).withOpacity(0.2),
+                        )
+                      : CircleAvatar(
+                          radius: 20,
+                          backgroundColor:
+                              const Color(0xFF4169E1).withOpacity(0.2),
+                          child: _username.isNotEmpty
+                              ? Text(
+                                  _username[0].toUpperCase(),
+                                  style: const TextStyle(
+                                    color: Color(0xFF4169E1),
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.person,
+                                  color: Color(0xFF4169E1),
+                                  size: 24,
+                                ),
+                        ),
                 ),
               ],
             ),
@@ -1380,12 +1443,13 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
             child: GestureDetector(
               onHorizontalDragEnd: (details) {
                 if (_sliderEvents.length <= 1) return;
-                
+
                 // Swipe Left -> Next
                 if (details.primaryVelocity! < 0) {
                   _autoSlideTimer?.cancel();
                   setState(() {
-                    _currentSlideIndex = (_currentSlideIndex + 1) % _sliderEvents.length;
+                    _currentSlideIndex =
+                        (_currentSlideIndex + 1) % _sliderEvents.length;
                   });
                   _startAutoSlide();
                 }
@@ -1393,7 +1457,9 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
                 else if (details.primaryVelocity! > 0) {
                   _autoSlideTimer?.cancel();
                   setState(() {
-                    _currentSlideIndex = (_currentSlideIndex - 1 + _sliderEvents.length) % _sliderEvents.length;
+                    _currentSlideIndex =
+                        (_currentSlideIndex - 1 + _sliderEvents.length) %
+                            _sliderEvents.length;
                   });
                   _startAutoSlide();
                 }
@@ -1410,7 +1476,8 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
                           final currentItem = _sliderEvents[_currentSlideIndex];
                           final source = currentItem['source'];
 
-                          print('🔘 Carousel Item Clicked: ${currentItem['title']} ($source)');
+                          print(
+                              '🔘 Carousel Item Clicked: ${currentItem['title']} ($source)');
 
                           if (source == 'ukm') {
                             // Navigate to UKM Page with specific UKM selected
@@ -1419,23 +1486,25 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => UserUKMPage(initialUkmId: ukmId),
+                                  builder: (context) =>
+                                      UserUKMPage(initialUkmId: ukmId),
                                 ),
                               );
                             } else {
                               // Fallback if no ID
-                               _navigateToInformasiDetail(currentItem);
+                              _navigateToInformasiDetail(currentItem);
                             }
                           } else if (source == 'event') {
-                             // Navigate to Event Detail
-                             if (currentItem['id'] != null) {
-                               Navigator.push(
-                                 context,
-                                 MaterialPageRoute(
-                                   builder: (context) => UserEventDetailPage(eventId: currentItem['id'].toString()),
-                                 ),
-                               );
-                             }
+                            // Navigate to Event Detail
+                            if (currentItem['id'] != null) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => UserEventDetailPage(
+                                      eventId: currentItem['id'].toString()),
+                                ),
+                              );
+                            }
                           } else {
                             // Admin or other - show standard detail modal
                             _navigateToInformasiDetail(currentItem);
@@ -1445,23 +1514,26 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
                           fit: StackFit.expand,
                           children: [
                             // Background image - prioritize imageUrl from database
-                            _sliderEvents[_currentSlideIndex]['imageUrl'] != null
+                            _sliderEvents[_currentSlideIndex]['imageUrl'] !=
+                                    null
                                 ? Image.network(
-                                    _sliderEvents[_currentSlideIndex]['imageUrl']!,
+                                    _sliderEvents[_currentSlideIndex]
+                                        ['imageUrl']!,
                                     fit: BoxFit.cover,
-                                    loadingBuilder: (context, child, loadingProgress) {
+                                    loadingBuilder:
+                                        (context, child, loadingProgress) {
                                       if (loadingProgress == null) return child;
                                       return Container(
                                         color: Colors.grey[200],
                                         child: Center(
                                           child: CircularProgressIndicator(
-                                            value:
-                                                loadingProgress.expectedTotalBytes !=
+                                            value: loadingProgress
+                                                        .expectedTotalBytes !=
                                                     null
                                                 ? loadingProgress
-                                                          .cumulativeBytesLoaded /
-                                                      loadingProgress
-                                                          .expectedTotalBytes!
+                                                        .cumulativeBytesLoaded /
+                                                    loadingProgress
+                                                        .expectedTotalBytes!
                                                 : null,
                                           ),
                                         ),
@@ -1475,7 +1547,8 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
                                           child: Icon(
                                             Icons.info,
                                             size: 80,
-                                            color: Colors.white.withOpacity(0.3),
+                                            color:
+                                                Colors.white.withOpacity(0.3),
                                           ),
                                         ),
                                       );
@@ -1519,8 +1592,8 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
                                       vertical: 4,
                                     ),
                                     decoration: BoxDecoration(
-                                      color:
-                                          _sliderEvents[_currentSlideIndex]['source'] ==
+                                      color: _sliderEvents[_currentSlideIndex]
+                                                  ['source'] ==
                                               'admin'
                                           ? Colors.purple.withOpacity(0.9)
                                           : Colors.blue.withOpacity(0.9),
@@ -1530,7 +1603,8 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         Icon(
-                                          _sliderEvents[_currentSlideIndex]['source'] ==
+                                          _sliderEvents[_currentSlideIndex]
+                                                      ['source'] ==
                                                   'admin'
                                               ? Icons.admin_panel_settings
                                               : Icons.school,
@@ -1539,7 +1613,8 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
                                         ),
                                         const SizedBox(width: 4),
                                         Text(
-                                          _sliderEvents[_currentSlideIndex]['subtitle'] ??
+                                          _sliderEvents[_currentSlideIndex]
+                                                  ['subtitle'] ??
                                               '',
                                           style: const TextStyle(
                                             color: Colors.white,
@@ -1552,7 +1627,9 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
-                                    _sliderEvents[_currentSlideIndex]['title'] ?? '',
+                                    _sliderEvents[_currentSlideIndex]
+                                            ['title'] ??
+                                        '',
                                     style: TextStyle(
                                       color: Colors.white,
                                       fontSize: isMobile ? 14 : 20,
@@ -1563,7 +1640,8 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
-                                    _sliderEvents[_currentSlideIndex]['date'] ?? '',
+                                    _sliderEvents[_currentSlideIndex]['date'] ??
+                                        '',
                                     style: TextStyle(
                                       color: Colors.white70,
                                       fontSize: isMobile ? 10 : 12,
@@ -1577,95 +1655,96 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
                       ),
                     ),
                   ),
-                  
+
                   // Previous button (left) - Hide on Mobile
                   if (!isMobile)
-                  Positioned(
-                    left: 16,
-                    top: 0,
-                    bottom: 0,
-                    child: Center(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.4),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: IconButton(
-                          onPressed: _sliderEvents.length > 1
-                              ? () {
-                                  print('⬅️ Previous button clicked');
-                                  _autoSlideTimer?.cancel(); // Pause auto-slide
-                                  setState(() {
-                                    final oldIndex = _currentSlideIndex;
-                                    _currentSlideIndex =
-                                        (_currentSlideIndex -
-                                            1 +
-                                            _sliderEvents.length) %
-                                        _sliderEvents.length;
-                                    print(
-                                      '   Index: $oldIndex → $_currentSlideIndex',
-                                    );
-                                  });
-                                  _startAutoSlide(); // Restart auto-slide
-                                }
-                              : null,
-                          icon: const Icon(
-                            Icons.chevron_left,
-                            color: Colors.white,
+                    Positioned(
+                      left: 16,
+                      top: 0,
+                      bottom: 0,
+                      child: Center(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.4),
+                            borderRadius: BorderRadius.circular(4),
                           ),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(
-                            minWidth: 36,
-                            minHeight: 36,
+                          child: IconButton(
+                            onPressed: _sliderEvents.length > 1
+                                ? () {
+                                    print('⬅️ Previous button clicked');
+                                    _autoSlideTimer
+                                        ?.cancel(); // Pause auto-slide
+                                    setState(() {
+                                      final oldIndex = _currentSlideIndex;
+                                      _currentSlideIndex = (_currentSlideIndex -
+                                              1 +
+                                              _sliderEvents.length) %
+                                          _sliderEvents.length;
+                                      print(
+                                        '   Index: $oldIndex → $_currentSlideIndex',
+                                      );
+                                    });
+                                    _startAutoSlide(); // Restart auto-slide
+                                  }
+                                : null,
+                            icon: const Icon(
+                              Icons.chevron_left,
+                              color: Colors.white,
+                            ),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                              minWidth: 36,
+                              minHeight: 36,
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                  
+
                   // Next button (right) - Hide on Mobile
                   if (!isMobile)
-                  Positioned(
-                    right: 16,
-                    top: 0,
-                    bottom: 0,
-                    child: Center(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.4),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: IconButton(
-                          onPressed: _sliderEvents.length > 1
-                              ? () {
-                                  print('➡️ Next button clicked');
-                                  _autoSlideTimer?.cancel(); // Pause auto-slide
-                                  setState(() {
-                                    final oldIndex = _currentSlideIndex;
-                                    _currentSlideIndex =
-                                        (_currentSlideIndex + 1) %
-                                        _sliderEvents.length;
-                                    print(
-                                      '   Index: $oldIndex → $_currentSlideIndex',
-                                    );
-                                  });
-                                  _startAutoSlide(); // Restart auto-slide
-                                }
-                              : null,
-                          icon: const Icon(
-                            Icons.chevron_right,
-                            color: Colors.white,
+                    Positioned(
+                      right: 16,
+                      top: 0,
+                      bottom: 0,
+                      child: Center(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.4),
+                            borderRadius: BorderRadius.circular(4),
                           ),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(
-                            minWidth: 36,
-                            minHeight: 36,
+                          child: IconButton(
+                            onPressed: _sliderEvents.length > 1
+                                ? () {
+                                    print('➡️ Next button clicked');
+                                    _autoSlideTimer
+                                        ?.cancel(); // Pause auto-slide
+                                    setState(() {
+                                      final oldIndex = _currentSlideIndex;
+                                      _currentSlideIndex =
+                                          (_currentSlideIndex + 1) %
+                                              _sliderEvents.length;
+                                      print(
+                                        '   Index: $oldIndex → $_currentSlideIndex',
+                                      );
+                                    });
+                                    _startAutoSlide(); // Restart auto-slide
+                                  }
+                                : null,
+                            icon: const Icon(
+                              Icons.chevron_right,
+                              color: Colors.white,
+                            ),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                              minWidth: 36,
+                              minHeight: 36,
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                  
+
                   // Dot indicators - Always show count
                   Positioned(
                     bottom: 8,
@@ -1682,7 +1761,8 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
                             setState(() {
                               final oldIndex = _currentSlideIndex;
                               _currentSlideIndex = index;
-                              print('   Index: $oldIndex → $_currentSlideIndex');
+                              print(
+                                  '   Index: $oldIndex → $_currentSlideIndex');
                             });
                             _startAutoSlide();
                           },
@@ -1796,10 +1876,10 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
                 ),
               )
             : _ukmSchedule.isEmpty
-            ? _buildEmptySchedule(isMobile)
-            : isMobile
-            ? _buildJadwalMobileList()
-            : _buildJadwalDesktopList(),
+                ? _buildEmptySchedule(isMobile)
+                : isMobile
+                    ? _buildJadwalMobileList()
+                    : _buildJadwalDesktopList(),
       ],
     );
   }
@@ -1905,8 +1985,7 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
           itemCount: _ukmSchedule.length,
           itemBuilder: (context, index) {
             return Container(
-              width:
-                  MediaQuery.of(context).size.width *
+              width: MediaQuery.of(context).size.width *
                   0.85, // 85% of screen width
               margin: const EdgeInsets.only(right: 12),
               child: _buildJadwalCard(_ukmSchedule[index], true),
@@ -1990,15 +2069,19 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                             // TYPE INDICATOR
+                            // TYPE INDICATOR
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
-                                color: (item['color'] as Color).withOpacity(0.15),
+                                color:
+                                    (item['color'] as Color).withOpacity(0.15),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
-                                (item['type'] ?? 'Event').toString().toUpperCase(),
+                                (item['type'] ?? 'Event')
+                                    .toString()
+                                    .toUpperCase(),
                                 style: GoogleFonts.inter(
                                   fontSize: 8,
                                   fontWeight: FontWeight.bold,
@@ -2132,13 +2215,17 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 3),
                               decoration: BoxDecoration(
-                                color: (item['color'] as Color).withOpacity(0.15),
+                                color:
+                                    (item['color'] as Color).withOpacity(0.15),
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
-                                (item['type'] ?? 'Event').toString().toUpperCase(),
+                                (item['type'] ?? 'Event')
+                                    .toString()
+                                    .toUpperCase(),
                                 style: GoogleFonts.inter(
                                   fontSize: 10,
                                   fontWeight: FontWeight.bold,
