@@ -428,7 +428,13 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
                     padding: EdgeInsets.only(
                       left: isDesktop ? 20 : 14,
                       right: isDesktop ? 20 : 14,
-                      top: isDesktop ? 95 : 75,
+                      // Dynamic top padding to account for header + status bar
+                      // User requested "except event page" -> so give more space for others
+                      top: isDesktop 
+                          ? 95 
+                          : (_selectedMenu == 'event' 
+                              ? (MediaQuery.of(context).padding.top + 90) // Keep existing for event
+                              : (MediaQuery.of(context).padding.top + 130)), // More space for others
                       bottom: isDesktop ? 20 : 16,
                     ),
                     child: _buildContent(isDesktop),
@@ -440,15 +446,18 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
                   top: 0,
                   left: 0,
                   right: 0,
-                  child: UKMHeader(
-                    onMenuPressed: () {
-                      _scaffoldKey.currentState?.openDrawer();
-                    },
-                    onLogout: _handleLogout,
-                    onMenuSelected: _handleMenuSelected,
-                    ukmName: _ukmName,
-                    ukmLogo: _ukmLogo,
-                    periode: _periode,
+                  child: SafeArea(
+                    bottom: false,
+                    child: UKMHeader(
+                      onMenuPressed: () {
+                        _scaffoldKey.currentState?.openDrawer();
+                      },
+                      onLogout: _handleLogout,
+                      onMenuSelected: _handleMenuSelected,
+                      ukmName: _ukmName,
+                      ukmLogo: _ukmLogo,
+                      periode: _periode,
+                    ),
                   ),
                 ),
               ],
@@ -1622,7 +1631,7 @@ class _DashboardUKMPageState extends State<DashboardUKMPage> {
           crossAxisCount: crossAxisCount,
           crossAxisSpacing: 16,
           mainAxisSpacing: 16,
-          childAspectRatio: childAspectRatio,
+          childAspectRatio: isDesktop ? 2.2 : 2.0, // Reduced from 2.2 to 2.0 for more height on mobile
           children: [
             _buildStatCard(
               title: 'Total Peserta',

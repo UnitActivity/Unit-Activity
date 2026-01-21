@@ -224,75 +224,97 @@ class _DetailPertemuanUKMPageState extends State<DetailPertemuanUKMPage>
         icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
         onPressed: () => Navigator.pop(context),
       ),
-      flexibleSpace: FlexibleSpaceBar(
-        title: Text(
-          'Detail Pertemuan',
-          style: GoogleFonts.inter(
-            fontSize: isMobile ? 14 : 16,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
-          ),
-        ),
-        background: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF4169E1), Color(0xFF5B7FE8)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+      flexibleSpace: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          final double collapseRatio = ((constraints.maxHeight - kToolbarHeight) /
+                  ((isMobile ? 150 : 200) - kToolbarHeight))
+              .clamp(0.0, 1.0);
+          // Opacity for the title: 0 when expanded (ratio 1), 1 when collapsed (ratio 0)
+          // Actually constraints.maxHeight goes from 200 down to kToolbarHeight (56).
+          // Ratio: (200-56)/(200-56) = 1. (56-56)/(...) = 0.
+          // So ratio goes 1.0 -> 0.0.
+          // Check logic: if height is max, ratio is 1. If height is min, ratio is 0.
+          // We want title visible when height is min (ratio 0). So opacity = 1 - ratio.
+          
+          final double expandedRatio = ((constraints.maxHeight - kToolbarHeight) /
+                  ((isMobile ? 150 : 200) - kToolbarHeight))
+              .clamp(0.0, 1.0);
+          
+          return FlexibleSpaceBar(
+            centerTitle: true,
+            title: Opacity(
+              opacity: 1.0 - expandedRatio, // Visible only when collapsed
+              child: Text(
+                'Detail Pertemuan',
+                style: GoogleFonts.inter(
+                  fontSize: isMobile ? 16 : 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
             ),
-          ),
-          child: Stack(
-            children: [
-              Positioned(
-                top: -50,
-                right: -50,
-                child: Container(
-                  width: 200,
-                  height: 200,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.white.withOpacity(0.1),
-                  ),
+            background: Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF4169E1), Color(0xFF5B7FE8)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
               ),
-              Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const SizedBox(height: 24),
-                    Container(
-                      padding: EdgeInsets.all(isMobile ? 12 : 20),
+              child: Stack(
+                children: [
+                  Positioned(
+                    top: -50,
+                    right: -50,
+                    child: Container(
+                      width: 200,
+                      height: 200,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Icon(
-                        Icons.event_note_rounded,
-                        size: isMobile ? 32 : 48,
-                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        color: Colors.white.withOpacity(0.1),
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Text(
-                        widget.pertemuan['topik'] ?? 'Pertemuan',
-                        style: GoogleFonts.inter(
-                          fontSize: isMobile ? 14 : 20,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                        ),
-                        textAlign: TextAlign.center,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                  ),
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const SizedBox(height: 24),
+                          Container(
+                            padding: EdgeInsets.all(isMobile ? 12 : 20),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Icon(
+                              Icons.event_note_rounded,
+                              size: isMobile ? 32 : 48,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            widget.pertemuan['topik'] ?? 'Pertemuan',
+                            style: GoogleFonts.inter(
+                              fontSize: isMobile ? 16 : 20, // Slightly reduced font size for mobile
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }

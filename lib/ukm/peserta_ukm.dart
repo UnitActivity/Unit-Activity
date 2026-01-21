@@ -286,7 +286,7 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
           const SizedBox(height: 24),
 
           // Chart Pertumbuhan Anggota
-          _buildGrowthChart(),
+          _buildGrowthChart(isDesktop),
           const SizedBox(height: 24),
 
           // Search Bar and Table
@@ -355,7 +355,7 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
     );
   }
 
-  Widget _buildGrowthChart() {
+  Widget _buildGrowthChart(bool isDesktop) {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -372,37 +372,73 @@ class _PesertaUKMPageState extends State<PesertaUKMPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.show_chart,
-                    color: const Color(0xFF4169E1),
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Pertumbuhan Anggota',
-                    style: GoogleFonts.inter(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.black87,
+          if (isDesktop)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.show_chart,
+                      color: const Color(0xFF4169E1),
+                      size: 20,
                     ),
-                  ),
-                ],
-              ),
-              Text(
-                '6 Bulan Terakhir',
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.grey[600],
+                    const SizedBox(width: 8),
+                    Text(
+                      'Pertumbuhan Anggota',
+                      style: GoogleFonts.inter(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ],
-          ),
+                Text(
+                  '6 Bulan Terakhir',
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            )
+          else
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.show_chart,
+                      color: const Color(0xFF4169E1),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Pertumbuhan Anggota',
+                        style: GoogleFonts.inter(
+                          fontSize: 16, // Slightly smaller on mobile
+                          fontWeight: FontWeight.w700,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '6 Bulan Terakhir',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
           const SizedBox(height: 24),
           SizedBox(
             height: 250,
