@@ -147,10 +147,12 @@ class _PenggunaPageState extends State<PenggunaPage> {
 
       final List<dynamic> allResponse = await queryBuilder;
 
-      // Load UKM count per user from user_halaman_ukm
+      // Load ACTIVE UKM count per user from user_halaman_ukm
+      // Only count memberships where user has not unfollowed
       final userUkmData = await _supabase
           .from('user_halaman_ukm')
-          .select('id_user');
+          .select('id_user')
+          .isFilter('unfollow', null);
 
       // Count UKM per user
       final Map<String, int> ukmCountMap = {};
@@ -177,20 +179,20 @@ class _PenggunaPageState extends State<PenggunaPage> {
       if (_sortBy == 'NIM') {
         sortedUsers.sort(
           (a, b) => (a['nim'] ?? '').toString().compareTo(
-            (b['nim'] ?? '').toString(),
-          ),
+                (b['nim'] ?? '').toString(),
+              ),
         );
       } else if (_sortBy == 'Username') {
         sortedUsers.sort(
           (a, b) => (a['username'] ?? '').toString().compareTo(
-            (b['username'] ?? '').toString(),
-          ),
+                (b['username'] ?? '').toString(),
+              ),
         );
       } else if (_sortBy == 'Email') {
         sortedUsers.sort(
           (a, b) => (a['email'] ?? '').toString().compareTo(
-            (b['email'] ?? '').toString(),
-          ),
+                (b['email'] ?? '').toString(),
+              ),
         );
       } else {
         sortedUsers.sort((a, b) {
@@ -239,8 +241,7 @@ class _PenggunaPageState extends State<PenggunaPage> {
   @override
   Widget build(BuildContext context) {
     final isDesktop = MediaQuery.of(context).size.width >= 900;
-    final isTablet =
-        MediaQuery.of(context).size.width >= 600 &&
+    final isTablet = MediaQuery.of(context).size.width >= 600 &&
         MediaQuery.of(context).size.width < 900;
 
     return Column(
@@ -296,9 +297,8 @@ class _PenggunaPageState extends State<PenggunaPage> {
         final tahun = _activePeriode!['tahun']?.toString() ?? '';
         final semester =
             _activePeriode!['semester']?.toString().toLowerCase() ?? '';
-        final semesterNum = semester.contains('ganjil') || semester == '1'
-            ? '1'
-            : '2';
+        final semesterNum =
+            semester.contains('ganjil') || semester == '1' ? '1' : '2';
         return tahun.isNotEmpty ? '$tahun.$semesterNum' : 'N/A';
       } else {
         // Format desktop: nama lengkap atau semester tahun
@@ -968,13 +968,11 @@ class _PenggunaPageState extends State<PenggunaPage> {
                                 backgroundColor: const Color(
                                   0xFF4169E1,
                                 ).withValues(alpha: 0.12),
-                                backgroundImage:
-                                    user['picture'] != null &&
+                                backgroundImage: user['picture'] != null &&
                                         user['picture'].toString().isNotEmpty
                                     ? NetworkImage(user['picture'])
                                     : null,
-                                child:
-                                    user['picture'] == null ||
+                                child: user['picture'] == null ||
                                         user['picture'].toString().isEmpty
                                     ? Text(
                                         (user['username'] ?? 'U')
@@ -1195,13 +1193,11 @@ class _PenggunaPageState extends State<PenggunaPage> {
                       backgroundColor: const Color(
                         0xFF4169E1,
                       ).withValues(alpha: 0.12),
-                      backgroundImage:
-                          user['picture'] != null &&
+                      backgroundImage: user['picture'] != null &&
                               user['picture'].toString().isNotEmpty
                           ? NetworkImage(user['picture'])
                           : null,
-                      child:
-                          user['picture'] == null ||
+                      child: user['picture'] == null ||
                               user['picture'].toString().isEmpty
                           ? Text(
                               (user['username'] ?? 'U')
@@ -1711,14 +1707,45 @@ class _PenggunaPageState extends State<PenggunaPage> {
 
   Future<void> _performDelete(String userId) async {
     try {
-      // Manual cascade delete
-      // 1. Delete from user_halaman_ukm (memberships)
+      // Comprehensive cascade delete - order matters: delete from child tables first
+
+      // 1. Delete notification read status
+      await _supabase
+          .from('notification_read_status')
+          .delete()
+          .eq('id_user', userId);
+
+      // 2. Delete notifications
+      await _supabase.from('notification').delete().eq('id_user', userId);
+      await _supabase
+          .from('notification_preference')
+          .delete()
+          .eq('id_user', userId);
+
+      // 3. Delete document-related records
+      await _supabase.from('document_comments').delete().eq('id_user', userId);
+      await _supabase
+          .from('document_revision_history')
+          .delete()
+          .eq('id_user', userId);
+      await _supabase.from('event_documents').delete().eq('id_user', userId);
+
+      // 4. Delete attendance records
+      await _supabase.from('absen_event').delete().eq('id_user', userId);
+      await _supabase.from('absen_pertemuan').delete().eq('id_user', userId);
+
+      // 5. Delete UKM memberships
       await _supabase.from('user_halaman_ukm').delete().eq('id_user', userId);
 
-      // 2. Delete from absen_event (event participation)
-      await _supabase.from('absen_event').delete().eq('id_user', userId);
+      // 6. Set id_user to NULL on events/informasi (preserve these records)
+      await _supabase
+          .from('events')
+          .update({'id_user': null}).eq('id_user', userId);
+      await _supabase
+          .from('informasi')
+          .update({'id_user': null}).eq('id_user', userId);
 
-      // 3. Delete from users table
+      // 7. Finally delete the user
       await _supabase.from('users').delete().eq('id_user', userId);
 
       if (mounted) {
