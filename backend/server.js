@@ -359,14 +359,14 @@ app.post('/api/admin-update-password', async (req, res) => {
 
 /**
  * GET /
- * Root endpoint - Welcome message
+ * Welcome endpoint
  */
 app.get('/', (req, res) => {
   res.json({
     success: true,
-    message: 'Unit Activity Email Service API',
+    service: 'Unit Activity Email Service',
     version: '1.0.0',
-    status: 'running',
+    message: 'Service is running',
     endpoints: {
       health: '/api/health',
       sendVerification: 'POST /api/send-verification-email',
@@ -374,7 +374,6 @@ app.get('/', (req, res) => {
       resetPassword: 'POST /api/reset-password',
       adminUpdatePassword: 'POST /api/admin-update-password'
     },
-    documentation: 'https://github.com/UnitActivity/Unit-Activity',
     timestamp: new Date().toISOString(),
   });
 });
