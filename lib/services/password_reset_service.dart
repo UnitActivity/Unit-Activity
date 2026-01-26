@@ -62,10 +62,10 @@ class PasswordResetService {
       // Cek di tabel admin jika tidak ditemukan di users
       final admin = user == null
           ? await _supabase
-                .from('admin')
-                .select('email_admin')
-                .eq('email_admin', trimmedEmail)
-                .maybeSingle()
+              .from('admin')
+              .select('email_admin')
+              .eq('email_admin', trimmedEmail)
+              .maybeSingle()
           : null;
 
       // Jika tidak ditemukan di kedua tabel
@@ -246,7 +246,8 @@ class PasswordResetService {
       // Backend akan handle pengecekan password lama dan update di Supabase Auth
       try {
         final response = await http.post(
-          Uri.parse('http://localhost:3000/api/reset-password'),
+          Uri.parse(
+              'https://unit-activity-backend.vercel.app/api/reset-password'),
           headers: {'Content-Type': 'application/json'},
           body: json.encode({
             'email': trimmedEmail,

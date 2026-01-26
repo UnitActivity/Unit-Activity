@@ -3,9 +3,9 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class EmailApiService {
-  // Get email API URL from environment or use default localhost
+  // Get email API URL from environment or use default production URL
   static String get _baseUrl =>
-      dotenv.env['EMAIL_API_URL'] ?? 'http://localhost:3000';
+      dotenv.env['EMAIL_API_URL'] ?? 'https://unit-activity-backend.vercel.app';
 
   /// Send verification email
   Future<Map<String, dynamic>> sendVerificationEmail({
