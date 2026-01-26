@@ -17,7 +17,7 @@ migrate_working_dir/
 .env.local
 .env.*.local
 
-.credential
+.*credential
 
 # IntelliJ related
 *.iml
