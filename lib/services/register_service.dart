@@ -1,7 +1,12 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class RegisterService {
   final SupabaseClient _supabase = Supabase.instance.client;
+
+  // Backend API URL
+  static const String _backendUrl = 'https://unit-activity-backend.vercel.app';
 
   /// Register new user
   Future<Map<String, dynamic>> registerUser({
@@ -82,13 +87,36 @@ class RegisterService {
         };
       }
 
+      // ========== HASH PASSWORD MENGGUNAKAN BCRYPT VIA BACKEND ==========
+      String hashedPassword;
+      try {
+        final hashResponse = await http.post(
+          Uri.parse('$_backendUrl/api/hash-password'),
+          headers: {'Content-Type': 'application/json'},
+          body: json.encode({'password': password}),
+        );
+
+        if (hashResponse.statusCode != 200) {
+          // Fallback: jika backend error, gunakan user ID
+          print('⚠️ Backend hash error, using user ID as fallback');
+          hashedPassword = authResponse.user!.id;
+        } else {
+          final hashData = json.decode(hashResponse.body);
+          hashedPassword = hashData['hashedPassword'];
+          print('✅ Password hashed via backend');
+        }
+      } catch (e) {
+        print('⚠️ Backend connection error: $e, using user ID as fallback');
+        hashedPassword = authResponse.user!.id;
+      }
+
       // ========== INSERT DATA USER KE TABEL USERS ==========
       try {
         await _supabase.from('users').insert({
           'id_user': authResponse.user!.id,
           'username': username,
           'email': email,
-          'password': authResponse.user!.id, // Simpan user ID sebagai referensi
+          'password': hashedPassword, // Simpan bcrypt hash
           'nim': nim,
           'picture': picture,
           'create_at': DateTime.now().toIso8601String(),

@@ -358,6 +358,69 @@ app.post('/api/admin-update-password', async (req, res) => {
 });
 
 /**
+ * POST /api/hash-password
+ * Hash password using bcrypt (for registration)
+ */
+app.post('/api/hash-password', async (req, res) => {
+  try {
+    const { password } = req.body;
+
+    if (!password) {
+      return res.status(400).json({
+        success: false,
+        error: 'Password wajib diisi',
+      });
+    }
+
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+    res.json({
+      success: true,
+      hashedPassword: hashedPassword,
+    });
+  } catch (error) {
+    console.error('❌ Error hashing password:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Gagal hash password',
+      details: error.message,
+    });
+  }
+});
+
+/**
+ * POST /api/verify-password
+ * Verify password against bcrypt hash (for login)
+ */
+app.post('/api/verify-password', async (req, res) => {
+  try {
+    const { password, hashedPassword } = req.body;
+
+    if (!password || !hashedPassword) {
+      return res.status(400).json({
+        success: false,
+        error: 'Password dan hash wajib diisi',
+      });
+    }
+
+    const isMatch = await bcrypt.compare(password, hashedPassword);
+
+    res.json({
+      success: true,
+      isMatch: isMatch,
+    });
+  } catch (error) {
+    console.error('❌ Error verifying password:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Gagal verify password',
+      details: error.message,
+    });
+  }
+});
+
+/**
  * GET /
  * Welcome endpoint
  */
@@ -372,7 +435,9 @@ app.get('/', (req, res) => {
       sendVerification: 'POST /api/send-verification-email',
       sendPasswordReset: 'POST /api/send-password-reset-email',
       resetPassword: 'POST /api/reset-password',
-      adminUpdatePassword: 'POST /api/admin-update-password'
+      adminUpdatePassword: 'POST /api/admin-update-password',
+      hashPassword: 'POST /api/hash-password',
+      verifyPassword: 'POST /api/verify-password'
     },
     timestamp: new Date().toISOString(),
   });
