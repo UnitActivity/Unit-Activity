@@ -374,3 +374,6 @@ app.listen(PORT, () => {
   console.log(`🚀 Email service running on http://localhost:${PORT}`);
   console.log(`📧 Email configured: ${process.env.EMAIL_USER}`);
 });
+
+// Export untuk Vercel serverless
+module.exports = app;
