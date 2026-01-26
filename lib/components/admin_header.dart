@@ -18,7 +18,7 @@ class AdminHeader extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 20,
             offset: const Offset(0, 4),
           ),
@@ -31,10 +31,10 @@ class AdminHeader extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.7),
+              color: Colors.white.withValues(alpha: 0.7),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: Colors.white.withOpacity(0.3),
+                color: Colors.white.withValues(alpha: 0.3),
                 width: 1.5,
               ),
             ),
@@ -88,7 +88,7 @@ class AdminHeader extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: CircleAvatar(
         radius: 20,
-        backgroundColor: const Color(0xFF4169E1).withOpacity(0.2),
+        backgroundColor: const Color(0xFF4169E1).withValues(alpha: 0.2),
         child: const Icon(Icons.person, color: Color(0xFF4169E1), size: 24),
       ),
       itemBuilder: (context) => [
@@ -128,7 +128,7 @@ class AdminHeader extends StatelessWidget {
         if (value == 'logout' && onLogout != null) {
           onLogout!();
         } else if (value == 'profile') {
-          // TODO: Navigate to profile
+          Navigator.pushNamed(context, '/admin/pengguna');
         }
       },
     );

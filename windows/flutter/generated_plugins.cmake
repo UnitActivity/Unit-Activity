@@ -4,8 +4,12 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   app_links
-  firebase_auth
-  firebase_core
+  connectivity_plus
+  file_selector_windows
+  pdfx
+  permission_handler_windows
+  share_plus
+  syncfusion_pdfviewer_windows
   url_launcher_windows
 )
 
