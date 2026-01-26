@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
 import 'push_notification_service.dart';
+import 'package:http/http.dart' as http;
 
 class CustomAuthService {
   // Singleton pattern
@@ -12,6 +13,9 @@ class CustomAuthService {
   CustomAuthService._internal();
 
   final SupabaseClient _supabase = Supabase.instance.client;
+
+  // Backend API URL
+  static const String _backendUrl = 'https://unit-activity-backend.vercel.app';
 
   // Session storage
   String? _currentUserId;
@@ -103,9 +107,11 @@ class CustomAuthService {
         if (userResult != null) {
           print('User found: ${userResult['username']}');
 
-          // Check password (supports both plain text and SHA256 hash)
+          // Check password (supports plain text, SHA256, and bcrypt hash)
           final storedPassword = userResult['password'];
-          if (_verifyPassword(password, storedPassword)) {
+          final passwordMatch = await _verifyPassword(password, storedPassword);
+
+          if (passwordMatch) {
             print('✅ Login successful as user');
 
             _currentUserId = userResult['id_user'];
@@ -165,8 +171,9 @@ class CustomAuthService {
     return digest.toString();
   }
 
-  /// Verify password - supports plain text, SHA256 hash
-  bool _verifyPassword(String inputPassword, String storedPassword) {
+  /// Verify password - supports plain text, SHA256 hash, AND bcrypt via backend
+  Future<bool> _verifyPassword(
+      String inputPassword, String storedPassword) async {
     // 1. Direct plain text comparison
     if (inputPassword == storedPassword) {
       print('✅ Password matched (plain text)');
@@ -180,11 +187,38 @@ class CustomAuthService {
       return true;
     }
 
-    // 3. Check if stored password is a SHA256 hash (64 hex chars)
-    // and compare with hashed input
+    // 3. Check if stored password looks like a bcrypt hash (starts with $2a$, $2b$, or $2y$)
+    if (storedPassword.startsWith(r'$2') && storedPassword.length == 60) {
+      print('🔍 Detected bcrypt hash, verifying via backend...');
+
+      try {
+        final response = await http
+            .post(
+              Uri.parse('$_backendUrl/api/verify-password'),
+              headers: {'Content-Type': 'application/json'},
+              body: json.encode({
+                'password': inputPassword,
+                'hashedPassword': storedPassword,
+              }),
+            )
+            .timeout(const Duration(seconds: 10));
+
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          if (data['isMatch'] == true) {
+            print('✅ Password matched (bcrypt via backend)');
+            return true;
+          }
+        }
+      } catch (e) {
+        print('⚠️ Backend bcrypt verification error: $e');
+        // Fallback: coba SHA256 jika backend error
+      }
+    }
+
+    // 4. Check if stored password is a SHA256 hash (64 hex chars)
     if (storedPassword.length == 64 &&
         RegExp(r'^[a-f0-9]+$').hasMatch(storedPassword)) {
-      // Already compared above
       print('❌ SHA256 password comparison failed');
       return false;
     }
