@@ -17,6 +17,8 @@ import 'dart:async';
 import 'dart:ui';
 import 'package:unit_activity/auth/login.dart';
 import 'package:unit_activity/services/custom_auth_service.dart';
+import 'package:unit_activity/widgets/user_bottom_nav_bar.dart';
+import 'package:unit_activity/widgets/user_profile_button.dart';
 
 class DashboardUser extends StatefulWidget {
   const DashboardUser({super.key});
@@ -725,7 +727,11 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
           ),
         ],
       ),
-      bottomNavigationBar: _buildBottomNavBar(),
+      bottomNavigationBar: UserBottomNavBar(
+        selectedMenu: _selectedMenu,
+        onMenuSelected: _handleMenuSelected,
+        onQRScan: () => openQRScannerDialog(onCodeScanned: _handleQRCodeScanned),
+      ),
     );
   }
 
@@ -1021,93 +1027,9 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
           ? Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                NotificationBellWidget(
-                  onViewAll: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const NotifikasiUserPage(),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(width: 8),
-                PopupMenuButton<String>(
-                  offset: const Offset(0, 45),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  onSelected: (value) {
-                    if (value == 'profile') {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const ProfilePage(),
-                        ),
-                      );
-                    } else if (value == 'logout') {
-                      _showLogoutDialog();
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    PopupMenuItem(
-                      value: 'profile',
-                      child: Row(
-                        children: [
-                          Icon(Icons.person, size: 20, color: Colors.blue[700]),
-                          const SizedBox(width: 12),
-                          const Text('Profile'),
-                        ],
-                      ),
-                    ),
-                    PopupMenuItem(
-                      value: 'logout',
-                      child: Row(
-                        children: [
-                          Icon(Icons.logout, size: 20, color: Colors.red[600]),
-                          const SizedBox(width: 12),
-                          Text(
-                            'Logout',
-                            style: TextStyle(color: Colors.red[600]),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                  child: _pictureUrl != null && _pictureUrl!.isNotEmpty
-                      ? CircleAvatar(
-                          radius: 20,
-                          backgroundImage: NetworkImage(_pictureUrl!),
-                          backgroundColor:
-                              const Color(0xFF4169E1).withOpacity(0.2),
-                        )
-                      : CircleAvatar(
-                          radius: 20,
-                          backgroundColor:
-                              const Color(0xFF4169E1).withOpacity(0.2),
-                          child: _username.isNotEmpty
-                              ? Text(
-                                  _username[0].toUpperCase(),
-                                  style: const TextStyle(
-                                    color: Color(0xFF4169E1),
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
-                                )
-                              : const Icon(
-                                  Icons.person,
-                                  color: Color(0xFF4169E1),
-                                  size: 24,
-                                ),
-                        ),
-                ),
-              ],
-            )
-          : Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                // QR Scanner Button
+                // QR Scanner Button (Now on Mobile too)
                 Container(
+                  margin: const EdgeInsets.only(right: 8),
                   decoration: BoxDecoration(
                     color: Colors.blue[50],
                     borderRadius: BorderRadius.circular(8),
@@ -1120,7 +1042,23 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
                     tooltip: 'Scan QR Code',
                   ),
                 ),
-                const SizedBox(width: 12),
+                NotificationBellWidget(
+                  onViewAll: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const NotifikasiUserPage(),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(width: 8),
+                const UserProfileButton(),
+              ],
+            )
+          : Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
                 NotificationBellWidget(
                   onViewAll: () {
                     Navigator.push(
@@ -1132,197 +1070,13 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
                   },
                 ),
                 const SizedBox(width: 12),
-                PopupMenuButton<String>(
-                  offset: const Offset(0, 45),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  onSelected: (value) {
-                    if (value == 'profile') {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const ProfilePage(),
-                        ),
-                      );
-                    } else if (value == 'logout') {
-                      _showLogoutDialog();
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    PopupMenuItem(
-                      value: 'profile',
-                      child: Row(
-                        children: [
-                          Icon(Icons.person, size: 20, color: Colors.blue[700]),
-                          const SizedBox(width: 12),
-                          const Text('Profile'),
-                        ],
-                      ),
-                    ),
-                    PopupMenuItem(
-                      value: 'logout',
-                      child: Row(
-                        children: [
-                          Icon(Icons.logout, size: 20, color: Colors.red[600]),
-                          const SizedBox(width: 12),
-                          Text(
-                            'Logout',
-                            style: TextStyle(color: Colors.red[600]),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                  child: _pictureUrl != null && _pictureUrl!.isNotEmpty
-                      ? CircleAvatar(
-                          radius: 20,
-                          backgroundImage: NetworkImage(_pictureUrl!),
-                          backgroundColor:
-                              const Color(0xFF4169E1).withOpacity(0.2),
-                        )
-                      : CircleAvatar(
-                          radius: 20,
-                          backgroundColor:
-                              const Color(0xFF4169E1).withOpacity(0.2),
-                          child: _username.isNotEmpty
-                              ? Text(
-                                  _username[0].toUpperCase(),
-                                  style: const TextStyle(
-                                    color: Color(0xFF4169E1),
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
-                                )
-                              : const Icon(
-                                  Icons.person,
-                                  color: Color(0xFF4169E1),
-                                  size: 24,
-                                ),
-                        ),
-                ),
+                const UserProfileButton(),
               ],
             ),
     );
   }
 
-  // ==================== BOTTOM NAVIGATION BAR (MOBILE) ====================
-  Widget _buildBottomNavBar() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Divider(height: 1),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildNavItem(
-                  Icons.home_rounded,
-                  'Dashboard',
-                  _selectedMenu == 'dashboard',
-                  () => _handleMenuSelected('dashboard'),
-                ),
-                _buildNavItem(
-                  Icons.event_rounded,
-                  'Event',
-                  _selectedMenu == 'event',
-                  () => _handleMenuSelected('event'),
-                ),
-                // Center QR Scanner button
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.blue[600],
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.blue.withOpacity(0.4),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () => openQRScannerDialog(
-                        onCodeScanned: _handleQRCodeScanned,
-                      ),
-                      borderRadius: BorderRadius.circular(28),
-                      child: const Center(
-                        child: Icon(
-                          Icons.qr_code_2,
-                          color: Colors.white,
-                          size: 28,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                _buildNavItem(
-                  Icons.school_rounded,
-                  'UKM',
-                  _selectedMenu == 'ukm',
-                  () => _handleMenuSelected('ukm'),
-                ),
-                _buildNavItem(
-                  Icons.history_rounded,
-                  'History',
-                  _selectedMenu == 'history',
-                  () => _handleMenuSelected('history'),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNavItem(
-    IconData icon,
-    String label,
-    bool isSelected,
-    VoidCallback onTap,
-  ) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-            color: isSelected ? Colors.blue[600] : Colors.grey[600],
-            size: 24,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-              color: isSelected ? Colors.blue[600] : Colors.grey[600],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ==================== INFORMASI TERKINI ====================
+// ==================== INFORMASI TERKINI ====================
   Widget _buildInformasiTerkini({required bool isMobile}) {
     final sliderHeight = isMobile ? 220 : 300;
 
@@ -1342,7 +1096,7 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
               color: Colors.white,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1),
+                  color: Colors.black.withOpacity(0.1),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
@@ -1373,7 +1127,7 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
               color: Colors.white,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1),
+                  color: Colors.black.withOpacity(0.1),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),

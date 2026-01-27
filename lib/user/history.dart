@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:unit_activity/widgets/user_sidebar.dart';
+import 'package:unit_activity/widgets/user_bottom_nav_bar.dart';
 import 'package:unit_activity/widgets/qr_scanner_mixin.dart';
 import 'package:unit_activity/widgets/notification_bell_widget.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:unit_activity/user/notifikasi_user.dart';
 import 'package:unit_activity/user/profile.dart';
+import 'package:unit_activity/widgets/user_profile_button.dart';
 import 'package:unit_activity/user/dashboard_user.dart';
 import 'package:unit_activity/user/event.dart';
 import 'package:unit_activity/user/ukm.dart';
@@ -231,7 +233,30 @@ class _HistoryPageState extends State<HistoryPage>
           ),
         ],
       ),
-      bottomNavigationBar: _buildBottomNavBar(),
+      bottomNavigationBar: UserBottomNavBar(
+        selectedMenu: _selectedMenu,
+        onMenuSelected: (menu) {
+          if (menu == 'dashboard') {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const DashboardUser()),
+            );
+          } else if (menu == 'event') {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const UserEventPage()),
+            );
+          } else if (menu == 'ukm') {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const UserUKMPage()),
+            );
+          } else if (menu == 'history') {
+             // Already on history page
+          }
+        },
+        onQRScan: () => openQRScannerDialog(onCodeScanned: _handleQRCodeScanned),
+      ),
     );
   }
 
@@ -452,78 +477,12 @@ class _HistoryPageState extends State<HistoryPage>
                   },
                 ),
                 const SizedBox(width: 8),
-                PopupMenuButton<String>(
-                  offset: const Offset(0, 45),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  onSelected: (value) {
-                    if (value == 'profile') {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const ProfilePage(),
-                        ),
-                      );
-                    } else if (value == 'logout') {
-                      _showLogoutDialog();
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    PopupMenuItem(
-                      value: 'profile',
-                      child: Row(
-                        children: [
-                          Icon(Icons.person, size: 20, color: Colors.blue[700]),
-                          const SizedBox(width: 12),
-                          const Text('Profile'),
-                        ],
-                      ),
-                    ),
-                    PopupMenuItem(
-                      value: 'logout',
-                      child: Row(
-                        children: [
-                          Icon(Icons.logout, size: 20, color: Colors.red[600]),
-                          const SizedBox(width: 12),
-                          Text(
-                            'Logout',
-                            style: TextStyle(color: Colors.red[600]),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                  child: CircleAvatar(
-                    radius: 20,
-                    backgroundColor: const Color(0xFF4169E1).withOpacity(0.2),
-                    child: const Icon(
-                      Icons.person,
-                      color: Color(0xFF4169E1),
-                      size: 24,
-                    ),
-                  ),
-                ),
+                const UserProfileButton(),
               ],
             )
           : Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                // QR Scanner Button
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.blue[50],
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: IconButton(
-                    onPressed: () => openQRScannerDialog(
-                      onCodeScanned: _handleQRCodeScanned,
-                    ),
-                    icon: Icon(Icons.qr_code_scanner, color: Colors.blue[700]),
-                    tooltip: 'Scan QR Code',
-                  ),
-                ),
-                const SizedBox(width: 12),
                 NotificationBellWidget(
                   onViewAll: () {
                     Navigator.push(
@@ -535,58 +494,7 @@ class _HistoryPageState extends State<HistoryPage>
                   },
                 ),
                 const SizedBox(width: 12),
-                PopupMenuButton<String>(
-                  offset: const Offset(0, 45),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  onSelected: (value) {
-                    if (value == 'profile') {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const ProfilePage(),
-                        ),
-                      );
-                    } else if (value == 'logout') {
-                      _showLogoutDialog();
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    PopupMenuItem(
-                      value: 'profile',
-                      child: Row(
-                        children: [
-                          Icon(Icons.person, size: 20, color: Colors.blue[700]),
-                          const SizedBox(width: 12),
-                          const Text('Profile'),
-                        ],
-                      ),
-                    ),
-                    PopupMenuItem(
-                      value: 'logout',
-                      child: Row(
-                        children: [
-                          Icon(Icons.logout, size: 20, color: Colors.red[600]),
-                          const SizedBox(width: 12),
-                          Text(
-                            'Logout',
-                            style: TextStyle(color: Colors.red[600]),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                  child: CircleAvatar(
-                    radius: 20,
-                    backgroundColor: const Color(0xFF4169E1).withOpacity(0.2),
-                    child: const Icon(
-                      Icons.person,
-                      color: Color(0xFF4169E1),
-                      size: 24,
-                    ),
-                  ),
-                ),
+                const UserProfileButton(),
               ],
             ),
     );
