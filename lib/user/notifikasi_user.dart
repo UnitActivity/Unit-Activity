@@ -11,6 +11,8 @@ import 'package:unit_activity/user/event.dart';
 import 'package:unit_activity/user/ukm.dart';
 import 'package:unit_activity/user/history.dart';
 import 'package:unit_activity/user/profile.dart';
+import 'package:unit_activity/widgets/user_bottom_nav_bar.dart';
+import 'package:unit_activity/widgets/user_profile_button.dart';
 
 class NotifikasiUserPage extends StatefulWidget {
   const NotifikasiUserPage({super.key});
@@ -148,7 +150,11 @@ class _NotifikasiUserPageState extends State<NotifikasiUserPage>
           ),
         ],
       ),
-      bottomNavigationBar: _buildBottomNavBar(),
+      bottomNavigationBar: UserBottomNavBar(
+        selectedMenu: _selectedMenu,
+        onMenuSelected: _handleMenuSelected,
+        onQRScan: () => openQRScannerDialog(onCodeScanned: _handleQRCodeScanned),
+      ),
     );
   }
 
@@ -293,53 +299,7 @@ class _NotifikasiUserPageState extends State<NotifikasiUserPage>
             ),
             const SizedBox(width: 12),
           ],
-          PopupMenuButton<String>(
-            offset: const Offset(0, 45),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            onSelected: (value) {
-              if (value == 'profile') {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const ProfilePage()),
-                );
-              } else if (value == 'logout') {
-                _showLogoutDialog();
-              }
-            },
-            itemBuilder: (context) => [
-              PopupMenuItem(
-                value: 'profile',
-                child: Row(
-                  children: [
-                    Icon(Icons.person, size: 20, color: Colors.blue[700]),
-                    const SizedBox(width: 12),
-                    const Text('Profile'),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                value: 'logout',
-                child: Row(
-                  children: [
-                    Icon(Icons.logout, size: 20, color: Colors.red[600]),
-                    const SizedBox(width: 12),
-                    Text('Logout', style: TextStyle(color: Colors.red[600])),
-                  ],
-                ),
-              ),
-            ],
-            child: CircleAvatar(
-              radius: 20,
-              backgroundColor: const Color(0xFF4169E1).withOpacity(0.2),
-              child: const Icon(
-                Icons.person,
-                color: Color(0xFF4169E1),
-                size: 24,
-              ),
-            ),
-          ),
+          const UserProfileButton(),
         ],
       ),
     );
@@ -928,70 +888,5 @@ class _NotifikasiUserPageState extends State<NotifikasiUserPage>
     }
   }
 
-  Widget _buildBottomNavBar() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Divider(height: 1),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildNavItem(
-                  Icons.dashboard_outlined,
-                  'Dashboard',
-                  'dashboard',
-                ),
-                _buildNavItem(Icons.event_outlined, 'Event', 'event'),
-                _buildNavItem(Icons.groups_outlined, 'UKM', 'ukm'),
-                _buildNavItem(Icons.history_outlined, 'Histori', 'histori'),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildNavItem(IconData icon, String label, String menu) {
-    final isSelected = _selectedMenu == menu;
-    return InkWell(
-      onTap: () => _handleMenuSelected(menu),
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              color: isSelected ? const Color(0xFF4169E1) : Colors.grey,
-              size: 24,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                color: isSelected ? const Color(0xFF4169E1) : Colors.grey,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }

@@ -126,14 +126,16 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
 
     // Also load immediately in case user is already signed in
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      debugPrint('📱 PROFILE: PostFrameCallback - checking CustomAuthService...');
+      debugPrint(
+          '📱 PROFILE: PostFrameCallback - checking CustomAuthService...');
       final userId = _authService.currentUserId;
       final userEmail = _authService.currentUser?['email'];
       debugPrint('👤 PROFILE: CustomAuthService user ID: $userId');
       debugPrint('👤 PROFILE: CustomAuthService user email: $userEmail');
 
       if (userId != null && mounted) {
-        debugPrint('✅ PROFILE: User found in CustomAuthService, loading profile...');
+        debugPrint(
+            '✅ PROFILE: User found in CustomAuthService, loading profile...');
         _loadUserProfile(userId: userId, userEmail: userEmail);
         _loadStatistics(userId: userId);
       } else {
@@ -151,7 +153,8 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
       // Use provided userId or get from currentUser
       final user = userId != null ? null : _supabase.auth.currentUser;
       final effectiveUserId = userId ?? user?.id;
-      final effectiveEmail = userEmail ?? user?.email; // Use session email as source of truth
+      final effectiveEmail =
+          userEmail ?? user?.email; // Use session email as source of truth
 
       if (effectiveUserId == null) {
         debugPrint('❌ PROFILE: No user ID available');
@@ -162,7 +165,8 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
       // Check email verification status from Auth user
       final authUser = _supabase.auth.currentUser;
       final isVerified = authUser?.emailConfirmedAt != null;
-      print('✅ PROFILE: Email Verification Status: $isVerified (${authUser?.emailConfirmedAt})');
+      print(
+          '✅ PROFILE: Email Verification Status: $isVerified (${authUser?.emailConfirmedAt})');
 
       _userId = effectiveUserId;
       debugPrint('✅ PROFILE: User ID = $_userId');
@@ -244,18 +248,19 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
 
     try {
       // In Supabase, signing up again or specific resend method can trigger it
-      // For simplicity/compatibility, we can use signInWithOtp or similar if configured, 
+      // For simplicity/compatibility, we can use signInWithOtp or similar if configured,
       // but commonly Resend method is separate. Supabase Flutter SDK might have specific method.
       // Often just updating email to same email triggers it or separate API call.
-      
+
       // Attempt to resend logic (implementation depends on exact Supabase setup)
       // Standard way:
       await _supabase.auth.resend(type: OtpType.signup, email: email);
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Email verifikasi telah dikirim ulang. Cek inbox Anda.'),
+            content:
+                Text('Email verifikasi telah dikirim ulang. Cek inbox Anda.'),
             backgroundColor: Colors.green,
           ),
         );
@@ -266,7 +271,8 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Gagal mengirim ulang: ${e.toString().split('\n')[0]}'),
+            content:
+                Text('Gagal mengirim ulang: ${e.toString().split('\n')[0]}'),
             backgroundColor: Colors.red,
           ),
         );
@@ -293,7 +299,7 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
           .select('id_ukm')
           .eq('id_user', effectiveUserId)
           .or('status.eq.aktif,status.eq.active');
-          
+
       final List<dynamic> ukmList = ukmsResponse as List;
       final joinedUkmIds = ukmList.map((e) => e['id_ukm'].toString()).toList();
       _totalUKMs = joinedUkmIds.length;
@@ -346,7 +352,8 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
       // Check file size (max 10MB)
       final bytes = await image.readAsBytes();
       final fileSizeInMB = bytes.length / (1024 * 1024);
-      debugPrint('📸 PROFILE: File size: ${fileSizeInMB.toStringAsFixed(2)} MB');
+      debugPrint(
+          '📸 PROFILE: File size: ${fileSizeInMB.toStringAsFixed(2)} MB');
 
       if (bytes.length > 10 * 1024 * 1024) {
         if (mounted) {
@@ -374,11 +381,11 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
       }
 
       // Check if running on web or desktop
-      final bool isDesktop = !kIsWeb && 
-          (defaultTargetPlatform == TargetPlatform.windows || 
-           defaultTargetPlatform == TargetPlatform.linux || 
-           defaultTargetPlatform == TargetPlatform.macOS);
-      
+      final bool isDesktop = !kIsWeb &&
+          (defaultTargetPlatform == TargetPlatform.windows ||
+              defaultTargetPlatform == TargetPlatform.linux ||
+              defaultTargetPlatform == TargetPlatform.macOS);
+
       if (!kIsWeb && !isDesktop) {
         // Mobile: Use cropper
         debugPrint('📸 PROFILE: Running on mobile, using cropper');
@@ -445,7 +452,8 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
       final fileBytes = await file.readAsBytes();
 
       debugPrint('📤 PROFILE: File name: $fileName');
-      debugPrint('📤 PROFILE: File size: ${(fileBytes.length / 1024).toStringAsFixed(2)} KB');
+      debugPrint(
+          '📤 PROFILE: File size: ${(fileBytes.length / 1024).toStringAsFixed(2)} KB');
 
       // Upload to Supabase Storage
       await _supabase.storage.from('profile').uploadBinary(
@@ -542,7 +550,8 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
       final fileName = '${userId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
 
       debugPrint('📤 PROFILE WEB: File name: $fileName');
-      debugPrint('📤 PROFILE WEB: File size: ${(bytes.length / 1024).toStringAsFixed(2)} KB');
+      debugPrint(
+          '📤 PROFILE WEB: File size: ${(bytes.length / 1024).toStringAsFixed(2)} KB');
 
       // Upload to Supabase Storage
       await _supabase.storage.from('profile').uploadBinary(
@@ -624,7 +633,6 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
     }
   }
 
-
   Future<void> _saveProfile() async {
     debugPrint('🔘 PROFILE: Save button pressed. userId: $_userId');
 
@@ -646,12 +654,36 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
       // Note: Comparing current controller text with loaded email would be better, but we don't store initial email separately in state.
       // However, the previous logic `_emailController.text.trim() != _emailController.text.trim()` was definitely wrong.
       // We will skip complex verification for now to ensure saving works, or rely on backend triggers.
-      
+
       /*
       if (_isEditingEmail) {
          // Logic to verify email change if needed
       }
       */
+
+      // Handle Password Update
+      if (_isEditingPassword &&
+          _passwordController.text.isNotEmpty &&
+          _passwordController.text != '••••••••••••') {
+        debugPrint('🔐 PROFILE: Updating password...');
+        final newPassword = _passwordController.text;
+
+        if (newPassword.length < 6) {
+          throw Exception('Password minimal 6 karakter');
+        }
+
+        // Update password using CustomAuthService
+        final result = await _authService.changePassword(
+          userId: _userId!,
+          newPassword: newPassword,
+        );
+
+        if (result['success'] != true) {
+          throw Exception(result['error'] ?? 'Gagal mengubah password');
+        }
+
+        debugPrint('✅ PROFILE: Password updated successfully');
+      }
 
       debugPrint('📝 PROFILE: Saving profile to database...');
       debugPrint('   - id_user: $_userId');
@@ -731,7 +763,7 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
         children: [
           SingleChildScrollView(
             padding: const EdgeInsets.only(
-              top: 70,
+              top: 90,
               left: 12,
               right: 12,
               bottom: 80,
@@ -866,14 +898,15 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
             decoration: BoxDecoration(
               color: const Color(0xFFFFF7E6), // Light orange background
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFFFD591)), // Orange border
+              border:
+                  Border.all(color: const Color(0xFFFFD591)), // Orange border
             ),
             child: Column(
               children: [
                 Row(
                   children: [
                     const Icon(
-                      Icons.warning_amber_rounded, 
+                      Icons.warning_amber_rounded,
                       color: Color(0xFFFA8C16), // Darker orange
                       size: 24,
                     ),
@@ -976,8 +1009,8 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
                     backgroundColor: Colors.grey[300],
                     backgroundImage:
                         _pictureUrl != null && _pictureUrl!.isNotEmpty
-                        ? NetworkImage(_pictureUrl!)
-                        : null,
+                            ? NetworkImage(_pictureUrl!)
+                            : null,
                     child: _pictureUrl == null || _pictureUrl!.isEmpty
                         ? Icon(
                             Icons.person,
@@ -1236,7 +1269,6 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
               ),
             ),
             const SizedBox(height: 20),
-
 
             // Username
             _buildProfileField(
@@ -1831,79 +1863,92 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
         children: [
           Text(
             label,
-            style: TextStyle(
-              fontSize: isMobile ? 10 : 11,
+            style: GoogleFonts.inter(
+              fontSize: isMobile ? 12 : 13,
               fontWeight: FontWeight.w600,
-              color: Colors.grey[600],
-              letterSpacing: 0.5,
+              color: Colors.grey[700],
             ),
           ),
           const SizedBox(height: 8),
-          Row(
-            children: [
-              if (icon != null) ...[
-                Icon(icon, size: isMobile ? 16 : 18, color: Colors.grey[500]),
-                const SizedBox(width: 8),
-              ],
-              Expanded(
-                child: isEditing
-                    ? TextField(
-                        controller: controller,
-                        obscureText: obscureText && isEditing,
-                        onChanged: (value) {
-                          // Update UI in real-time when username changes
-                          if (label == 'USERNAME') {
-                            setState(() {});
-                          }
-                        },
-                        decoration: InputDecoration(
-                          isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 8,
+          Container(
+            decoration: BoxDecoration(
+              color: isEditing ? Colors.white : Colors.grey[50],
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isEditing ? const Color(0xFF4169E1) : Colors.grey[300]!,
+                width: isEditing ? 2 : 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                if (icon != null)
+                  Padding(
+                    padding: EdgeInsets.only(left: isMobile ? 12 : 16),
+                    child: Icon(
+                      icon,
+                      size: isMobile ? 18 : 20,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                Expanded(
+                  child: isEditing
+                      ? TextField(
+                          controller: controller,
+                          obscureText: obscureText,
+                          onChanged: (value) {
+                            if (label == 'USERNAME') {
+                              setState(() {});
+                            }
+                          },
+                          decoration: InputDecoration(
+                            border: InputBorder.none,
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal:
+                                  icon != null ? 8 : (isMobile ? 12 : 16),
+                              vertical: isMobile ? 12 : 14,
+                            ),
                           ),
-                          enabledBorder: UnderlineInputBorder(
-                            borderSide: BorderSide(color: Colors.blue[700]!),
+                          style: GoogleFonts.inter(
+                            fontSize: isMobile ? 13 : 14,
+                            color: Colors.grey[800],
                           ),
-                          focusedBorder: UnderlineInputBorder(
-                            borderSide: BorderSide(
-                              color: Colors.blue[700]!,
-                              width: 2,
+                          autofocus: true,
+                        )
+                      : Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: icon != null ? 8 : (isMobile ? 12 : 16),
+                            vertical: isMobile ? 12 : 14,
+                          ),
+                          child: Text(
+                            obscureText ? '••••••••••••' : controller.text,
+                            style: GoogleFonts.inter(
+                              fontSize: isMobile ? 13 : 14,
+                              color: Colors.grey[800],
                             ),
                           ),
                         ),
-                        autofocus: true,
-                      )
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            controller.text,
-                            style: TextStyle(
-                              fontSize: isMobile ? 13 : 16,
-                              color: Colors.black87,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Container(height: 1, color: Colors.grey[300]),
-                        ],
-                      ),
-              ),
-              const SizedBox(width: 8),
-              IconButton(
-                onPressed: onEditPressed,
-                icon: Icon(
-                  Icons.edit_outlined,
-                  size: isMobile ? 16 : 18,
-                  color: Colors.grey[600],
                 ),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-              ),
-            ],
+                Padding(
+                  padding: EdgeInsets.only(right: isMobile ? 8 : 12),
+                  child: IconButton(
+                    onPressed: onEditPressed,
+                    icon: Icon(
+                      isEditing ? Icons.check : Icons.edit_outlined,
+                      size: isMobile ? 18 : 20,
+                      color: isEditing
+                          ? const Color(0xFF4169E1)
+                          : Colors.grey[600],
+                    ),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    tooltip: isEditing ? 'Confirm' : 'Edit',
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 }
-
