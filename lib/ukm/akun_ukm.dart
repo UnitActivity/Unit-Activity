@@ -9,7 +9,7 @@ import 'dart:typed_data';
 
 class AkunUKMPage extends StatefulWidget {
   final VoidCallback? onProfileUpdated;
-  
+
   const AkunUKMPage({super.key, this.onProfileUpdated});
 
   @override
@@ -40,7 +40,7 @@ class _AkunUKMPageState extends State<AkunUKMPage> {
   // Password visibility
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
-  
+
   // Image uploading
   bool _isUploadingImage = false;
 
@@ -151,21 +151,15 @@ class _AkunUKMPageState extends State<AkunUKMPage> {
       final userId = _authService.currentUserId;
 
       // Update admin table (only email, username is read-only)
-      await _supabase
-          .from('admin')
-          .update({
-            'email_admin': _emailController.text,
-          })
-          .eq('id_admin', userId!);
+      await _supabase.from('admin').update({
+        'email_admin': _emailController.text,
+      }).eq('id_admin', userId!);
 
       // Update UKM name if ukmData exists
       if (_ukmData != null) {
-        await _supabase
-            .from('ukm')
-            .update({
-              'nama_ukm': _namaUkmController.text,
-            })
-            .eq('id_ukm', _ukmData!['id_ukm']);
+        await _supabase.from('ukm').update({
+          'nama_ukm': _namaUkmController.text,
+        }).eq('id_ukm', _ukmData!['id_ukm']);
       }
 
       // Update password if changed
@@ -191,7 +185,7 @@ class _AkunUKMPageState extends State<AkunUKMPage> {
         });
 
         await _loadUserProfile();
-        
+
         // Notify parent to refresh dashboard data
         widget.onProfileUpdated?.call();
       }
@@ -249,11 +243,13 @@ class _AkunUKMPageState extends State<AkunUKMPage> {
       // Read image bytes
       final Uint8List bytes = await image.readAsBytes();
       final String ukmId = _ukmData!['id_ukm'];
-      final String fileName = '${ukmId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final String fileName =
+          '${ukmId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
 
       debugPrint('📤 UKM PROFILE: Uploading logo for UKM: $ukmId');
       debugPrint('📤 UKM PROFILE: File name: $fileName');
-      debugPrint('📤 UKM PROFILE: File size: ${(bytes.length / 1024).toStringAsFixed(2)} KB');
+      debugPrint(
+          '📤 UKM PROFILE: File size: ${(bytes.length / 1024).toStringAsFixed(2)} KB');
 
       // Upload to Supabase Storage
       await _supabase.storage.from('ukm-logos').uploadBinary(
@@ -268,7 +264,8 @@ class _AkunUKMPageState extends State<AkunUKMPage> {
       debugPrint('✅ UKM PROFILE: Logo uploaded to storage');
 
       // Get public URL
-      final String logoUrl = _supabase.storage.from('ukm-logos').getPublicUrl(fileName);
+      final String logoUrl =
+          _supabase.storage.from('ukm-logos').getPublicUrl(fileName);
 
       debugPrint('📸 UKM PROFILE: Public URL: $logoUrl');
 
@@ -304,7 +301,7 @@ class _AkunUKMPageState extends State<AkunUKMPage> {
             behavior: SnackBarBehavior.floating,
           ),
         );
-        
+
         // Notify parent to refresh dashboard data
         widget.onProfileUpdated?.call();
       }
@@ -516,8 +513,8 @@ class _AkunUKMPageState extends State<AkunUKMPage> {
                 // UKM Name (displays from controller for live update)
                 if (_ukmData != null)
                   Text(
-                    _namaUkmController.text.isNotEmpty 
-                        ? _namaUkmController.text 
+                    _namaUkmController.text.isNotEmpty
+                        ? _namaUkmController.text
                         : 'UKM',
                     style: GoogleFonts.inter(
                       fontSize: isMobile ? 18 : 20,
@@ -563,15 +560,6 @@ class _AkunUKMPageState extends State<AkunUKMPage> {
                   isMobile: isMobile,
                 ),
                 SizedBox(height: isMobile ? 12 : 16),
-                
-                _buildProfileField(
-                  label: 'Username Admin',
-                  controller: _usernameController,
-                  icon: Icons.person_outline,
-                  enabled: false, // Read-only field
-                  isMobile: isMobile,
-                ),
-                SizedBox(height: isMobile ? 12 : 16),
 
                 _buildProfileField(
                   label: 'Email',
@@ -592,8 +580,7 @@ class _AkunUKMPageState extends State<AkunUKMPage> {
 
                 _buildInfoField(
                   label: 'Status',
-                  value:
-                      _userData!['status']?.toString() == 'aktif' ||
+                  value: _userData!['status']?.toString() == 'aktif' ||
                           _userData!['status']?.toString() == 'active'
                       ? 'Aktif'
                       : 'Tidak Aktif',
@@ -619,7 +606,6 @@ class _AkunUKMPageState extends State<AkunUKMPage> {
                   SizedBox(height: isMobile ? 16 : 20),
                   const Divider(),
                   SizedBox(height: isMobile ? 16 : 20),
-
                   CheckboxListTile(
                     title: Text(
                       'Ubah Password',
@@ -641,7 +627,6 @@ class _AkunUKMPageState extends State<AkunUKMPage> {
                     activeColor: const Color(0xFF4169E1),
                     contentPadding: EdgeInsets.zero,
                   ),
-
                   if (_changePassword) ...[
                     SizedBox(height: isMobile ? 12 : 16),
                     _buildPasswordField(
