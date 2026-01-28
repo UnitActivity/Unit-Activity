@@ -117,6 +117,9 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
 
   // Hapus satu notifikasi dari tampilan visual (tidak hapus dari database)
   void _hideNotification(String notificationId) {
+    // Store messenger reference BEFORE setState to avoid context issues
+    final messenger = ScaffoldMessenger.of(context);
+
     setState(() {
       _hiddenNotifications.add(notificationId);
       _allNotifications.removeWhere(
@@ -124,8 +127,11 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
       );
     });
 
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
+    // Clear ALL snackbars first
+    messenger.clearSnackBars();
+
+    // Show snackbar and store controller
+    final controller = messenger.showSnackBar(
       SnackBar(
         content: const Text('Notifikasi dihapus dari tampilan'),
         backgroundColor: Colors.grey[700],
@@ -135,6 +141,7 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
           label: 'Batalkan',
           textColor: Colors.white,
           onPressed: () {
+            messenger.clearSnackBars();
             setState(() {
               _hiddenNotifications.remove(notificationId);
             });
@@ -143,6 +150,11 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
         ),
       ),
     );
+
+    // Force close after 2 seconds as backup
+    Future.delayed(const Duration(seconds: 2), () {
+      controller.close();
+    });
   }
 
   // Hapus SEMUA notifikasi dari tampilan visual (clear history view)
@@ -154,13 +166,19 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
         .map((n) => n['id_notification_pref'].toString())
         .toList();
 
+    // Store messenger reference BEFORE setState to avoid context issues
+    final messenger = ScaffoldMessenger.of(context);
+
     setState(() {
       _hiddenNotifications.addAll(allIds);
       _allNotifications.clear();
     });
 
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
+    // Clear ALL snackbars first
+    messenger.clearSnackBars();
+
+    // Show snackbar and store controller
+    final controller = messenger.showSnackBar(
       SnackBar(
         content: const Text('Semua notifikasi dihapus dari tampilan'),
         backgroundColor: const Color(0xFF4169E1),
@@ -170,6 +188,7 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
           label: 'Batalkan',
           textColor: Colors.white,
           onPressed: () {
+            messenger.clearSnackBars();
             setState(() {
               _hiddenNotifications.removeAll(allIds);
             });
@@ -178,6 +197,11 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
         ),
       ),
     );
+
+    // Force close after 2 seconds as backup
+    Future.delayed(const Duration(seconds: 2), () {
+      controller.close();
+    });
   }
 
   Future<void> _deleteNotification(String notificationId) async {
@@ -522,8 +546,8 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
                 label == 'Semua'
                     ? Icons.notifications_rounded
                     : label == 'Broadcast'
-                    ? Icons.campaign_rounded
-                    : Icons.person_rounded,
+                        ? Icons.campaign_rounded
+                        : Icons.person_rounded,
                 size: isMobile ? 18 : 22,
                 color: isSelected ? Colors.white : Colors.grey[600],
               ),
@@ -536,9 +560,8 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
                     textAlign: TextAlign.center,
                     style: GoogleFonts.inter(
                       fontSize: isMobile ? 10 : 13,
-                      fontWeight: isSelected
-                          ? FontWeight.w700
-                          : FontWeight.w600,
+                      fontWeight:
+                          isSelected ? FontWeight.w700 : FontWeight.w600,
                       color: isSelected ? Colors.white : Colors.grey[700],
                       letterSpacing: 0,
                       height: 1.2,
@@ -768,9 +791,9 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
                                   notification['target_audience'] == 'all_users'
                                       ? 'SEMUA USER'
                                       : notification['target_audience'] ==
-                                            'all_ukm'
-                                      ? 'SEMUA UKM'
-                                      : 'BROADCAST',
+                                              'all_ukm'
+                                          ? 'SEMUA UKM'
+                                          : 'BROADCAST',
                                   style: GoogleFonts.inter(
                                     fontSize: isMobile ? 10 : 11,
                                     fontWeight: FontWeight.w700,
@@ -971,8 +994,8 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
               _filterStatus == 'Semua'
                   ? 'Notifikasi akan muncul di sini'
                   : _filterStatus == 'Belum Dibaca'
-                  ? 'Semua notifikasi sudah dibaca'
-                  : 'Belum ada notifikasi yang dibaca',
+                      ? 'Semua notifikasi sudah dibaca'
+                      : 'Belum ada notifikasi yang dibaca',
               style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[500]),
               textAlign: TextAlign.center,
             ),
