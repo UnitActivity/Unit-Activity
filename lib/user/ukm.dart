@@ -28,7 +28,7 @@ class _UserUKMPageState extends State<UserUKMPage> with QRScannerMixin {
   final CustomAuthService _authService = CustomAuthService();
   final AttendanceService _attendanceService = AttendanceService();
 
-  String _selectedMenu = 'UKM';
+  String _selectedMenu = 'ukm';
   Map<String, dynamic>? _selectedUKM;
   String _selectedFilter = 'Semua';
   String _searchQuery = '';

@@ -1027,21 +1027,7 @@ class _DashboardUserState extends State<DashboardUser> with QRScannerMixin {
           ? Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                // QR Scanner Button (Now on Mobile too)
-                Container(
-                  margin: const EdgeInsets.only(right: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.blue[50],
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: IconButton(
-                    onPressed: () => openQRScannerDialog(
-                      onCodeScanned: _handleQRCodeScanned,
-                    ),
-                    icon: Icon(Icons.qr_code_scanner, color: Colors.blue[700]),
-                    tooltip: 'Scan QR Code',
-                  ),
-                ),
+
                 NotificationBellWidget(
                   onViewAll: () {
                     Navigator.push(

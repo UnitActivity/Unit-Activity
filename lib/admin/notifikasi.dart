@@ -124,11 +124,13 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
       );
     });
 
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Text('Notifikasi dihapus dari tampilan'),
         backgroundColor: Colors.grey[700],
         behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
         action: SnackBarAction(
           label: 'Batalkan',
           textColor: Colors.white,
@@ -157,12 +159,13 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
       _allNotifications.clear();
     });
 
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Text('Semua notifikasi dihapus dari tampilan'),
         backgroundColor: const Color(0xFF4169E1),
         behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 4),
+        duration: const Duration(seconds: 2),
         action: SnackBarAction(
           label: 'Batalkan',
           textColor: Colors.white,
@@ -184,10 +187,12 @@ class _NotifikasiPageState extends State<NotifikasiPage> {
           .delete()
           .eq('id_notification_pref', notificationId);
 
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Notifikasi berhasil dihapus'),
           backgroundColor: Colors.green,
+          duration: Duration(seconds: 2),
         ),
       );
 

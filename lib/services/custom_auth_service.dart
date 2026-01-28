@@ -275,6 +275,27 @@ class CustomAuthService {
     }
   }
 
+  /// Change password for user
+  Future<Map<String, dynamic>> changePassword({
+    required String userId,
+    required String newPassword,
+  }) async {
+    try {
+      // Hash password using SHA256 for better security than plain text
+      final hashedPassword = _hashPassword(newPassword);
+
+      await _supabase.from('users').update({
+        'password': hashedPassword,
+      }).eq('id_user', userId);
+
+      print('✅ Password updated for user: $userId');
+      return {'success': true, 'message': 'Password berhasil diubah'};
+    } catch (e) {
+      print('❌ Error changing password: $e');
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
   /// Logout
   Future<void> logout() async {
     // Clear user association from FCM token but keep token for anonymous notifications

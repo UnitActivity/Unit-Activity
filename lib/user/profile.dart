@@ -653,6 +653,30 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
       }
       */
 
+      // Handle Password Update
+      if (_isEditingPassword &&
+          _passwordController.text.isNotEmpty &&
+          _passwordController.text != '••••••••••••') {
+        debugPrint('🔐 PROFILE: Updating password...');
+        final newPassword = _passwordController.text;
+
+        if (newPassword.length < 6) {
+          throw Exception('Password minimal 6 karakter');
+        }
+
+        // Update password using CustomAuthService
+        final result = await _authService.changePassword(
+          userId: _userId!,
+          newPassword: newPassword,
+        );
+
+        if (result['success'] != true) {
+          throw Exception(result['error'] ?? 'Gagal mengubah password');
+        }
+        
+        debugPrint('✅ PROFILE: Password updated successfully');
+      }
+
       debugPrint('📝 PROFILE: Saving profile to database...');
       debugPrint('   - id_user: $_userId');
       debugPrint('   - username: ${_usernameController.text.trim()}');
@@ -731,7 +755,7 @@ class _ProfilePageState extends State<ProfilePage> with QRScannerMixin {
         children: [
           SingleChildScrollView(
             padding: const EdgeInsets.only(
-              top: 70,
+              top: 90,
               left: 12,
               right: 12,
               bottom: 80,
