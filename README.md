@@ -44,7 +44,7 @@ Tersedia panduan visual langkah-demi-langkah untuk proses instalasi.
 | --- | --- |
 | 🌍 **Web Version** | [Buka di Browser](https://unit-activity.vercel.app/) |
 | 🪟 **Windows** | [Download .zip](https://github.com/user-attachments/files/24905993/ua_win64.zip) |
-| 🐧 **Linux** | [Download .zip](https://github.com/user-attachments/files/24861587/ua-linux.zip) |
+| 🐧 **Linux** | [Download .zip](https://github.com/user-attachments/files/24915485/ua_linux.zip) |
 | 📱 **Android** | [Download APK](https://drive.google.com/file/d/1Tbd5avcTV5DnW18nAJL_JlnBD3Awp8vk/view?usp=drive_link) |
 
 ---
