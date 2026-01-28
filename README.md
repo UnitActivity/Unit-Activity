@@ -1,4 +1,4 @@
-# 📊 Unit Activity (Management System)
+# 📊 Unit Activity
 
 ## 📌 Overview
 
